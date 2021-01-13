@@ -17,7 +17,7 @@ no warranty is provided, and users accept all liability.
 import VPort from './vport.js'
 
 import { PK, DK, EP, TS, TIMES } from './ts.js'
-import DataNode from './osap-datanode.js'
+import Endpoint from './osap-endpoint.js'
 import MVC from './osap-mvc.js'
 
 let LOGERRPOPS = true
@@ -39,12 +39,12 @@ export default function OSAP() {
   }
   // the node's virtual modules... none of these yet, just 
   this.vModules = []
-  // maybe these are better termed 'endpoints' ? 
-  this.dataNodes = []
-  this.dataNode = () => {
-    let nn = new DataNode(this)
-    this.dataNodes.push(nn)
-    return nn 
+  // just endpoints, bb
+  this.endpoints = []
+  this.endpoint = () => {
+    let ep = new Endpoint(this)
+    this.endpoints.push(ep)
+    return ep 
   }
 
   // ------------------------------------------------------ Utility
@@ -225,16 +225,16 @@ export default function OSAP() {
   this.handleVModule = (pck, ptr) => {
     // virtual module indice, virtual module's data object indice 
     let vmfrom = TS.read('uint16', pck.data, ptr + 1, true)
-    let vmofrom = TS.read('uint16', pck.data, ptr + 3, true)
-    let vmi = TS.read('uint16', pck.data, ptr + 5, true)
-    let vmoi = TS.read('uint16', pck.data, ptr + 7, true)
+    let vmepfrom = TS.read('uint16', pck.data, ptr + 3, true)
+    let vmto = TS.read('uint16', pck.data, ptr + 5, true)
+    let vmepto = TS.read('uint16', pck.data, ptr + 7, true)
     //console.log(`for ${vmi}, ${vmoi}, from ${vmfrom}, ${vmofrom}`)
     // find the module, 
-    if(vmi > 0) {
+    if(vmto > 0) {
       console.error("only top level modules for now")
     } else {
-      if(this.dataNodes[vmoi]){
-        this.dataNodes[vmoi].onData(pck.data.subarray(ptr + 9))
+      if(this.endpoints[vmepto]){
+        this.endpoints[vmepto].onData(pck.data.subarray(ptr + 9))
       } else {
         console.error(`data node at ${vmoi} does not exist here`)
       }

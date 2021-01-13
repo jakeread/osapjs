@@ -1,7 +1,7 @@
 /*
-osap-datanode.js
+osap-endpoint.js
 
-prototype software api for network data objects
+prototype software entry point / network endpoint for osap system
 
 Jake Read at the Center for Bits and Atoms
 (c) Massachusetts Institute of Technology 2020
@@ -14,7 +14,9 @@ no warranty is provided, and users accept all liability.
 
 import { PK, DK, EP, TS, TIMES } from './ts.js'
 
-export default function DataNode(osap){
+export default function Endpoint(osap){
+
+    // these should be promises (?) not unlike the 'module' inputjs class, 
     this.onData = (data) => {
         console.error('onData method not attached')
     }

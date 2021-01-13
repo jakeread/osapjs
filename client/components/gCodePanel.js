@@ -29,254 +29,254 @@ import DT from '../interface/domTools.js'
 import { Button } from '../interface/button.js'
 
 function GCodePanel(xPlace, yPlace) {
-    // home dom
-    let dom = $('.plane').get(0)
+  // home dom
+  let dom = $('.plane').get(0)
 
-    // previously, in, incoming, etc 
-    let domx = xPlace
-    let domwidth = 220
-    let yspace = 10
-    let yplace = yPlace
-    // previous gcodes thru 
-    let previously = $('<textarea>').addClass('inputwrap')
-        .attr('wrap', 'off')
-        .attr('readonly', 'true')
-        .get(0)
-    DT.placeField(previously, domwidth, 200, domx, yplace)
-    // optional manual type/feed 
-    let lineIn = $('<input>').addClass('inputwrap')
-        .get(0)
-    DT.placeField(lineIn, domwidth, 20, domx, yplace += 200 + yspace)
-    // run / stop 
-    let runStop = $('<div>').addClass('button')
-        .text('run')
-        .get(0)
-    DT.placeField(runStop, 44, 14, domx, yplace += 20 + yspace) // 3px padding
-    // one line 
-    let once = $('<div>').addClass('button')
-        .text('once')
-        .get(0)
-    DT.placeField(once, 44, 14, domx + 60, yplace)
-    // load 
-    let load = $('<input type = "file">')
-        .on('change', (evt) => {
-            let reader = new FileReader()
-            reader.onload = () => {
-                let text = reader.result
-                console.log(`loaded file with len ${text.length}`)
-                incoming.value = text
-            }
-            reader.readAsText(evt.target.files[0])
-            console.log('load', evt.target.files[0])
-        })
-        .get(0)
-    DT.placeField(load, 94, 20, domx + 120, yplace)
-    // incoming gcodes 
-    let incoming = $('<textarea>').addClass('inputwrap')
-        .attr('wrap', 'off')
-        .get(0)
-    DT.placeField(incoming, domwidth, 460, domx, yplace += 20 + yspace)
+  // previously, in, incoming, etc 
+  let domx = xPlace
+  let domwidth = 220
+  let yspace = 10
+  let yplace = yPlace
+  // previous gcodes thru 
+  let previously = $('<textarea>').addClass('inputwrap')
+    .attr('wrap', 'off')
+    .attr('readonly', 'true')
+    .get(0)
+  DT.placeField(previously, domwidth, 200, domx, yplace)
+  // optional manual type/feed 
+  let lineIn = $('<input>').addClass('inputwrap')
+    .get(0)
+  DT.placeField(lineIn, domwidth, 20, domx, yplace += 200 + yspace)
+  // run / stop 
+  let runStop = $('<div>').addClass('button')
+    .text('run')
+    .get(0)
+  DT.placeField(runStop, 44, 14, domx, yplace += 20 + yspace) // 3px padding
+  // one line 
+  let once = $('<div>').addClass('button')
+    .text('once')
+    .get(0)
+  DT.placeField(once, 44, 14, domx + 60, yplace)
+  // load 
+  let load = $('<input type = "file">')
+    .on('change', (evt) => {
+      let reader = new FileReader()
+      reader.onload = () => {
+        let text = reader.result
+        console.log(`loaded file with len ${text.length}`)
+        incoming.value = text
+      }
+      reader.readAsText(evt.target.files[0])
+      console.log('load', evt.target.files[0])
+    })
+    .get(0)
+  DT.placeField(load, 94, 20, domx + 120, yplace)
+  // incoming gcodes 
+  let incoming = $('<textarea>').addClass('inputwrap')
+    .attr('wrap', 'off')
+    .get(0)
+  DT.placeField(incoming, domwidth, 460, domx, yplace += 20 + yspace)
 
-    // startup with, 
-    // 'save/pcbmill-stepper.gcode' 114kb
-    // 'save/3dp-zdrive-left.gcode' 15940kb (too big for current setup)
-    initWith('save/clank-lz-bed-face.gcode').then((res) => {
-        incoming.value = res
+  // startup with, 
+  // 'save/pcbmill-stepper.gcode' 114kb
+  // 'save/3dp-zdrive-left.gcode' 15940kb (too big for current setup)
+  initWith('save/clank-lz-bed-face.gcode').then((res) => {
+    incoming.value = res
+  }).catch((err) => {
+    console.error(err)
+  })
+
+  // for this runtime, we need a port to throw moves onto, 
+  // that should have similar properties to old CF things:
+  // ... 
+  // I also need to determine a type for that, maybe I want typescript in here. 
+  // first, I need to think up what kinds of things I'm going to be sending to saturn 
+  // setup has 'axis order', to pick X, Y, Z, etc, that's a string / csv list 
+  // move: {pos: [], rate: <num>} units/s ... that it? saturn is responsible for accel vals etc 
+
+  this.moveOut = new Output()
+  this.spindleOut = new Output()
+  this.awaitMotionEnd = new Output()
+
+  // thru-feed: pull from incoming, await, push to previous 
+  let thruFeed = () => {
+    return new Promise((resolve, reject) => {
+      let eol = incoming.value.indexOf('\n') + 1
+      // if end of file & no new-line terminating, 
+      if (eol == 0) eol = incoming.value.length
+      let line = incoming.value.substring(0, eol)
+      lineIn.value = line
+      // should check if is end of file 
+      if (incoming.value.length == 0) {
+        resolve(true)
+        return
+      }
+      // otherwise parse 
+      parse(line).then(() => {
+        // success, clear and add to prev 
+        lineIn.value = ''
+        previously.value += line
+        previously.scrollTop = previously.scrollHeight
+        resolve(false)
+        //resolve()
+      }).catch((err) => {
+        // failure, backup 
+        console.error('err feeding', line, err)
+        lineIn.value = ''
+        incoming.value = line.concat(incoming.value)
+        reject()
+      })
+      incoming.value = incoming.value.substring(eol)
+    })
+  }
+  // one line increment... ad 'hold' flag when awaiting ? 
+  // could match globally: whenever awaiting processing... set red 
+  $(once).on('click', (evt) => {
+    thruFeed().then(() => {
+      //console.log('thru')
     }).catch((err) => {
-        console.error(err)
+      console.error(err)
     })
-
-    // for this runtime, we need a port to throw moves onto, 
-    // that should have similar properties to old CF things:
-    // ... 
-    // I also need to determine a type for that, maybe I want typescript in here. 
-    // first, I need to think up what kinds of things I'm going to be sending to saturn 
-    // setup has 'axis order', to pick X, Y, Z, etc, that's a string / csv list 
-    // move: {pos: [], rate: <num>} units/s ... that it? saturn is responsible for accel vals etc 
-
-    this.moveOut = new Output()
-    this.spindleOut = new Output()
-    this.awaitMotionEnd = new Output()
-
-    // thru-feed: pull from incoming, await, push to previous 
-    let thruFeed = () => {
-        return new Promise((resolve, reject) => {
-            let eol = incoming.value.indexOf('\n') + 1
-            // if end of file & no new-line terminating, 
-            if (eol == 0) eol = incoming.value.length
-            let line = incoming.value.substring(0, eol)
-            lineIn.value = line
-            // should check if is end of file 
-            if (incoming.value.length == 0) {
-                resolve(true)
-                return
-            }
-            // otherwise parse 
-            parse(line).then(() => {
-                // success, clear and add to prev 
-                lineIn.value = ''
-                previously.value += line
-                previously.scrollTop = previously.scrollHeight
-                resolve(false)
-                //resolve()
-            }).catch((err) => {
-                // failure, backup 
-                console.error('err feeding', line, err)
-                lineIn.value = ''
-                incoming.value = line.concat(incoming.value)
-                reject()
-            })
-            incoming.value = incoming.value.substring(eol)
-        })
+  })
+  // then we need loops... 
+  let running = false
+  $(runStop).on('click', (evt) => {
+    if (running) {
+      running = false
+      $(runStop).text('run')
+    } else {
+      running = true
+      $(runStop).text('stop')
+      run()
     }
-    // one line increment... ad 'hold' flag when awaiting ? 
-    // could match globally: whenever awaiting processing... set red 
-    $(once).on('click', (evt) => {
-        thruFeed().then(() => {
-            //console.log('thru')
-        }).catch((err) => {
-            console.error(err)
-        })
-    })
-    // then we need loops... 
-    let running = false
-    $(runStop).on('click', (evt) => {
-        if (running) {
-            running = false
-            $(runStop).text('run')
+  })
+  // the loop, 
+  let run = async () => {
+    while (running) {
+      try {
+        let complete = await thruFeed()
+        if (complete) {
+          running = false
+          $(runStop).text('run')
         } else {
-            running = true
-            $(runStop).text('stop')
-            run()
+          // inserts a break in js event system, important 
+          await new Promise((resolve, reject) => {
+            setTimeout(resolve, 0)
+          })
         }
-    })
-    // the loop, 
-    let run = async () => {
-        while (running) {
-            try {
-                let complete = await thruFeed()
-                if (complete) {
-                    running = false
-                    $(runStop).text('run')
-                } else {
-                    // inserts a break in js event system, important 
-                    await new Promise((resolve, reject) => {
-                        setTimeout(resolve, 0)
-                    })
-                }
-            } catch (err) {
-                console.error(err)
-                running = false
-            }
-        }
+      } catch (err) {
+        console.error(err)
+        running = false
+      }
     }
+  }
 
-    // the actual gcode parsing, 
-    let axesString = "X, Y, Z" // delivered to Saturn in this order 
-    let axes = pullAxes(axesString)
-    let position = {}
+  // the actual gcode parsing, 
+  let axesString = "X, Y, Z" // delivered to Saturn in this order 
+  let axes = pullAxes(axesString)
+  let position = {}
+  for (let axis of axes) {
+    position[axis] = 0.0
+  }
+  console.log(position)
+  let feedRates = { // in mm/sec: defaults if not set 
+    G00: 10, // rapids
+    G01: 5 // feeds 
+  }
+  let feedMode = 'G01'
+  let posConvert = 1 // to swap mm / inches if G20 or G21 
+  let feedConvert = 1 // to swap units/s and units/inch ... 
+  let parse = async (line) => {
+    if (line.length == 0) {
+      return
+    }
+    let move = false
+    let words = stripComments(line).match(re) || []
+    if (words.length < 1) return
+    // single feed: sets all feedrates 
+    if (words[0].includes('F')) {
+      let feed = parseFloat(words[0].substring(1))
+      if (Number.isNaN(feed)) {
+        console.error('NaN for GCode Parse Feed')
+      } else {
+        for (let f in feedRates) {
+          feedRates[f] = feed
+        }
+      }
+      return
+    } // end lonely F     
+    // do normal pickings 
+    switch (words[0]) {
+      case 'G20':
+        posConvert = 25.4
+        feedConvert = 25.4
+        return
+      case 'G21':
+        posConvert = 1
+        feedConvert = 1
+        return
+      case 'G00':
+        feedMode = 'G00'
+        let g0move = gMove(words)
+        await this.moveOut.send(g0move)
+        return
+      case 'G01':
+        feedMode = 'G01'
+        let g1move = gMove(words)
+        await this.moveOut.send(g1move)
+        return
+      case 'G28':
+        console.warn('HOME ...')
+      case 'G92':
+        console.warn('SET pos to x..y.. etc')
+        break;
+      case 'M03':
+        let rpm = words[1].substring(1)
+        if (Number.isNaN(rpm)) {
+          rpm = 0
+          console.error('bad RPM parse')
+        }
+        await this.awaitMotionEnd.send()
+        await this.spindleOut.send(rpm)
+        break;
+      case 'M05':
+        await this.awaitMotionEnd.send()
+        await this.spindleOut.send(0)
+        break;
+      default:
+        console.warn('ignoring GCode', line)
+        return
+    } // end first word switch     
+  } // end parse 
+
+  let gMove = (words) => {
+    for (let word of words) {
+      for (let axis of axes) {
+        if (word.includes(axis)) {
+          let pos = parseFloat(word.substring(1))
+          if (Number.isNaN(pos)) {
+            console.error('NaN for GCode Parse Position')
+          } else {
+            position[axis] = pos
+          }
+        }
+      } // end check axis in word, 
+      if (word.includes('F')) {
+        let feed = parseFloat(word.substring(1))
+        if (Number.isNaN(feed)) {
+          console.error('NaN for GCode Parse Feed')
+        } else {
+          feedRates[feedMode] = feed
+        }
+      }
+    } // end for-words 
+    // output the move, 
+    let move = { position: {}, rate: feedRates[feedMode] * feedConvert }
     for (let axis of axes) {
-        position[axis] = 0.0
+      move.position[axis] = position[axis] * posConvert
     }
-    console.log(position)
-    let feedRates = { // in mm/sec: defaults if not set 
-        G00: 10, // rapids
-        G01: 5 // feeds 
-    }
-    let feedMode = 'G01'
-    let posConvert = 1 // to swap mm / inches if G20 or G21 
-    let feedConvert = 1 // to swap units/s and units/inch ... 
-    let parse = async (line) => {
-        if (line.length == 0) {
-            return
-        }
-        let move = false
-        let words = stripComments(line).match(re) || []
-        if (words.length < 1) return
-        // single feed: sets all feedrates 
-        if (words[0].includes('F')) {
-            let feed = parseFloat(words[0].substring(1))
-            if (Number.isNaN(feed)) {
-                console.error('NaN for GCode Parse Feed')
-            } else {
-                for (let f in feedRates) {
-                    feedRates[f] = feed
-                }
-            }
-            return
-        } // end lonely F     
-        // do normal pickings 
-        switch (words[0]) {
-            case 'G20':
-                posConvert = 25.4
-                feedConvert = 25.4
-                return
-            case 'G21':
-                posConvert = 1
-                feedConvert = 1
-                return
-            case 'G00':
-                feedMode = 'G00'
-                let g0move = gMove(words)
-                await this.moveOut.send(g0move)
-                return
-            case 'G01':
-                feedMode = 'G01'
-                let g1move = gMove(words)
-                await this.moveOut.send(g1move)
-                return
-            case 'G28':
-                console.warn('HOME ...')
-            case 'G92':
-                console.warn('SET pos to x..y.. etc')
-                break;
-            case 'M03':
-                let rpm = words[1].substring(1)
-                if (Number.isNaN(rpm)) {
-                    rpm = 0
-                    console.error('bad RPM parse')
-                }
-                await this.awaitMotionEnd.send()
-                await this.spindleOut.send(rpm)
-                break;
-            case 'M05':
-                await this.awaitMotionEnd.send()
-                await this.spindleOut.send(0)
-                break;
-            default:
-                console.warn('ignoring GCode', line)
-                return
-        } // end first word switch     
-    } // end parse 
-
-    let gMove = (words) => {
-        for (let word of words) {
-            for (let axis of axes) {
-                if (word.includes(axis)) {
-                    let pos = parseFloat(word.substring(1))
-                    if (Number.isNaN(pos)) {
-                        console.error('NaN for GCode Parse Position')
-                    } else {
-                        position[axis] = pos
-                    }
-                }
-            } // end check axis in word, 
-            if (word.includes('F')) {
-                let feed = parseFloat(word.substring(1))
-                if (Number.isNaN(feed)) {
-                    console.error('NaN for GCode Parse Feed')
-                } else {
-                    feedRates[feedMode] = feed
-                }
-            }
-        } // end for-words 
-        // output the move, 
-        let move = { position: {}, rate: feedRates[feedMode] * feedConvert }
-        for (let axis of axes) {
-            move.position[axis] = position[axis] * posConvert
-        }
-        return move
-    }
+    return move
+  }
 }
 
 // reference:
@@ -304,33 +304,33 @@ export { GCodePanel }
 
 // lifted from https://github.com/cncjs/gcode-parser/blob/master/src/index.js
 const stripComments = (() => {
-    const re1 = new RegExp(/\s*\([^\)]*\)/g); // Remove anything inside the parentheses
-    const re2 = new RegExp(/\s*;.*/g); // Remove anything after a semi-colon to the end of the line, including preceding spaces
-    const re3 = new RegExp(/\s+/g);
-    return (line => line.replace(re1, '').replace(re2, '').replace(re3, ''));
+  const re1 = new RegExp(/\s*\([^\)]*\)/g); // Remove anything inside the parentheses
+  const re2 = new RegExp(/\s*;.*/g); // Remove anything after a semi-colon to the end of the line, including preceding spaces
+  const re3 = new RegExp(/\s+/g);
+  return (line => line.replace(re1, '').replace(re2, '').replace(re3, ''));
 })()
 const re = /(%.*)|({.*)|((?:\$\$)|(?:\$[a-zA-Z0-9#]*))|([a-zA-Z][0-9\+\-\.]+)|(\*[0-9]+)/igm
 
 let pullAxes = (str) => {
-    const whiteSpace = new RegExp(/\s*/g)
-    str = str.replace(whiteSpace, '')
-    return str.split(',')
+  const whiteSpace = new RegExp(/\s*/g)
+  str = str.replace(whiteSpace, '')
+  return str.split(',')
 }
 
 // startup with demo gcode, for testing 
 let initWith = (file) => {
-    return new Promise((resolve, reject) => {
-        if (!file) {
-            reject('no startup file, ok')
-            return
-        }
-        $.ajax({
-            type: "GET",
-            url: file,
-            error: function () { reject(`req for ${file} fails`) },
-            success: function (xhr, statusText) {
-                resolve(xhr)
-            }
-        })
+  return new Promise((resolve, reject) => {
+    if (!file) {
+      reject('no startup file, ok')
+      return
+    }
+    $.ajax({
+      type: "GET",
+      url: file,
+      error: function () { reject(`req for ${file} fails`) },
+      success: function (xhr, statusText) {
+        resolve(xhr)
+      }
     })
+  })
 }
