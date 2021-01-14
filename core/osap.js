@@ -44,7 +44,7 @@ export default function OSAP() {
   this.endpoint = () => {
     let ep = new Endpoint(this)
     this.endpoints.push(ep)
-    return ep 
+    return ep
   }
 
   // ------------------------------------------------------ Utility
@@ -162,61 +162,48 @@ export default function OSAP() {
     return vp
   }
 
-  // route: uint8array, segsize: num, payload uint8array
-  let writeOutgoingPacket = (route, payload, reject) => {
-    // get the outgoing vport, 1st route drop 
-    let vp = getOutgoingVPort(route)
-    // check that we have this vport, etc 
-    if (vp.err) {
-      if (reject) { reject(vp.msg) } else { console.error(`ERR while writing packet, ${vp.msg}`) }
-      return
-    }
-    // check if cts,
-    if (!vp.cts()) {
-      if (reject) { reject("vport not cts") } else { console.error("vport not cts") }
-      return
-    }
-    // write the packet array 
-    // path + length + ptr (1) + dest (1) + segsize (2) + checksum (2)
-    let bytes = new Uint8Array(route.path.length + payload.length + 6)
-    if (bytes.length > route.segsize) {
-      let msg = `pck length ${bytes.length} greater than allowable route segsize ${route.segsize}`
-      if (reject) { reject(msg) } else { console.error(msg) }
-      return
-    }
-    // check if this is a bus transmit, will have to re-write for busf header 
-    if (route.path[0] != PK.PORTF.KEY) throw new Error('need to handle outgoing busses, apparently')
-    // past err-cases, continue
-    bytes.set(route.path.subarray(0, 3), 0) // 1st departure port (1st item in route) before the ptr 
-    bytes[3] = PK.PTR                       // ptr points at the following instruction, for next osap to handle
-    bytes.set(route.path.subarray(3), 4)    // remaining route instructions (if any)
-    bytes[route.path.length + 1] = PK.DEST  // destination at end of route, if ptr points at DEST, payload is at target
-    // allowable ack segment size following destination key,
-    TS.write('uint16', route.segsize, bytes, route.path.length + 2, true)
-    // checksum following aass
-    TS.write('uint16', payload.length, bytes, route.path.length + 4, true)
-    // payload
-    bytes.set(payload, route.path.length + 6) // +6: ptr (1) dest (1) segsize (2) checksum (2)
-    if (LOGTX) { console.log('TX: wrote packet'); TS.logPacket(bytes.data) }
-    // we're done writing 
-    return {
-      vp: vp,
-      bytes: bytes
-    }
-  }
-
   // ------------------------------------------------------ OUTGOING HANDLES
 
-  // sends this datagram on that route, given that outgoing vport exists and is CTS
+  // route: uint8array, segsize: num / datagram: uint8array
   this.send = (route, datagram) => {
     return new Promise((resolve, reject) => {
-      let clear = writeOutgoingPacket(route, datagram, reject)
-      if (!clear) {
-        reject('on osap.send, not clear to transmit')
-      } else {
-        clear.vp.send(clear.bytes)
-        resolve()
+      // get the outgoing vport, 1st route drop 
+      let vp = getOutgoingVPort(route)
+      if (vp.err) { reject(vp.msg); return }
+      // check if cts,
+      if (!vp.cts()) {
+        reject("outgoing vport not cts")
+        return
       }
+      // otherwise we're clear to write the packet... just check datagram size against 
+      // route segsize, and check that this is a port... 
+      // path + length + ptr (1) + dest (1) + segsize (2) + checksum (2)
+      let bytes = new Uint8Array(route.path.length + datagram.length + 6)
+      if (bytes.length > route.segsize) {
+        reject(`pck length ${bytes.length} greater than allowable route segsize ${route.segsize}`)
+        return
+      }
+      // check if this is a bus transmit, will have to re-write for busf header 
+      if (route.path[0] != PK.PORTF.KEY) {
+        reject(`need to handle outgoing busses, apparently`)
+        return
+      }
+      // past err-cases, continue
+      bytes.set(route.path.subarray(0, 3), 0) // 1st departure port (1st item in route) before the ptr 
+      bytes[3] = PK.PTR                       // ptr points at the following instruction, for next osap to handle
+      bytes.set(route.path.subarray(3), 4)    // remaining route instructions (if any)
+      bytes[route.path.length + 1] = PK.DEST  // destination at end of route, if ptr points at DEST, datagram is at target
+      // allowable ack segment size following destination key,
+      TS.write('uint16', route.segsize, bytes, route.path.length + 2, true)
+      // checksum following aass
+      TS.write('uint16', datagram.length, bytes, route.path.length + 4, true)
+      // datagram
+      bytes.set(datagram, route.path.length + 6) // +6: ptr (1) dest (1) segsize (2) checksum (2)
+      if (LOGTX) { console.log('TX: wrote packet'); TS.logPacket(bytes.data) }
+      // we're done writing, send it 
+      TS.logPacket(bytes)
+      vp.send(bytes)
+      resolve()
     })
   }
 
@@ -230,15 +217,35 @@ export default function OSAP() {
     let vmepto = TS.read('uint16', pck.data, ptr + 7, true)
     //console.log(`for ${vmi}, ${vmoi}, from ${vmfrom}, ${vmofrom}`)
     // find the module, 
-    if(vmto > 0) {
+    if (vmto > 0) {
       console.error("only top level modules for now")
     } else {
-      if(this.endpoints[vmepto]){
+      if (this.endpoints[vmepto]) {
         this.endpoints[vmepto].onData(pck.data.subarray(ptr + 9))
       } else {
         console.error(`data node at ${vmoi} does not exist here`)
       }
     }
+    pck.vp.clear()
+  }
+
+  // pck[ptr] == VMODULE_YACK or VMODULE_NACK 
+  this.handleVModuleAck = (pck, ptr) => {
+    let yn = pck[ptr] 
+    // find it, etc,
+    let vmfrom = TS.read('uint16', pck.data, ptr + 1, true)
+    let vmepfrom = TS.read('uint16', pck.data, ptr + 3, true)
+    let vmto = TS.read('uint16', pck.data, ptr + 5, true)
+    let vmepto = TS.read('uint16', pck.data, ptr + 7, true)
+    // holy shit, I'm going to have to route match to these things, aren't I? 
+    console.error("ACK")
+    // I think, for the route match the move is:
+    // first, lookup the reciprocal endpoint, 
+    // recall that we (will) store reversed routes in each endpoint, 
+    // now we can find, in the reciprocal endpoint (if it exists) 
+    // all routes to which this endpoint would be the target (just flipping from / to)
+    // for multiples of those, proceed to match on the route itself 
+    // clear the pck,  
     pck.vp.clear()
   }
 
@@ -278,6 +285,10 @@ export default function OSAP() {
         break;
       case DK.VMODULE:
         this.handleVModule(pck, ptr)
+        break;
+      case DK.VMODULE_NACK:
+      case DK.VMODULE_YACK:
+        this.handleVModuleAck(pck, ptr)
         break;
       case DK.APP:
         //console.warn("APP")

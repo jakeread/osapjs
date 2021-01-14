@@ -16,6 +16,7 @@ no warranty is provided, and users accept all liability.
 
 let TIMES = {
   staleTimeout: 600,
+  endpointTransmitTimeout: 1000,
   txKeepAliveInterval: 300,
 }
 
@@ -62,6 +63,8 @@ let DK = {
   LLBYTES: 121,
   LLERR: 44,  // could show up in a real pck, or at the pck level 
   VMODULE: 202,
+  VMODULE_NACK: 203,
+  VMODULE_YACK: 204,
   VMOBJ: 212,
 }
 
@@ -316,6 +319,10 @@ TS.route = () => {
       return Uint8Array.from(path)
     }
   }
+}
+
+TS.endpoint = (vmodule, endpoint) => {
+  return Uint8Array.from([DK.VMODULE, vmodule & 255, (vmodule >> 8) & 255, endpoint & 255, (endpoint >> 8) & 255])
 }
 
 export {
