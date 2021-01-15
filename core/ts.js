@@ -16,7 +16,7 @@ no warranty is provided, and users accept all liability.
 
 let TIMES = {
   staleTimeout: 600,
-  endpointTransmitTimeout: 1000,
+  endpointTransmitTimeout: 500,
   txKeepAliveInterval: 300,
 }
 

@@ -43,6 +43,7 @@ export default function OSAP() {
   this.endpoints = []
   this.endpoint = () => {
     let ep = new Endpoint(this)
+    ep.indice = this.endpoints.length // set the indice, 
     this.endpoints.push(ep)
     return ep
   }
@@ -201,6 +202,7 @@ export default function OSAP() {
       bytes.set(datagram, route.path.length + 6) // +6: ptr (1) dest (1) segsize (2) checksum (2)
       if (LOGTX) { console.log('TX: wrote packet'); TS.logPacket(bytes.data) }
       // we're done writing, send it 
+      console.warn('tx')
       TS.logPacket(bytes)
       vp.send(bytes)
       resolve()
