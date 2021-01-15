@@ -53,9 +53,39 @@ export default function Endpoint(osap) {
     header[1] = 0; header[2] = 0; // from vmodule 0 (all zero atm)
     header[3] = this.indice & 255; header[4] = (this.indice >> 8) & 255; // from endpoint us
     header.set(endpoint.subarray(1, 5), 5) // fill vmodule-to / endpoint-to from route info 
+    // we're also going to route-match these things, so we want to flip that route around,
+    // instead of calculating it every time we try to match 
+    // *however* the final term in the packet's route at arrival *is not yet* the arrival port, 
+    // it's the last departure: so we want to skip writing the first term here, 
+    let routematch = new Uint8Array(path.length - 3)  // len - arrival port, 
+    let rp = 3  // start after 1st instruction, 
+    let wp = routematch.length
+    for (let i = 0; i < 16; i++) {
+      if (rp >= path.length) break;
+      switch (path[rp]) {
+        case PK.PORTF.KEY:
+          wp -= PK.PORTF.INC
+          for (let j = 0; j < PK.PORTF.INC; j++) {
+            routematch[wp + j] = path[rp++];
+          }
+          break;
+        case PK.BUSF.KEY:
+        case PK.BUSB.KEY:
+          wp -= PK.BUSF.INC
+          for (let j = 0; j < PK.BUSF.INC; j++) {
+            routematch[wp + j] = path[rp++];
+          }
+          break;
+        default:
+          TS.logPacket(path)
+          throw new Error("oddity reversing path for matchup during route add")
+      }
+    }
     // we store this... somewhat bloated object 
     this.routes.push({
+      parent: this,       // reacharound 
       path: path,         // [pk.portf / b0 / b1 / pk.busf / etc]
+      routematch: routematch, // expected path reversal, 
       endpoint: endpoint, // [dk.vmodule / module[2] / endpoint[2]]
       header: header,     // header, written above 
       datagram: null,     // datagram, written at send 
@@ -63,9 +93,12 @@ export default function Endpoint(osap) {
       status: null,       // send state  
       timer: null,        // send state 
       resetState: function () {
-        this.timer = null 
-        this.send = null 
-        this.status = null 
+        if (this.timer) {
+          clearTimeout(this.timer)
+        }
+        this.timer = null
+        this.send = null
+        this.status = null
       }
     })
   }
@@ -73,34 +106,46 @@ export default function Endpoint(osap) {
   // ok, ok, awkward, but here's some handles 
   let writeResolve = null
   let writeReject = null
+
+  this.clearStates = () => {
+    writeResolve = null
+    writeReject = null
+    for (let rt of this.routes) {
+      rt.resetState()
+    }
+  }
+
   this.checkStates = () => {
+    // TODO: we could simply do resCount ++ every time this is called, 
+    // since we only call it when one has changed, 
+    // although, would have to modify how the retryTx works, 
     // so, we return the fn call when everything has resolved, 
     let resCount = 0
+    let retryCount = 0
     // first, check if everything has some resolution:
     for (let rt of this.routes) {
-      if (rt.status != "awaiting rx" && rt.status != "awaiting tx") {
+      if (rt.status != "awaiting rx" && rt.status != "awaiting tx" && rt.status != "retry tx") {
         resCount++
+      }
+      if (rt.status == "retry tx") {
+        rt.send()
       }
     }
     // is resolved?
-    if(resCount >= this.routes.length){
-      let ok = true 
+    if (resCount >= this.routes.length) {
+      let ok = true
       let res = []
-      for(let rt of this.routes){
+      for (let rt of this.routes) {
         // add the state, 
         res.push(rt.status)
-        clearTimeout(rt.timer)
-        rt.resetState()
-        if(rt.status != "yacked") ok = false 
+        if (rt.status != "yacked") ok = false
       }
-      if(ok && writeResolve){
+      if (ok && writeResolve) {
         writeResolve(res)
-        writeResolve = null 
-        writeReject = null 
-      } else if (!ok && writeReject){
+        this.clearStates()
+      } else if (!ok && writeReject) {
         writeReject(res)
-        writeResolve = null 
-        writeReject = null 
+        this.clearStates()
       } else {
         console.warn('attempted resolution w/ no write resolve / write reject')
       }
@@ -126,13 +171,13 @@ export default function Endpoint(osap) {
     return new Promise((resolve, reject) => {
       // if one of these is active, this won't be null - and the software is trying 
       // to write faster than connected network endpoints can keep up, 
-      if(writeReject){
+      if (writeReject) {
         reject('previous write call has not resolved')
-        return  
+        return
       }
       // set callbacks...
-      writeResolve = resolve 
-      writeReject = reject 
+      writeResolve = resolve
+      writeReject = reject
       for (let rt of this.routes) {
         // reset the route state, 
         rt.resetState()

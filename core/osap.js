@@ -202,8 +202,6 @@ export default function OSAP() {
       bytes.set(datagram, route.path.length + 6) // +6: ptr (1) dest (1) segsize (2) checksum (2)
       if (LOGTX) { console.log('TX: wrote packet'); TS.logPacket(bytes.data) }
       // we're done writing, send it 
-      console.warn('tx')
-      TS.logPacket(bytes)
       vp.send(bytes)
       resolve()
     })
@@ -233,14 +231,36 @@ export default function OSAP() {
 
   // pck[ptr] == VMODULE_YACK or VMODULE_NACK 
   this.handleVModuleAck = (pck, ptr) => {
-    let yn = pck[ptr] 
-    // find it, etc,
+    let yn = pck.data[ptr]
+    // this is 'ack from' and 'ack to' ... so, the latter were the original transmitter
     let vmfrom = TS.read('uint16', pck.data, ptr + 1, true)
     let vmepfrom = TS.read('uint16', pck.data, ptr + 3, true)
     let vmto = TS.read('uint16', pck.data, ptr + 5, true)
     let vmepto = TS.read('uint16', pck.data, ptr + 7, true)
     // holy shit, I'm going to have to route match to these things, aren't I? 
-    console.error("ACK")
+    // here's the endpoint from whence it originated, 
+    let ep = this.endpoints[vmepto]
+    // here's route from this pck, 
+    let route = pck.data.subarray(0, ptr - 6)
+    routeloop: for(let rt of ep.routes){
+      // check lengths are equal, 
+      if(rt.routematch.length != route.length - 3) continue;
+      // check per-byte in each route, 
+      for(let i = 0; i < rt.routematch.length; i ++){
+        if(rt.routematch[i] != route[i]) continue routeloop;
+      }
+      // check that arrival port is the same as departure port 
+      // BUSSES: won't work here either, if 1st js port is bus 
+      // also - I am cheating by just checking the LSByte
+      if(route[2] != pck.vp.ownIndice()) continue;
+      if(yn == DK.VMODULE_YACK){
+        rt.status = "yacked"
+      } else {
+        rt.status = "nacked"
+      }
+      rt.parent.checkStates()
+      break routeloop;
+    }
     // I think, for the route match the move is:
     // first, lookup the reciprocal endpoint, 
     // recall that we (will) store reversed routes in each endpoint, 

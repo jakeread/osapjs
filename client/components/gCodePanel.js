@@ -178,7 +178,6 @@ function GCodePanel(xPlace, yPlace) {
   for (let axis of axes) {
     position[axis] = 0.0
   }
-  console.log(position)
   let feedRates = { // in mm/sec: defaults if not set 
     G00: 10, // rapids
     G01: 5 // feeds 
