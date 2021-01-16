@@ -16,7 +16,8 @@ no warranty is provided, and users accept all liability.
 
 let TIMES = {
   staleTimeout: 600,
-  endpointTransmitTimeout: 500,
+  endpointTransmitTimeout: 1000,
+  endpointQueryTimeout: 1000,
   txKeepAliveInterval: 300,
 }
 
@@ -62,10 +63,12 @@ let DK = {
   WRES: 114, // write response,
   LLBYTES: 121,
   LLERR: 44,  // could show up in a real pck, or at the pck level 
-  VMODULE: 202,
-  VMODULE_NACK: 203,
-  VMODULE_YACK: 204,
-  VMOBJ: 212,
+  VMODULE: 202,       // data routed to a module / endpoint 
+  VMODULE_NACK: 203,  // bad ack 
+  VMODULE_YACK: 204,  // good ack 
+  VMODULE_QUERY: 212, // vmodule / endpoint query 
+  VMODULE_QUERY_ERR: 213, // trouble 
+  VMODULE_QUERY_RES: 214, // data 
 }
 
 // application keys 

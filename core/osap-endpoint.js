@@ -16,7 +16,7 @@ import { PK, DK, EP, TS, TIMES } from './ts.js'
 
 export default function Endpoint(osap) {
   // has local data copy 
-  this.data = null
+  this.data = new Uint8Array(0)
   // has outgoing routes, 
   this.routes = []
   // has a position (osap will set)
@@ -141,14 +141,25 @@ export default function Endpoint(osap) {
         if (rt.status != "yacked") ok = false
       }
       if (ok && writeResolve) {
+        console.warn('ack resolve')
         writeResolve(res)
         this.clearStates()
       } else if (!ok && writeReject) {
+        console.warn(`reject ${res[0]}`)
         writeReject(res)
         this.clearStates()
       } else {
-        console.warn('attempted resolution w/ no write resolve / write reject')
+        console.warn('res w/o active promise')
       }
+    }
+  }
+
+  this.cts = () => {
+    // is it OK to write new data?
+    if(writeResolve || writeReject){
+      return false 
+    } else {
+      return true 
     }
   }
 
@@ -178,6 +189,10 @@ export default function Endpoint(osap) {
       // set callbacks...
       writeResolve = resolve
       writeReject = reject
+      if(this.routes.length == 0){
+        resolve()
+        return
+      }
       for (let rt of this.routes) {
         // reset the route state, 
         rt.resetState()

@@ -18,6 +18,7 @@ import VPort from './vport.js'
 
 import { PK, DK, EP, TS, TIMES } from './ts.js'
 import Endpoint from './osap-endpoint.js'
+import Query from './osap-query.js'
 import MVC from './osap-mvc.js'
 
 let LOGERRPOPS = true
@@ -39,6 +40,7 @@ export default function OSAP() {
   }
   // the node's virtual modules... none of these yet, just 
   this.vModules = []
+
   // just endpoints, bb
   this.endpoints = []
   this.endpoint = () => {
@@ -46,6 +48,21 @@ export default function OSAP() {
     ep.indice = this.endpoints.length // set the indice, 
     this.endpoints.push(ep)
     return ep
+  }
+
+  // software handles for query'in 
+  this.queries = []
+  this.query = (path, endpoint, segsize) => {
+    let que = new Query(this, path, endpoint, segsize)
+    que.indice = this.queries.length 
+    this.queries.push(que)
+    return que 
+  }
+  let lastQID = 2002
+  this.getNewQueryID = () => {
+    lastQID ++
+    if(lastQID > 65535) lastQID = 0
+    return lastQID
   }
 
   // ------------------------------------------------------ Utility
@@ -271,6 +288,62 @@ export default function OSAP() {
     pck.vp.clear()
   }
 
+  // pck[ptr] == DK.VMODULE_QUERY
+  // pck[ptr ...] = qid[2] vmodule[2] endpoint[2]
+  this.handleVModuleQuery = (pck, ptr) => {
+    let qid = TS.read('uint16', pck.data, ptr + 1, true)
+    let vm = TS.read('uint16', pck.data, ptr + 3, true)
+    let ep = TS.read('uint16', pck.data, ptr + 5, true)
+    if(vm != 0 && !this.endpoints[ep]){
+      // reply non existent, or let it timeout for now... 
+      // TODO 
+      // also not guarding for replies larger than segsize here 
+      pck.vp.clear()
+    } else {
+      if(!pck.vp.cts()){
+        // could do a holding pattern to make sure this gets out
+        // later, for now will just drop it... 
+        console.warn('dropping query on reply not cts')
+        pck.vp.clear()
+      } else {
+        // reply, 
+        let endpoint = this.endpoints[ep]
+        let reply = new Uint8Array(endpoint.data.length + 7)
+        // copy in the transmitted header, 
+        reply.set(pck.data.subarray(ptr, ptr + 7))
+        // but change the 1st byte: a reply, not request 
+        reply[0] = DK.VMODULE_QUERY_RES
+        // and add the data 
+        reply.set(endpoint.data, 7)
+        // route back,
+        let route = this.reverseRoute(pck)
+        // tx, 
+        this.send(route, reply).then(() => {
+          // all good, 
+        }).catch((err) => {
+          console.error(err)
+        })
+        // rm 
+        pck.vp.clear()
+      }
+    }
+  }
+
+  this.handleVModuleQueryReturn = (pck, ptr) => {
+    // not transmitting errors yet, so 
+    let qid = TS.read('uint16', pck.data, ptr + 1, true)
+    let query = this.queries.find((el) => {
+      return el.id == qid 
+    })
+    if(query && query.callback){
+      query.callback(pck.data.slice(ptr + 7))
+    } else {
+      console.error('handled query reply w/ no callback')
+    }
+    // clear it
+    pck.vp.clear()
+  }
+
   // write mvc codes to object
   MVC(this, TIMEOUT, LOGRX, LOGTX)
 
@@ -311,6 +384,13 @@ export default function OSAP() {
       case DK.VMODULE_NACK:
       case DK.VMODULE_YACK:
         this.handleVModuleAck(pck, ptr)
+        break;
+      case DK.VMODULE_QUERY:
+        this.handleVModuleQuery(pck, ptr)
+        break;
+      case DK.VMODULE_QUERY_ERR:
+      case DK.VMODULE_QUERY_RES:
+        this.handleVModuleQueryReturn(pck, ptr)
         break;
       case DK.APP:
         //console.warn("APP")
