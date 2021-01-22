@@ -38,7 +38,11 @@ function Output() {
           await ip.receive(this.data)
         } catch (err) {
           // so, this is exit point for the error: we just log it, 
-          // and carry on. 
+          // and carry on... properly, this should halt the upstream output 
+          // I need to recall how I did this for real endpoints,
+          // where i.e. all connections are triggered at once, 
+          // and resolutions are collected, *then* one callback (res or rej)
+          // goes to the original fn 
           console.error(err)
         }
       }

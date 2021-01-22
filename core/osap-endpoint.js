@@ -21,6 +21,11 @@ export default function Endpoint(osap) {
   this.routes = []
   // has a position (osap will set)
   this.indice = 0
+  // has a write timeout length,
+  this.timeoutLength = TIMES.endpointTransmitTimeout
+  this.setTimeoutLength = (millis) => {
+    this.timeoutLength = millis 
+  }
 
   // ------------------------ OSAP pushes data in here, 
   this.recieve = (datagram) => {
@@ -141,11 +146,11 @@ export default function Endpoint(osap) {
         if (rt.status != "yacked") ok = false
       }
       if (ok && writeResolve) {
-        console.warn('ack resolve')
+        //console.warn('ack resolve')
         writeResolve(res)
         this.clearStates()
       } else if (!ok && writeReject) {
-        console.warn(`reject ${res[0]}`)
+        //console.warn(`reject ${res[0]}`)
         writeReject(res)
         this.clearStates()
       } else {
@@ -220,7 +225,7 @@ export default function Endpoint(osap) {
         rt.timer = setTimeout(() => {
           rt.status = "timeout"
           this.checkStates()
-        }, TIMES.endpointTransmitTimeout)
+        }, this.timeoutLength)
         // send it, 
         rt.send()
       }

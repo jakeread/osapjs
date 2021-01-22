@@ -80,6 +80,8 @@ function GCodePanel(xPlace, yPlace) {
   // startup with, 
   // 'save/pcbmill-stepper.gcode' 114kb
   // 'save/3dp-zdrive-left.gcode' 15940kb (too big for current setup)
+  // 'save/clank-lz-bed-face.gcode'
+  // 'save/3dp-10mmbox.gcode
   initWith('save/clank-lz-bed-face.gcode').then((res) => {
     incoming.value = res
   }).catch((err) => {
@@ -97,6 +99,10 @@ function GCodePanel(xPlace, yPlace) {
   this.moveOut = new Output()
   this.spindleOut = new Output()
   this.awaitMotionEnd = new Output()
+  this.extruderTempOut = new Output()
+  this.awaitExtruderTemp = new Output()
+  this.bedTempOut = new Output()
+  this.awaitBedTemp = new Output() 
 
   // thru-feed: pull from incoming, await, push to previous 
   let thruFeed = () => {
@@ -172,15 +178,15 @@ function GCodePanel(xPlace, yPlace) {
   }
 
   // the actual gcode parsing, 
-  let axesString = "X, Y, Z" // delivered to Saturn in this order 
+  let axesString = "X, Y, Z, E" 
   let axes = pullAxes(axesString)
   let position = {}
   for (let axis of axes) {
     position[axis] = 0.0
   }
-  let feedRates = { // in mm/sec: defaults if not set 
-    G00: 10, // rapids
-    G01: 5 // feeds 
+  let feedRates = { // in mm/min: defaults if not set 
+    G00: 600, // rapids
+    G01: 60 // feeds 
   }
   let feedMode = 'G01'
   let posConvert = 1 // to swap mm / inches if G20 or G21 
@@ -215,19 +221,29 @@ function GCodePanel(xPlace, yPlace) {
         feedConvert = 1
         return
       case 'G00':
+      case 'G0':
         feedMode = 'G00'
         let g0move = gMove(words)
         await this.moveOut.send(g0move)
         return
       case 'G01':
+      case 'G1':
         feedMode = 'G01'
         let g1move = gMove(words)
         await this.moveOut.send(g1move)
         return
       case 'G28':
-        console.warn('HOME ...')
+        console.warn('ignoring G28 home')
+        break;
+      case 'G80':
+        console.warn('ignoring G80 mesh bed levelling')
+        break;
+      case 'G90':
+        // 'use absolute coordinates'
+        console.warn('ignoring G90')
+        break;
       case 'G92':
-        console.warn('SET pos to x..y.. etc')
+        console.warn('ignoring G92 set pos')
         break;
       case 'M03':
         let rpm = words[1].substring(1)
@@ -242,6 +258,48 @@ function GCodePanel(xPlace, yPlace) {
         await this.awaitMotionEnd.send()
         await this.spindleOut.send(0)
         break;
+      case 'M83':
+        // use relative extruder mode,
+        console.warn('ignoring M83 use rel extrude')
+        break;
+      case 'M104': {
+        // set extruder temp,
+        let temp = parseFloat(words[1].substring(1))
+        await this.extruderTempOut.send(temp)
+        break;
+      }
+      case 'M140': {
+        // set bed temp,
+        let temp = parseFloat(words[1].substring(1))
+        await this.bedTempOut.send(temp)
+        break;
+      }
+      case 'M109':{
+        // await extruder temp, 
+        let temp = parseFloat(words[1].substring(1))
+        await this.awaitExtruderTemp.send(temp)
+        break;
+      }
+      case 'M190':{
+        // await bed temp 
+        let temp = parseFloat(words[1].substring(1))
+        await this.awaitBedTemp.send(temp)
+        break;
+      }
+      case 'M201':
+      // these codes set max accelerations... 
+      case 'M203':
+      // these set maximum rates 
+      case 'M204':
+      // set printing (P arg) and traversing (T arg) accelerations
+      case 'M205':
+      // set jerk rates 
+      case 'M107':
+      // sets the print fan off, 
+      case 'M221':
+      // sets extruder override percentage 
+      case 'M900':
+      // sets extrusion pressure lookahead parameters... 
       default:
         console.warn('ignoring GCode', line)
         return
