@@ -27,6 +27,14 @@ function AutoPlot(xPlace, yPlace, xSize, ySize) {
     // the data 
     var datas = [[0, 0]]
     var numToHold = 100
+    this.setHoldCount = (count) => {
+        numToHold = count
+    }
+
+    let yDomain = null
+    this.setYDomain = (min, max) => {
+        yDomain = [min, max]
+    }
 
     // our vars,
     var margin = {
@@ -56,11 +64,15 @@ function AutoPlot(xPlace, yPlace, xSize, ySize) {
         }), d3.max(datas, function (d) {
             return d[0];
         })])
-        y.domain([d3.min(datas, function (d) {
-            return d[1]
-        }), d3.max(datas, function (d) {
-            return d[1];
-        })])
+        if (yDomain) {
+            y.domain(yDomain)
+        } else {
+            y.domain([d3.min(datas, function (d) {
+                return d[1]
+            }), d3.max(datas, function (d) {
+                return d[1];
+            })])
+        }
         if (thesvg) {
             d3.select(`#${uid}`).selectAll("*").remove()
         }
