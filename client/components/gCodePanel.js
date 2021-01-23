@@ -81,8 +81,8 @@ function GCodePanel(xPlace, yPlace) {
   // 'save/pcbmill-stepper.gcode' 114kb
   // 'save/3dp-zdrive-left.gcode' 15940kb (too big for current setup)
   // 'save/clank-lz-bed-face.gcode'
-  // 'save/3dp-10mmbox.gcode
-  initWith('save/clank-lz-bed-face.gcode').then((res) => {
+  // 'save/3dp-10mmbox.gcode'
+  initWith('save/3dp-10mmbox.gcode').then((res) => {
     incoming.value = res
   }).catch((err) => {
     console.error(err)
@@ -307,6 +307,18 @@ function GCodePanel(xPlace, yPlace) {
   } // end parse 
 
   let gMove = (words) => {
+    // to check for E-alone moves, 
+    let includesE, includesX, includesY, includesZ = false;
+    for(let word of words){
+      if(word.includes('E')) includesE = true;
+      if(word.includes('X')) includesX = true;
+      if(word.includes('Y')) includesY = true;
+      if(word.includes('Z')) includesZ = true;
+    }
+    if(includesE && (!includesX && !includesY && !includesZ)){
+      // turns out, this works OK... 
+      console.warn('E-Only Move')
+    }
     for (let word of words) {
       for (let axis of axes) {
         if (word.includes(axis)) {
