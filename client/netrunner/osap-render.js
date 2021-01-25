@@ -100,7 +100,12 @@ export default function NetRunner(osap, xPlace, yPlace, poll) {
     nel.style.height = `${parseInt(node.height)}px`
     nel.style.left = `${parseInt(node.pos.x)}px`
     nel.style.top = `${parseInt(node.pos.y)}px`
-    $(nel).append($(`<div>${node.name}</div>`).addClass('nodename'))
+    // quick hack, 
+    if(node.vPorts[0].name == "ucbus drop"){
+      $(nel).append($(`<div>${node.routeTo.path[9]} ${node.name}</div>`).addClass('nodenamebus'))
+    } else {
+      $(nel).append($(`<div>${node.name}</div>`).addClass('nodename'))
+    }
     if (node.el) $(node.el).remove()
     node.el = nel
     $(plane).append(node.el)

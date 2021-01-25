@@ -25,7 +25,7 @@ function AutoPlot(xPlace, yPlace, xSize, ySize) {
     DT.placeField(chart, xSize, ySize, xPlace, yPlace)
 
     // the data 
-    var datas = [[0, 0]]
+    var datas = []
     var numToHold = 100
     this.setHoldCount = (count) => {
         numToHold = count

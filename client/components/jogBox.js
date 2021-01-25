@@ -56,6 +56,15 @@ function JogBox(xPlace, yPlace, vm) {
     let jogSmallInput = TextInput(xPlace + 120, yPlace + 60, 60, 20, '0.1')
     let status = Button(xPlace + 120, yPlace + 90, 54, 14, '...')
     // key status 
+    let eDown = false;
+    let setE = (bool) => {
+        eDown = bool 
+        if(eDown){
+            $(status).text('e')
+        } else {
+            $(status).text('xy')
+        }
+    }
     let zDown = false;
     let setZ = (bool) => {
         zDown = bool
@@ -116,7 +125,7 @@ function JogBox(xPlace, yPlace, vm) {
     }
     let getIncrement = () => {
         let val = 0
-        console.log(smallDown, normalDown, bigDown)
+        // console.log(smallDown, normalDown, bigDown)
         if (smallDown) {
             return parseOrReject(jogSmallInput.value)
         } else if (normalDown) {
@@ -148,6 +157,9 @@ function JogBox(xPlace, yPlace, vm) {
                 case 'up':
                     if (zDown) {
                         pos.Z += inc
+                    } else if (eDown) {
+                        pos.E -= inc
+                        pos.X += 0.5;
                     } else {
                         pos.Y += inc
                     }
@@ -155,6 +167,9 @@ function JogBox(xPlace, yPlace, vm) {
                 case 'down':
                     if (zDown) {
                         pos.Z -= inc
+                    } else if (eDown) {
+                        pos.E += inc
+                        pos.X -= 0.5;
                     } else {
                         pos.Y -= inc
                     }
@@ -178,8 +193,10 @@ function JogBox(xPlace, yPlace, vm) {
     // key listeners 
     this.keyDownListener = (evt) => {
         if (evt.repeat) return
-        //console.log('keydown', evt.keyCode)
         switch (evt.keyCode) {
+            case 69:
+                setE(true)
+                break;
             case 90:
                 setZ(true)
                 break;
@@ -209,6 +226,8 @@ function JogBox(xPlace, yPlace, vm) {
     this.keyUpListener = (evt) => {
         //console.log('keyup', evt.keyCode)
         switch (evt.keyCode) {
+            case 69:
+                setE(false);
             case 90:
                 setZ(false);
             case 88:
