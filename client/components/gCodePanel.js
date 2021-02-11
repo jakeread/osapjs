@@ -224,12 +224,15 @@ function GCodePanel(xPlace, yPlace) {
       case 'G0':
         feedMode = 'G00'
         let g0move = gMove(words)
+        // some of these *just* set feedrate, 
+        if(g0move.rateOnly) return 
         await this.moveOut.send(g0move)
         return
       case 'G01':
       case 'G1':
         feedMode = 'G01'
         let g1move = gMove(words)
+        if(g1move.rateOnly) return 
         await this.moveOut.send(g1move)
         return
       case 'G28':
@@ -308,17 +311,22 @@ function GCodePanel(xPlace, yPlace) {
 
   let gMove = (words) => {
     // to check for E-alone moves, 
-    let includesE, includesX, includesY, includesZ = false;
+    let includesE, includesX, includesY, includesZ, includesF = false;
     for(let word of words){
       if(word.includes('E')) includesE = true;
       if(word.includes('X')) includesX = true;
       if(word.includes('Y')) includesY = true;
       if(word.includes('Z')) includesZ = true;
+      if(word.includes('F')) includesF = true;
     }
     if(includesE && (!includesX && !includesY && !includesZ)){
       // turns out, this works OK... 
-      console.warn('E-Only Move')
+      console.warn('E-Only G Code')
     }
+    // always reset e-position to zero, 
+    // this one isn't stateful, is incremental: 
+    position.E = 0 
+    // now load in posns, 
     for (let word of words) {
       for (let axis of axes) {
         if (word.includes(axis)) {
@@ -343,6 +351,13 @@ function GCodePanel(xPlace, yPlace) {
     let move = { position: {}, rate: feedRates[feedMode] * feedConvert }
     for (let axis of axes) {
       move.position[axis] = position[axis] * posConvert
+    }
+    // or, // check for rate-only move, 
+    if (includesF && !includesX && !includesY && !includesZ && !includesE){
+      console.warn('F-Only G Code')
+      move.rateOnly = true 
+    } else {
+      move.rateOnly = false 
     }
     return move
   }

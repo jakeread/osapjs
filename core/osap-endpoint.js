@@ -133,7 +133,8 @@ export default function Endpoint(osap) {
         resCount++
       }
       if (rt.status == "retry tx") {
-        rt.send()
+        // w/o this js-loop-breaking timeout, this recurses infinitely 
+        setTimeout(rt.send, 10)
       }
     }
     // is resolved?

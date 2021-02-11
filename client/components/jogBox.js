@@ -51,7 +51,7 @@ let BTN_ERRTIME = 2000
 function JogBox(xPlace, yPlace, vm) {
     // jog 
     let jogBtn = Button(xPlace, yPlace, 104, 104, 'click-in to jog')
-    let jogBigInput = TextInput(xPlace + 120, yPlace, 60, 20, '10.0')
+    let jogBigInput = TextInput(xPlace + 120, yPlace, 60, 20, '50.0')
     let jogNormalInput = TextInput(xPlace + 120, yPlace + 30, 60, 20, '1.0')
     let jogSmallInput = TextInput(xPlace + 120, yPlace + 60, 60, 20, '0.1')
     let status = Button(xPlace + 120, yPlace + 90, 54, 14, '...')
@@ -159,7 +159,6 @@ function JogBox(xPlace, yPlace, vm) {
                         pos.Z += inc
                     } else if (eDown) {
                         pos.E -= inc
-                        pos.X += 0.5;
                     } else {
                         pos.Y += inc
                     }
@@ -169,7 +168,6 @@ function JogBox(xPlace, yPlace, vm) {
                         pos.Z -= inc
                     } else if (eDown) {
                         pos.E += inc
-                        pos.X -= 0.5;
                     } else {
                         pos.Y -= inc
                     }
@@ -207,16 +205,16 @@ function JogBox(xPlace, yPlace, vm) {
                 setSmall(true)
                 break;
             case 38:
-                jog('up', 600)
+                jog('up', 24000)    // to max. 400mm/sec, 
                 break;
             case 40:
-                jog('down', 600)
+                jog('down', 24000)
                 break;
             case 37:
-                jog('left', 600)
+                jog('left', 24000)
                 break;
             case 39:
-                jog('right', 600)
+                jog('right', 24000)
                 break;
             default:
                 break;
