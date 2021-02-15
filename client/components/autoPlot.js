@@ -17,8 +17,8 @@ no warranty is provided, and users accept all liability.
 import DT from '../interface/domTools.js'
 import style from '../interface/style.js'
 
-function AutoPlot(xPlace, yPlace, xSize, ySize) {
-    let chart = $('<div>').get(0)
+function AutoPlot(xPlace, yPlace, xSize, ySize, title) {
+    let chart = $(`<div>`).get(0)
     $(chart).css('background-color', style.grey)
     let uid = `lineChart_${Math.round(Math.random() * 1000)}_uid`
     $(chart).attr('id', uid)
@@ -38,11 +38,14 @@ function AutoPlot(xPlace, yPlace, xSize, ySize) {
 
     // our vars,
     var margin = {
-        top: 20,
+        top: 40,
         right: 20,
         bottom: 30,
         left: 90
     }
+
+    if(!title) margin.top = 20
+
     var width = xSize - margin.left - margin.right
     var height = ySize - margin.top - margin.bottom
     var x = d3.scaleLinear().range([0, width])
@@ -95,6 +98,16 @@ function AutoPlot(xPlace, yPlace, xSize, ySize) {
         // the y axis
         thesvg.append("g")
             .call(d3.axisLeft(y))
+        // the title 
+        if (title) {
+            thesvg.append("text")
+                .attr("x", (width / 2))
+                .attr("y", 0 - (margin.top / 2))
+                .attr("text-anchor", "middle")
+                .style("font-size", "12px")
+                .style("font-family", "'Courier New', Courier, monospace")
+                .text(`${title}`);
+        }
     }
     // startup
     this.redraw()
