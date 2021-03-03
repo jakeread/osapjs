@@ -14,11 +14,22 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
+let getTimeStamp = null
+
+if (typeof process === 'object') {
+  const { PerformanceObserver, performance } = require('perf_hooks')
+  getTimeStamp = () => {
+    return performance.now()
+  }
+} else {
+  getTimeStamp = () => {
+    return performance.now()
+  }
+}
+
 let TIMES = {
   staleTimeout: 600,
-  endpointTransmitTimeout: 1000,
-  endpointQueryTimeout: 1000,
-  txKeepAliveInterval: 300,
+  getTimeStamp: function() {return getTimeStamp()}
 }
 
 // 13: \r
@@ -30,167 +41,58 @@ let TIMES = {
 // walked
 // TRANSPORT LAYER
 let PK = {
-  PPACK: 77, // this and following two bytes are rcrxb size
-  PTR: 88, // packet pointer (next byte is instruction)
-  DEST: 99, // have arrived, (next bytes are 16b checksum)
-  LLERR: 44,  // string escape 
-  PORTF: {
-    KEY: 11, // actual instruction key,
-    INC: 3 // number of bytes in instruction argument + 1 for the key
+  PTR: 88,    // packet pointer (next byte is instruction)
+  END: 99,    // have arrived, (next bytes are for recipient)
+  SEARCH: 101,// want to get network topology info. at this knuckle 
+  PORTF: {    // forward on this port, 
+    KEY: 11,    // actual instruction key,
+    INC: 3      // number of bytes in instruction argument + 1 for the key
   },
-  BUSF: {
+  BUSF: {     // forward on this bus, to this drop 
     KEY: 12,
     INC: 5
   },
-  BUSB: {
+  BUSB: {     // broadcast on this bus, 
     KEY: 14,
     INC: 5,
+  },
+  OBJECT: { // go into this software object 
+    KEY: 21, 
+    INC: 2
   }
 }
 
-// ARRIVAL LAYER (what do to once received packet / passed checksum)
-
-// destination keys 
-let DK = {
-  APP: 100, // next bytes are for your application, 
-  PINGREQ: 101, // next byte is ping-id | eop
-  PINGRES: 102, // next byte is ping-id | eop
-  EPREQ: 103,   // next bytes are entry port request id 
-  EPRES: 104,   // response: request id, entry port indice 
-  RREQ: 111, // read request, next byte is request-id, then ENDPOINTS,
-  RRES: 112, // response, next byte is request-id, then ENDPOINTS
-  WREQ: 113, // write request,
-  WRES: 114, // write response,
-  LLBYTES: 121,
-  LLERR: 44,  // could show up in a real pck, or at the pck level 
-  VMODULE: 202,       // data routed to a module / endpoint 
-  VMODULE_NACK: 203,  // bad ack 
-  VMODULE_YACK: 204,  // good ack 
-  VMODULE_QUERY: 212, // vmodule / endpoint query 
-  VMODULE_QUERY_ERR: 213, // trouble 
-  VMODULE_QUERY_RES: 214, // data 
+PK.logPacket = (buffer) => {
+  // log a pretty buffer
+  // buffers should all be Uint8Array views,
+  let pert = []
+  for (let i = 0; i < buffer.length; i++) {
+    pert.push(buffer[i])
+  }
+  console.log(pert)
 }
 
-// application keys 
-let AK = {
-  OK: 100,
-  ERR: 200,
-  GOTOPOS: 101,
-  SETPOS: 102,
-  SETCURRENT: 103,
-  SETWAITTIME: 104,
-  SETRPM: 105,
-  QUERYMOVING: 111,
-  QUERYPOS: 112,
-  QUERYQUEUELEN: 113,
-  RUNCALIB: 121,
-  READCALIB: 122,
-  SET_TC: 123,
-  READ_MAG: 124,
-  READ_ENC_DIAG: 125,
-  BUSECHO: 131
-}
-
-// could do like
-// ITEMS.key / .serialize / .deserialize
-// the mess is down here
-// the idea is that any unique endpoint has one routine to
-// serialize / deserialze. these are for the mvc layer,
-// typed objects will get a similar set
-// perhaps, i.e, some of these should be like 'numinputs'
-// or 'numports', etc ... unclear to me how to query down-tree
-let EP = {
-  ERR: {
-    KEY: 150,
-    KEYS: {
-      QUERYDOWN: 151, // selected chunk too large for single segment, go finer grain
-      MSG: 152, // generic error message
-      EMPTY: 153, // resource queried for not here
-      UNCLEAR: 154, // bad request / query
-      NOREAD: 155, // no reading supported for this,
-      NOWRITE: 156, // rejected write request: writing not available here
-      WRITEREJECT: 157, // writing OK here, but not with this value ?
+PK.route = () => {
+  let path = []
+  return {
+    portf: function(exit) {
+      path = path.concat([PK.PORTF.KEY, exit & 255, (exit >> 8) & 255])
+      return this 
+    },
+    busf: function(exit, address) {
+      path = path.concat([PK.BUSF.KEY, exit & 255, (exit >> 8) & 255, address & 255, (address >> 8) & 255])
+      return this 
+    },
+    object: function(indice) {
+      path = path.concat([PK.OBJECT.KEY, indice & 255, (indice >> 8) & 255])
+      return this
+    },
+    end: function(seg) {
+      return {
+        path: Uint8Array.from(path), 
+        segSize: seg ? seg : 128 // if no segsize defined, use 128 
+      }
     }
-  },
-  // anything can include:
-  NAME: {
-    KEY: 171,
-  },
-  DESCRIPTION: {
-    KEY: 172,
-  },
-  // number of vPorts, at node,
-  NUMVPORTS: {
-    KEY: 181, // count of vPorts at node
-  },
-  // this vPort (always succeeded by indice)
-  VPORT: {
-    KEY: 182,
-    ISDIVE: true,
-  },
-  // vPort-unique keys,
-  PORTTYPEKEY:{
-    KEY: 183,
-    DUPLEX: 191,  // P2P / single-ended links 
-    BUSHEAD: 192, // controlled bus, head (can broadcast)
-    BUSDROP: 193, // controlled bus, drop (cannot broadcast)
-    BUS: 194      // headless bus (i.e. CAN)
-  },
-  MAXSEGLENGTH: {
-    KEY: 184, // uint32 num-bytes-per-fwded-pck allowed on this phy
-  },
-  PORTSTATUS: {
-    KEY: 185,
-    CLOSED: 0,
-    OPEN: 1, 
-    CLOSING: 2, 
-    OPENING: 3
-  },
-  MAXADDRESSES: {
-    KEY: 186, // uint16_t max. number of others contending for phy, i.e. on bus 
-  },
-  // I currently have *no idea* how will handle bus drops:
-  // perhaps they are mostly like outputs, in the vPort... typed, have value, ok
-  // number of vModules, at node,
-  NUMVMODULES:{
-    KEY: 201,
-  },
-  // this vmodule, (always succeeded by indice)
-  VMODULE: {
-    KEY: 202,
-    ISDIVE: true,
-  },
-  // vPorts, vModules can both have inputs, outputs,
-  NUMINPUTS: {
-    KEY: 211,
-  },
-  INPUT: { // this input (always succeeded by indice)
-    KEY: 212,
-    ISDIVE: true,
-  },
-  NUMOUTPUTS: {
-    KEY: 221,
-  },
-  OUTPUT: { // this output (always succeeded by indice)
-    KEY: 222,
-    ISDIVE: true,
-  },
-  // inputs / outputs can have: (in addnt to name, description)
-  TYPE: { // not the same as port-type, key or key(s) for compound types
-    KEY: 231,
-  },
-  VALUE: { // data bytes currently occupying the output / input
-    KEY: 232,
-  },
-  STATUS: {
-    KEY: 233, // boolean open / closed, occupied / unoccupied, etc
-  },
-  // outputs have:
-  NUMROUTES: {
-    KEY: 234,
-  },
-  ROUTE: {
-    KEY: 235, // within output,
   }
 }
 
@@ -288,51 +190,8 @@ TS.write = (type, value, buffer, start, keyless) => {
   }
 }
 
-// strings, eventually...
-TS.writeAppErr = (msg) => {
-  let reply = new Uint8Array(msg.length + 6)
-  reply[0] = AK.ERR
-  reply[1] = AK.E.MSG
-  TS.write('string', msg, reply, 2, true)
-  return reply
-}
-
-TS.logPacket = (buffer) => {
-  // log a pretty buffer
-  // buffers should all be Uint8Array views,
-  let pert = []
-  for (let i = 0; i < buffer.length; i++) {
-    pert.push(buffer[i])
-  }
-  console.log(pert)
-}
-
-TS.route = () => {
-  let path = []
-  return {
-    portf: function(exit) {
-      path = path.concat([PK.PORTF.KEY, exit & 255, (exit >> 8) & 255])
-      return this 
-    },
-    busf: function(exit, address) {
-      path = path.concat([PK.BUSF.KEY, exit & 255, (exit >> 8) & 255, address & 255, (address >> 8) & 255])
-      return this 
-    },
-    end: function() {
-      return Uint8Array.from(path)
-    }
-  }
-}
-
-TS.endpoint = (vmodule, endpoint) => {
-  return Uint8Array.from([DK.VMODULE, vmodule & 255, (vmodule >> 8) & 255, endpoint & 255, (endpoint >> 8) & 255])
-}
-
 export {
-  PK,
-  DK,
-  AK,
-  EP,
-  TS,
+  PK,     // onion routing keys 
+  TS,     // typeset 
   TIMES
 }

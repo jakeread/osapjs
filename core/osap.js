@@ -14,12 +14,10 @@ no warranty is provided, and users accept all liability.
 
 'use strict'
 
+import { PK, TS, TIMES } from './ts.js'
 import VPort from './vport.js'
-
-import { PK, DK, EP, TS, TIMES } from './ts.js'
+import Module from './osap-module.js'
 import Endpoint from './osap-endpoint.js'
-import Query from './osap-query.js'
-import MVC from './osap-mvc.js'
 
 let LOGERRPOPS = true
 let LOGRCRXBS = false
@@ -28,58 +26,38 @@ let LOGTX = false
 let TIMEOUT = 60
 
 export default function OSAP() {
-  // everyone has a name,
-  this.name = "unnamed OSAP node"
-  this.description = "undescribed OSAP node"
   // the node's virtual ports, and factory for them
   this.vPorts = []
   this.vPort = () => {
     let np = new VPort(this)
+    np.indice = this.vPorts.length 
     this.vPorts.push(np)
     return np
   }
-  // the node's virtual modules... none of these yet, just 
-  this.vModules = []
 
-  // just endpoints, bb
-  this.endpoints = []
+  // js osap has no busses for the time being, 
+  this.vBusses = []
+
+  // interior software interfaces, for now flat, could second-route,
+  // modules and objects have *the same interface to osap* 
+  // but we want differentiated software API for them... 
+  this.objects = []
+  // modules will be objects containing endpoints 
+  this.module = () => {
+    let md = new Module(this)
+    md.indice = this.objects.length 
+    this.objects.push(md)
+    return md 
+  }
+  // endpoints are the code element (1st level) we will focus on for the time being, 
   this.endpoint = () => {
     let ep = new Endpoint(this)
-    ep.indice = this.endpoints.length // set the indice, 
-    this.endpoints.push(ep)
-    return ep
+    ep.indice = this.objects.length 
+    this.objects.push(ep)
+    return ep 
   }
-
-  // software handles for query'in 
-  this.queries = []
-  this.query = (path, endpoint, segsize) => {
-    let que = new Query(this, path, endpoint, segsize)
-    que.indice = this.queries.length 
-    this.queries.push(que)
-    return que 
-  }
-  let lastQID = 2002
-  this.getNewQueryID = () => {
-    lastQID ++
-    if(lastQID > 65535) lastQID = 0
-    return lastQID
-  }
-
-  // ------------------------------------------------------ Utility
-
-  this.getTimeStamp = null
-
-  if (typeof process === 'object') {
-    const { PerformanceObserver, performance } = require('perf_hooks')
-    this.getTimeStamp = () => {
-      return performance.now()
-    }
-  } else {
-    this.getTimeStamp = () => {
-      return performance.now()
-    }
-  }
-
+  
+  // utility to reverse routes 
   this.reverseRoute = (pck) => {
     // find the current pck.ptr position, 
     let ptr = 0
@@ -97,13 +75,17 @@ export default function OSAP() {
         default:
           if (LOGERRPOPS) {
             console.warn("on reverse route, can't find ptr")
-            TS.logPacket(pck.data)
+            PK.logPacket(pck.data)
           }
-          pck.vp.clear()
-          return;
+          pck.clear()
+          return
       }
     } // end ptrloop 
-    if (!ptr) return; // ptr still 0 ? que ? bail 
+    if (!ptr) {
+      console.warn("ptr == 0 at end of ptr walk, reverse route")
+      pck.clear() 
+      return 
+    }; // ptr still 0 ? que ? bail 
     // proceed 
     let route = new Uint8Array(ptr) // size of route is 0 -> ptr 
     let wptr = 0
@@ -224,205 +206,6 @@ export default function OSAP() {
     })
   }
 
-  // ------------------------------------------------------ DATA to MODULES
-
-  this.handleVModule = (pck, ptr) => {
-    // virtual module indice, virtual module's data object indice 
-    let vmfrom = TS.read('uint16', pck.data, ptr + 1, true)
-    let vmepfrom = TS.read('uint16', pck.data, ptr + 3, true)
-    let vmto = TS.read('uint16', pck.data, ptr + 5, true)
-    let vmepto = TS.read('uint16', pck.data, ptr + 7, true)
-    //console.log(`for ${vmi}, ${vmoi}, from ${vmfrom}, ${vmofrom}`)
-    // find the module, 
-    if (vmto > 0) {
-      console.error("only top level modules for now")
-    } else {
-      if (this.endpoints[vmepto]) {
-        this.endpoints[vmepto].onData(pck.data.subarray(ptr + 9))
-      } else {
-        console.error(`data node at ${vmoi} does not exist here`)
-      }
-    }
-    pck.vp.clear()
-  }
-
-  // pck[ptr] == VMODULE_YACK or VMODULE_NACK 
-  this.handleVModuleAck = (pck, ptr) => {
-    let yn = pck.data[ptr]
-    // this is 'ack from' and 'ack to' ... so, the latter were the original transmitter
-    let vmfrom = TS.read('uint16', pck.data, ptr + 1, true)
-    let vmepfrom = TS.read('uint16', pck.data, ptr + 3, true)
-    let vmto = TS.read('uint16', pck.data, ptr + 5, true)
-    let vmepto = TS.read('uint16', pck.data, ptr + 7, true)
-    // holy shit, I'm going to have to route match to these things, aren't I? 
-    // here's the endpoint from whence it originated, 
-    let ep = this.endpoints[vmepto]
-    // here's route from this pck, 
-    let route = pck.data.subarray(0, ptr - 6)
-    routeloop: for(let rt of ep.routes){
-      // check lengths are equal, 
-      if(rt.routematch.length != route.length - 3) continue;
-      // check per-byte in each route, 
-      for(let i = 0; i < rt.routematch.length; i ++){
-        if(rt.routematch[i] != route[i]) continue routeloop;
-      }
-      // check that arrival port is the same as departure port 
-      // BUSSES: won't work here either, if 1st js port is bus 
-      // also - I am cheating by just checking the LSByte
-      if(route[2] != pck.vp.ownIndice()) continue;
-      if(yn == DK.VMODULE_YACK){
-        rt.status = "yacked"
-      } else {
-        rt.status = "nacked"
-      }
-      rt.parent.checkStates()
-      break routeloop;
-    }
-    // I think, for the route match the move is:
-    // first, lookup the reciprocal endpoint, 
-    // recall that we (will) store reversed routes in each endpoint, 
-    // now we can find, in the reciprocal endpoint (if it exists) 
-    // all routes to which this endpoint would be the target (just flipping from / to)
-    // for multiples of those, proceed to match on the route itself 
-    // clear the pck,  
-    pck.vp.clear()
-  }
-
-  // pck[ptr] == DK.VMODULE_QUERY
-  // pck[ptr ...] = qid[2] vmodule[2] endpoint[2]
-  this.handleVModuleQuery = (pck, ptr) => {
-    let qid = TS.read('uint16', pck.data, ptr + 1, true)
-    let vm = TS.read('uint16', pck.data, ptr + 3, true)
-    let ep = TS.read('uint16', pck.data, ptr + 5, true)
-    if(vm != 0 && !this.endpoints[ep]){
-      // reply non existent, or let it timeout for now... 
-      // TODO 
-      // also not guarding for replies larger than segsize here 
-      pck.vp.clear()
-    } else {
-      if(!pck.vp.cts()){
-        // could do a holding pattern to make sure this gets out
-        // later, for now will just drop it... 
-        console.warn('dropping query on reply not cts')
-        pck.vp.clear()
-      } else {
-        // reply, 
-        let endpoint = this.endpoints[ep]
-        let reply = new Uint8Array(endpoint.data.length + 7)
-        // copy in the transmitted header, 
-        reply.set(pck.data.subarray(ptr, ptr + 7))
-        // but change the 1st byte: a reply, not request 
-        reply[0] = DK.VMODULE_QUERY_RES
-        // and add the data 
-        reply.set(endpoint.data, 7)
-        // route back,
-        let route = this.reverseRoute(pck)
-        // tx, 
-        this.send(route, reply).then(() => {
-          // all good, 
-        }).catch((err) => {
-          console.error(err)
-        })
-        // rm 
-        pck.vp.clear()
-      }
-    }
-  }
-
-  this.handleVModuleQueryReturn = (pck, ptr) => {
-    // not transmitting errors yet, so 
-    let qid = TS.read('uint16', pck.data, ptr + 1, true)
-    let query = this.queries.find((el) => {
-      return el.id == qid 
-    })
-    if(query && query.callback){
-      query.callback(pck.data.slice(ptr + 7))
-    } else {
-      console.error('handled query reply w/ no callback')
-    }
-    // clear it
-    pck.vp.clear()
-  }
-
-  // write mvc codes to object
-  MVC(this, TIMEOUT, LOGRX, LOGTX)
-
-  // ------------------------------------------------------ HANDLING RX'd PACKS
-  // pck.data[ptr] = DKEY, payload is for us 
-  // vp is vPort arrived on, p is vp.rxbuffer[p] = pck (to pop)
-  // acksegsize is allowable length of return route,
-  let handle = (pck, ptr) => {
-    if (LOGRX) console.log("RX: 5: handle")
-    switch (pck.data[ptr]) {
-      case DK.PINGREQ: // ping-request
-        this.handlePingRequest(pck, ptr)
-        break;
-      case DK.PINGRES: // ping-responses
-        this.handlePingResponse(pck, ptr)
-        break;
-      case DK.EPREQ:
-        this.handleEntryPortRequest(pck, ptr)
-        break;
-      case DK.EPRES:
-        this.handleEntryPortResponse(pck, ptr)
-        break;
-      case DK.RREQ: // read-requests
-        this.handleReadRequest(pck, ptr)
-        break;
-      case DK.RRES:
-        this.handleReadResponse(pck, ptr)
-        break;
-      case DK.WREQ: // write-request,
-        this.handleWriteRequest(pck, ptr)
-        break;
-      case DK.WRES: // write-response
-        this.handleWriteResponse(pck, ptr)
-        break;
-      case DK.VMODULE:
-        this.handleVModule(pck, ptr)
-        break;
-      case DK.VMODULE_NACK:
-      case DK.VMODULE_YACK:
-        this.handleVModuleAck(pck, ptr)
-        break;
-      case DK.VMODULE_QUERY:
-        this.handleVModuleQuery(pck, ptr)
-        break;
-      case DK.VMODULE_QUERY_ERR:
-      case DK.VMODULE_QUERY_RES:
-        this.handleVModuleQueryReturn(pck, ptr)
-        break;
-      case DK.APP:
-        //console.warn("APP")
-        if (this.handleAppPackets) {
-          this.handleAppPackets(pck, ptr)
-        } else {
-          console.warn('app packet, no handler')
-          pck.vp.clear()
-        }
-        break;
-      case DK.LLBYTES:
-        // low level byte escape 
-        console.log('LL Bytes: ')
-        TS.logPacket(pck.data.subarray(ptr + 1));
-        pck.vp.clear()
-        break;
-      case DK.LLERR:
-        let str = TS.read('string', pck.data, ptr + 1, true).value
-        console.error('LL ERR:', str)
-        pck.vp.clear()
-        break;
-      // low level string escape 
-      default:
-        if (LOGERRPOPS) {
-          console.log(`unrecognized DKEY: ${pck.data[ptr]} popping`)
-          TS.logPacket(pck.data)
-        }
-        pck.vp.clear()
-        break;
-    }
-  }
-
   // ------------------------------------------------------ FORWARDING
 
   // pck.data[ptr] = portf, busf, or busb key
@@ -519,7 +302,7 @@ export default function OSAP() {
     // during that time no others will be handled 
     // embedded does this better: vports dish packets to osap on round-robin basis 
     if (LOGRX) console.log('RX: 1: scanRx')
-    let now = this.getTimeStamp()
+    let now = TIMES.getTimeStamp()
     // (1) first, do per-port handling of rx buffers
     for (let vp of this.vPorts) {
       // TODO: vp.read() does round-robin delivery of a fixed size pck array, 
