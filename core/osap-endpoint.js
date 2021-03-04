@@ -21,7 +21,7 @@ export default function Endpoint(parent) {
   this.routes = []
   // has a position (parent will set), and type 
   this.indice = undefined
-  this.type = PK.OBJECT.KEY
+  this.type = PK.DOWN_OBJ.KEY
   // has a write timeout length,
   this.timeoutLength = TIMES.endpointTransmitTimeout
   this.setTimeoutLength = (millis) => {
@@ -40,6 +40,11 @@ export default function Endpoint(parent) {
 
   // ------------------------ add a route, using TS.route().[...].end(seg) 
   this.addRoute = (route) => {
+    // check that 1st escape is up-obj, no other way out of this thing
+    if(route.path[0] != PK.UP_OBJ.KEY){
+      TS.logPacket(route.path)
+      throw new Error('no escape from an endpoint save for up-obj')
+    }
     this.routes.push(route)
   }
 
@@ -102,17 +107,19 @@ export default function Endpoint(parent) {
       for (let route of this.routes) {
         // write the gram: 1st write in departure, which is this object indice
         // that's 3 bytes for the departure, 1 for ptr, and 1 for dest key
-        let datagram = new Uint8Array(route.path.length + 5 + this.data.length)
-        datagram[0] = PK.OBJECT.KEY
+        // ... we are flipping the 'up-obj' output code for our reciprocal return path 
+        // which is the down-obj, to our indice 
+        let datagram = new Uint8Array(route.path.length + 2 + this.data.length)
+        datagram[0] = PK.DOWN_OBJ.KEY
         TS.write('uint16', this.indice, datagram, 1)
         // the pointer afterwards, 
         datagram[3] = PK.PTR
         // now copy-in remainder of route,
-        datagram.set(route.path, 4)
+        datagram.set(route.path.subarray(3), 4)
         // the end / dest key
-        datagram[route.path.length + 4] = PK.DEST
+        datagram[route.path.length + 1] = PK.DEST
         // and copy-in the data store 
-        datagram.set(this.data, 5 + route.path.length)
+        datagram.set(this.data, 2 + route.path.length)
         // make a message object, this is akin to arrival at a vport 
         let msg = {
           data: datagram,

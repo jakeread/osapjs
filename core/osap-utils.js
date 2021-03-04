@@ -31,8 +31,9 @@ let ptrLoop = (buffer, ptr) => {
         // old instruction to forward on a bus,
         ptr += PK.BUSF.INC
         break;
-      case PK.OBJECT.KEY:
-        ptr += PK.OBJECT.INC
+      case PK.DOWN_OBJ.KEY:
+      case PK.UP_OBJ.KEY: 
+        ptr += PK.DOWN_OBJ.INC
         break;
       default:
         // unrecognized, escape !

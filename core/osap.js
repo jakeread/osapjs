@@ -25,7 +25,7 @@ let LOGRCRXBS = false
 let LOGRX = false
 let LOGTX = false
 
-export default function OSAP() {
+export default function OSAP(parent) {
   // the node's virtual ports, and factory for them
   this.vPorts = []
   this.vPort = () => {
@@ -75,11 +75,19 @@ export default function OSAP() {
     let next = undefined
     let indice = TS.read('uint16', pck.data, ptr + 1, true)
     switch (pck.data[ptr]) {
-      case PK.OBJECT.KEY:
+      case PK.DOWN_OBJ.KEY:
         next = this.objects[indice]
         break;
       case PK.PORTF.KEY:
         next = this.vPorts[indice]
+        break;
+      case PK.UP_OBJ.KEY:
+        next = parent;
+        // we have to shift-in our info here and increment, shifting an ack-instruction 
+        // to get back to this node 
+        pck.data[ptr] = PK.DOWN_OBJ.KEY;
+        TS.write('uint16', this.indice, pck.data, ptr + 1)
+        pck.data[ptr + 3] = PK.PTR
         break;
       default:
         if (LOGERRPOPS) console.log("errpop for fwd to non-portf, non-object")
@@ -129,7 +137,8 @@ export default function OSAP() {
       case PK.PORTF.KEY:
       case PK.BUSF.KEY:
       case PK.BUSB.KEY:
-      case PK.OBJECT.KEY:
+      case PK.DOWN_OBJ.KEY:
+      case PK.UP_OBJ.KEY:
         if (LOGRX) console.log('RX: 4: forward')
         forward(pck, ptr)
         break;

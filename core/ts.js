@@ -56,10 +56,14 @@ let PK = {
     KEY: 14,
     INC: 5,
   },
-  OBJECT: { // traverse up this object, 
+  DOWN_OBJ: { // traverse up this object, 
     KEY: 21, 
     INC: 3
   },
+  UP_OBJ: {
+    KEY: 22, 
+    INC: 3
+  }
 }
 
 PK.logPacket = (buffer) => {
@@ -83,9 +87,13 @@ PK.route = () => {
       path = path.concat([PK.BUSF.KEY, exit & 255, (exit >> 8) & 255, address & 255, (address >> 8) & 255])
       return this 
     },
-    object: function(indice) {
-      path = path.concat([PK.OBJECT.KEY, indice & 255, (indice >> 8) & 255])
+    up_obj: function(indice) {
+      path = path.concat([PK.UP_OBJ.KEY, indice & 255, (indice >> 8) & 255])
       return this
+    },
+    down_obj: function(indice) {
+      path = path.concat([PK.DOWN_OBJ.KEY, indice & 255, (indice >> 8) & 255])
+      return this 
     },
     end: function(seg) {
       return {
