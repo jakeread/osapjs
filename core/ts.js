@@ -42,7 +42,7 @@ let TIMES = {
 // TRANSPORT LAYER
 let PK = {
   PTR: 88,    // packet pointer (next byte is instruction)
-  END: 99,    // have arrived, (next bytes are for recipient)
+  DEST: 99,   // have arrived, (next bytes are for recipient)
   SEARCH: 101,// want to get network topology info. at this knuckle 
   PORTF: {    // forward on this port, 
     KEY: 11,    // actual instruction key,
@@ -56,10 +56,10 @@ let PK = {
     KEY: 14,
     INC: 5,
   },
-  OBJECT: { // go into this software object 
+  OBJECT: { // traverse up this object, 
     KEY: 21, 
-    INC: 2
-  }
+    INC: 3
+  },
 }
 
 PK.logPacket = (buffer) => {
@@ -100,10 +100,7 @@ let TS = {}
 
 let decoder = new TextDecoder()
 
-TS.read = (type, buffer, start, keyless) => {
-  if (!keyless) {
-    throw new Error('need code here for key checking')
-  }
+TS.read = (type, buffer, start) => {
   switch (type) {
     case 'uint8':
       return buffer[start]
@@ -139,10 +136,7 @@ let encoder = new TextEncoder()
 let tempArr = {}
 let tempBytes = {}
 
-TS.write = (type, value, buffer, start, keyless) => {
-  if (!keyless) {
-    throw new Error('need code here for key checking')
-  }
+TS.write = (type, value, buffer, start) => {
   switch (type) {
     case 'uint8':
       buffer[start] = value & 255

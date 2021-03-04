@@ -14,29 +14,28 @@ no warranty is provided, and users accept all liability.
 
 import { PK, TS, TIMES } from './ts.js'
 
-export default function Endpoint(osap) {
+export default function Endpoint(parent) {
   // has local data copy 
   this.data = new Uint8Array(0)
   // has outgoing routes, 
   this.routes = []
-  // has a position (osap will set)
-  this.indice = undefined 
+  // has a position (parent will set), and type 
+  this.indice = undefined
+  this.type = PK.OBJECT.KEY
   // has a write timeout length,
   this.timeoutLength = TIMES.endpointTransmitTimeout
   this.setTimeoutLength = (millis) => {
-    this.timeoutLength = millis 
+    this.timeoutLength = millis
   }
 
-  // ------------------------ OSAP pushes data in here, 
-  this.recieve = (datagram) => {
-    throw new Error("this side not really ready in JS")
+  // parent checks 
+  this.clear = () => {
+    return true
   }
 
-  // ------------------------ endpoint API handles it here, returning a promise when it's clear... 
-  this.onData = (data) => {
-    return new Promise((resolve, reject) => {
-      reject('onData method not attached')
-    })
+  this.handle = (buffer) => {
+    console.log("ep rx")
+    PK.logPacket(buffer)
   }
 
   // ------------------------ add a route, using TS.route().[...].end(seg) 
@@ -47,17 +46,91 @@ export default function Endpoint(osap) {
   // transmit to all routes & await return before resolving, 
   this.write = (datagram) => {
     // 'write' updates the data stored here, lettuce do that first.
-    // since these aren't typed yet, datagram should always be a uint8_t array
-    // idea: keep underlying data as serialized arrayBuffer in all js?  
-    this.data = datagram.slice(0) // the best way to copy an array in js 
+    // the best way to copy an array in js (source: internet) is:
+    this.data = datagram.slice(0)
     // now send everything, then return 
     return this.transmit()
   }
 
+  let MSGSTATE = {
+    AWAIT: 0,
+    TRANSMITTED: 1,
+    TIMEOUT: 2,
+    ACKED: 3
+  }
+
+  let awaiting = false 
+
   this.transmit = () => {
-    // tries transmitting data to all defined routes 
+    // are we already awaiting response from some?
+    if(awaiting){
+      reject('already awaiting')
+      return 
+    }
+    // now we transmit each of these and determine if each has been cleared, 
     return new Promise((resolve, reject) => {
-      reject("transmit")
+      // tries transmitting data to all defined routes 
+      // write an output message for each route, 
+      let msgs = []
+      let now = TIMES.getTimeStamp()
+
+      // check when handled, 
+      let check = () => {
+        let resolutions = 0 
+        for (let msg of msgs) {
+          switch(msg.status){
+            case MSGSTATE.AWAIT:
+              parent.handle(msg, 3) // try handle, 
+              break;
+            case MSGSTATE.TRANSMITTED:
+            case MSGSTATE.TIMEOUT:
+              resolutions ++ 
+              break;
+          }
+        }
+        if(resolutions == msgs.length){
+          awaiting = false
+          resolve("all TXd or timed out")
+        } else {
+          // drive parent's loop to handle... 
+          console.log('endpoint checks again')
+          setTimeout(check, 0)
+        }
+      }
+
+      // write outgoing msgs for each route, 
+      for (let route of this.routes) {
+        // write the gram: 1st write in departure, which is this object indice
+        // that's 3 bytes for the departure, 1 for ptr, and 1 for dest key
+        let datagram = new Uint8Array(route.path.length + 5 + this.data.length)
+        datagram[0] = PK.OBJECT.KEY
+        TS.write('uint16', this.indice, datagram, 1)
+        // the pointer afterwards, 
+        datagram[3] = PK.PTR
+        // now copy-in remainder of route,
+        datagram.set(route.path, 4)
+        // the end / dest key
+        datagram[route.path.length + 4] = PK.DEST
+        // and copy-in the data store 
+        datagram.set(this.data, 5 + route.path.length)
+        // make a message object, this is akin to arrival at a vport 
+        let msg = {
+          data: datagram,
+          origin: this,
+          arrivalTime: now,
+          status: MSGSTATE.AWAIT,
+          handled: function () {
+            this.status = MSGSTATE.TRANSMITTED
+          }
+        }
+        // set a timeout for the msg 
+        setTimeout(() => { msg.status == MSGSTATE.TIMEOUT }, this.timeoutLength)
+        // add to list of msgs 
+        msgs.push(msg)
+      }
+      
+      // run first check, 
+      check()
     })
   }
 }

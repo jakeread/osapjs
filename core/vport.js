@@ -12,52 +12,53 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, TIMES } from './ts.js'
+import { PK, TIMES, TS } from './ts.js'
+import { ptrLoop } from './osap-utils.js'
 
-export default function VPort(osap) {
+export default function VPort(parent) {
   /* to implement */
-  // write this.cts(), returning whether / not thing is open & clear to send 
+  // write this.clear(), returning whether / not thing is open & clear to send 
   // write this.send(buffer), putting bytes on the line 
   // on data, call this.recieve(buffer) with a uint8array arg 
 
   // maximum size of packets originating on / transmitting from this thing 
   this.maxSegLength = 128 // default minimum 
   this.indice = undefined // osap sets this 
+  this.type = PK.PORTF.KEY 
 
-  // buffer of receive packets 
-  this.rxBuffer = []
-  let lastPulled = 0 // last pckt served 
-  this.read = () => {
-    if (this.rxbuffer.length > 0) {
-      lastPulled++
-      if (lastPulled > this.rxbuffer.length) { lastPulled = 0 }
-      return this.rxBuffer[lastPulled]
-    } else {
-      return undefined
-    }
-  }
+  // parent checks if we are clear to get new data 
+  this.clear = () => { false }
+
+  // implemented at vport instance, 
+  this.handle = (buffer) => { throw new Error('no vport send fn') }
 
   // fire this code when your port receive a packet 
   this.receive = (buffer) => {
-    // would pull rcrxb here 
-    // adds to the buffer, 
-    this.rxBuffer.push({
-      arrivalTime: TIMES.getTimeStamp(),
-      vp: this,
+    console.log('vp rx')
+    PK.logPacket(buffer)
+    // find the ptr, shift arrival in 
+    let ptr = ptrLoop(buffer)
+    // tx'er had same structure, so 
+    // ptr, portf, indice:2 
+    buffer[ptr] = PK.PORTF.KEY 
+    TS.write('uint16', this.indice, buffer, ptr + 1)
+    buffer[ptr + 3] = PK.PTR 
+    // issue the message to parent, to handle 
+    let retryTimer = undefined 
+    let msg = {
       data: buffer,
-      clear: () => {
-        console.log(this)
-        throw new Error("write pck clear, what's this? ^")
-      },
-    })
-    // has osap run the packet scan 
-    osap.onVPortReceive(this)
+      origin: this, 
+      arrivalTime: TIMES.getTimeStamp(),
+      handled: function(){
+        clearTimeout(retryTimer)
+        console.log('vp handled')
+      }
+    }
+    let check = () => {
+      retryTimer = setTimeout(check, 0)
+      parent.handle(msg)
+    }
+    check()
   }
-
-  // implemented at vport instance 
-  this.send = (buffer) => { throw new Error('no vport send fn') }
-
-  // osap checks if we are clear to send,
-  this.cts = () => { false }
 
 } // end vPort def
