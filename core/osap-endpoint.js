@@ -33,7 +33,7 @@ export default function Endpoint(parent) {
     return !this.token
   }
 
-  this.onData = (pck) => {
+  this.onData = (pck, ptr) => {
     console.log("endpoint onData")
   }
 

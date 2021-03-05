@@ -66,22 +66,28 @@ let handler = (context, pck, ptr) => {
       break;
     case PK.SIB.KEY:
       // read-out the indice, 
-      let indice = TS.read('uint16', pck.data, ptr + 1)
-      let next = context.parent.children[indice]
-      if (!next) {
-        console.log("MISSING SIBLING")
+      let si = TS.read('uint16', pck.data, ptr + 1)
+      let sib = context.parent.children[si]
+      if (!sib) {
+        console.log("missing sibling")
         pck.handled()
         return;
       }
-      if (next.clear()) {
+      if (sib.clear()) {
         // increment block & write 
         pck.data[ptr - 1] = PK.SIB.KEY
         TS.write('uint16', context.indice, pck.data, ptr)
         pck.data[ptr + 2] = PK.PTR
-        next.handle(pck, ptr + 2)
+        sib.handle(pck, ptr + 2)
       }
       break;
     case PK.PARENT.KEY:
+      // has parent?
+      if(!(context.parent)){
+        console.log("missing parent")
+        pck.handled()
+        return;
+      }
       // can parent handle?
       if (context.parent.clear()) {
         // increment and write to parent 
@@ -89,6 +95,24 @@ let handler = (context, pck, ptr) => {
         TS.write('uint16', context.indice, pck.data, ptr)
         pck.data[ptr + 2] = PK.PTR
         context.parent.handle(pck, ptr + 2)
+      }
+      break;
+    case PK.CHILD.KEY:
+      // find child, 
+      let ci = TS.read('uint16', pck.data, ptr + 1)
+      let child = context.children[ci]
+      if(!child){
+        console.log("missing child")
+        pck.handled() 
+        return;
+      }
+      // can child handle?
+      if(child.clear()){
+        // increment and write to child 
+        pck.data[ptr - 1] = PK.PARENT.KEY 
+        TS.write('uint16', 0, pck.data, ptr)
+        pck.data[ptr + 2] = PK.PTR 
+        child.handle(pck, ptr + 2)
       }
       break;
     case PK.PFWD.KEY:
@@ -106,7 +130,8 @@ let handler = (context, pck, ptr) => {
       break;
     default:
       // rx'd non-destination, can't do anything 
-      console.warn("endpoint rm packet: bad switch")
+      console.log(`${context.type} rm packet: bad switch`)
+      PK.logPacket(pck.data)
       pck.handled()
   }
 }

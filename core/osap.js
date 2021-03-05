@@ -18,14 +18,16 @@ import { PK, TS, TIMES } from './ts.js'
 import VPort from './vport.js'
 import Module from './osap-module.js'
 import Endpoint from './osap-endpoint.js'
-import { ptrLoop } from './osap-utils.js'
+import { handler, ptrLoop } from './osap-utils.js'
 
 let LOGERRPOPS = true
 let LOGRCRXBS = false
 let LOGRX = false
 let LOGTX = false
 
-export default function OSAP(parent) {
+export default function OSAP() {
+  // has no parent, is local root 
+  this.type = "root"
   // the node's children / objects 
   this.children = []
 
@@ -53,14 +55,12 @@ export default function OSAP(parent) {
 
   this.clear = () => { return true }
 
-  // ------------------------------------------------------ SCAN RX ROUTINE
+  this.onData = (pck, ptr) => {
+    console.log("root onData")
+  }
 
   this.handle = (pck, ptr) => {
-    // req's to parent, 
-    console.log(`OSAP Root Handle: & ptr ${ptr}`)
-    PK.logPacket(pck.data)
-    pck.handled() 
-    console.log("root not handling anything yet, consider functional re-write to avoid loop repetition")
+    handler(this, pck, ptr)
   }
 
 } // end OSAP

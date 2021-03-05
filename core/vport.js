@@ -31,7 +31,7 @@ export default function VPort(parent) {
   // note: difference between this & if clear to transmit... 
   this.clear = () => { return true }
 
-  this.onData = (pck) => {
+  this.onData = (pck, ptr) => {
     console.log("vPort onData")
   }
 
