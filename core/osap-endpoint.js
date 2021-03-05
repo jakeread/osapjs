@@ -65,9 +65,9 @@ export default function Endpoint(parent) {
       // that's 3 bytes for the departure, 1 for ptr, and 1 for dest key
       // ... we are flipping the 'up-obj' output code for our reciprocal return path 
       // which is the down-obj, to our indice 
-      let datagram = new Uint8Array(route.path.length + this.data.length)
-      datagram.set(route.path, 0)
-      datagram.set(this.data, route.path.length)
+      let datagram = new Uint8Array(route.length + this.data.length)
+      datagram.set(route, 0)
+      datagram.set(this.data, route.length)
       let pck = {
         data: datagram,
         origin: this,

@@ -148,9 +148,14 @@ let reverseRoute = (pck, ptr) => {
       return
     }
   }
-  // path is a new uint8, 
-  let path = new Uint8Array(ptr + 1)
-  // reverse this... 
+  // now pck[ptr] = PK.DEST
+  // route is a new uint8, 
+  let route = new Uint8Array(ptr + 3)
+  // the tail is the same: same segsize, dest at end 
+  for(let i = 3; i > 0; i --){
+    route[route.length - i] = pck.data[ptr + 3 - i]
+  }
+  // now we can reverse the stepwise,  
   let wptr = ptr      // write from the tail
   let end = ptr - 1   // don't write past the end, where pck[ptr] = 88
   let rptr = 0        // read from the head 
@@ -158,8 +163,7 @@ let reverseRoute = (pck, ptr) => {
   walker: for (let h = 0; h < 16; h++) {
     if(rptr >= end) {
       console.log(`break ${rptr}`)
-      path[0] = PK.PTR // start, 
-      path[path.length - 1] = PK.DEST 
+      route[0] = PK.PTR // start, 
       break walker;
     }
     console.log(`step ${rptr} = ${pck.data[rptr]}`)
@@ -169,45 +173,43 @@ let reverseRoute = (pck, ptr) => {
       case PK.SIB.KEY:
         wptr -= PK.SIB.INC 
         for(let i = 0; i < PK.SIB.INC; i ++){
-          path[wptr + i] = pck.data[rptr ++]
+          route[wptr + i] = pck.data[rptr ++]
         }
         break;
       case PK.PARENT.KEY:
         wptr -= PK.PARENT.INC 
         for(let i = 0; i < PK.PARENT.INC; i ++){
-          path[wptr + i] = pck.data[rptr ++]
+          route[wptr + i] = pck.data[rptr ++]
         }
         break;
       case PK.CHILD.KEY:
         wptr -= PK.CHILD.INC 
         for(let i = 0; i < PK.CHILD.INC; i ++){
-          path[wptr + i] = pck.data[rptr ++]
+          route[wptr + i] = pck.data[rptr ++]
         }
         break;
       case PK.PFWD.KEY:
         wptr -= PK.PFWD.INC 
         for(let i = 0; i < PK.PFWD.INC; i ++){
-          path[wptr + i] = pck.data[rptr ++]
+          route[wptr + i] = pck.data[rptr ++]
         }
         break;
       case PK.BFWD.KEY:
         wptr -= PK.BFWD.INC 
         for(let i = 0; i < PK.BFWD.INC; i ++){
-          path[wptr + i] = pck.data[rptr ++]
+          route[wptr + i] = pck.data[rptr ++]
         }
         break;
       default:
         // unrecognized, escape !
         console.log('nonreq', rptr, pck.data[rptr])
-        PK.logPacket(path)
+        PK.logPacket(route)
         return undefined
     }
   } // end reverse walk 
   console.log("reversed")
-  PK.logPacket(path)
-  return {
-    path: path 
-  }
+  PK.logPacket(route)
+  return route 
 }
 
 export { ptrLoop, handler, reverseRoute }

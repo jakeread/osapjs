@@ -103,12 +103,9 @@ PK.route = () => {
       path = path.concat([PK.BFWD.KEY, indice & 255, (indice >> 8) & 255])
       return this 
     },
-    end: function(seg) {
-      path = path.concat([PK.DEST])
-      return {
-        path: Uint8Array.from(path), 
-        segSize: seg ? seg : 128 // if no segsize defined, use 128 
-      }
+    end: function(segsize) {
+      path = path.concat([PK.DEST, segsize & 255, (segsize >> 8) & 255])
+      return path 
     }
   }
 }
