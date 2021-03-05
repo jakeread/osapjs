@@ -88,7 +88,7 @@ PK.route = () => {
       return this 
     },
     parent: function() {
-      path = path.concat([PK.PARENT.KEY])
+      path = path.concat([PK.PARENT.KEY, 0, 0]) // trailing zeros for packet space to write back
       return this 
     },
     child: function(indice) {

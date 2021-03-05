@@ -12,7 +12,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK } from "./ts.js"
+import { PK, TS } from "./ts.js"
 
 let ptrLoop = (buffer, ptr) => {
   if (!ptr) ptr = 0
@@ -43,4 +43,72 @@ let ptrLoop = (buffer, ptr) => {
   } // end ptrloop
 }
 
-export { ptrLoop }
+let handler = (context, pck, ptr) => {
+  console.log(`${context.type} handle: ptr ${ptr}`)
+  PK.logPacket(pck.data)
+  // find the ptr if not defined, 
+  if (ptr == undefined) {
+    ptr = ptrLoop(pck.data)
+    if (ptr == undefined) {
+      pck.handled()
+      return
+    }
+  }
+  // would do check for times, 
+  // ...
+  ptr++;
+  // now ptr at next instruction 
+  switch (pck.data[ptr]) {
+    case PK.DEST:
+      console.log(`${context.type} is destination`)
+      context.onData(pck)
+      pck.handled()
+      break;
+    case PK.SIB.KEY:
+      // read-out the indice, 
+      let indice = TS.read('uint16', pck.data, ptr + 1)
+      let next = context.parent.children[indice]
+      if (!next) {
+        console.log("MISSING SIBLING")
+        pck.handled()
+        return;
+      }
+      if (next.clear()) {
+        // increment block & write 
+        pck.data[ptr - 1] = PK.SIB.KEY
+        TS.write('uint16', context.indice, pck.data, ptr)
+        pck.data[ptr + 2] = PK.PTR
+        next.handle(pck, ptr + 2)
+      }
+      break;
+    case PK.PARENT.KEY:
+      // can parent handle?
+      if (context.parent.clear()) {
+        // increment and write to parent 
+        pck.data[ptr - 1] = PK.CHILD.KEY
+        TS.write('uint16', context.indice, pck.data, ptr)
+        pck.data[ptr + 2] = PK.PTR
+        context.parent.handle(pck, ptr + 2)
+      }
+      break;
+    case PK.PFWD.KEY:
+      if(context.type == "vport"){
+        // increment, so recipient sees ptr infront of next instruction 
+        pck.data[ptr - 1] = PK.PFWD.KEY
+        pck.data[ptr] = PK.PTR
+        // would check flowcontrol, 
+        context.send(pck.data)
+        pck.handled()
+      } else {
+        console.log("pfwd at non-vport")
+        pck.handled()
+      }
+      break;
+    default:
+      // rx'd non-destination, can't do anything 
+      console.warn("endpoint rm packet: bad switch")
+      pck.handled()
+  }
+}
+
+export { ptrLoop, handler }

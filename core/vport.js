@@ -13,7 +13,7 @@ no warranty is provided, and users accept all liability.
 */
 
 import { PK, TIMES, TS } from './ts.js'
-import { ptrLoop } from './osap-utils.js'
+import { ptrLoop, handler } from './osap-utils.js'
 
 export default function VPort(parent) {
   /* to implement */
@@ -23,69 +23,25 @@ export default function VPort(parent) {
 
   // maximum size of packets originating on / transmitting from this thing 
   this.maxSegLength = 128 // default minimum 
+  this.parent = parent 
   this.indice = undefined // osap sets this 
+  this.type = "vport"
 
   // parent checks if we are clear to get new data 
   // note: difference between this & if clear to transmit... 
   this.clear = () => { return true }
 
-  // handle a packet, assume well formed already:
-  // in the future, these could be queries to us, so we will check
-  // that the 
+  this.onData = (pck) => {
+    console.log("vPort onData")
+  }
+
+  // handler is functional / contextual, 
   this.handle = (pck, ptr) => {
-    console.warn(`VP Handle: & ptr ${ptr}`)
-    PK.logPacket(pck.data)
-    // do like, 
-    if (ptr == undefined) {
-      ptr = ptrLoop(pck.data)
-      if (ptr == undefined) {
-        pck.handled()
-        return
-      }
-    }
-    // would do check-for-times, 
-    // ... 
-    ptr ++;
-    // would switch now, 
-    switch (pck.data[ptr]) {
-      case PK.DEST:
-        console.log("VPORT Destination")
-        PK.logPacket(pck.data)
-        break;
-      case PK.PFWD.KEY:
-        console.log("VPORT PFWD")
-        // increment, so recipient sees ptr infront of next instruction 
-        pck.data[ptr - 1] = PK.PFWD.KEY 
-        pck.data[ptr] = PK.PTR 
-        // would check flowcontrol / 
-        this.send(pck.data)
-        pck.handled()
-        break;
-      case PK.SIB.KEY:
-        // read-out the indice, 
-        let indice = TS.read('uint16', pck.data, ptr + 1)
-        let next = parent.children[indice]
-        if(!next){
-          console.log("MISSING SIBLING")
-          pck.handled() 
-          return;
-        }
-        if(next.clear()){
-          // increment block & write 
-          pck.data[ptr - 1] = PK.SIB.KEY 
-          TS.write('uint16', this.indice, pck.data, ptr)
-          pck.data[ptr + 2] = PK.PTR 
-          next.handle(pck, ptr + 2)
-        }
-        break;
-      default:
-        console.warn('vport rm packet: bad switch')
-        pck.handled()
-    }
+    handler(this, pck, ptr)
   }
 
   // phy implements this, 
-  this.send = () => { console.warn('tx to undefined vport send fn') }
+  this.send = () => { console.warn('transmitted to undefined vport send fn') }
 
   // fire this code when your port receive a packet 
   this.receive = (buffer) => {
@@ -98,7 +54,7 @@ export default function VPort(parent) {
       return
     }
     // tx'er had same structure, so 
-    console.warn(`VPort Rx & ptr ${ptr}`)
+    console.log(`VPort Rx & ptr ${ptr}`)
     PK.logPacket(buffer)
     // hot damn we can just throw this into the mixer, 
     let msg = {

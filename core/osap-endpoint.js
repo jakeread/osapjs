@@ -13,9 +13,11 @@ no warranty is provided, and users accept all liability.
 */
 
 import { PK, TS, TIMES } from './ts.js'
-import { ptrLoop } from './osap-utils.js'
+import { ptrLoop, handler } from './osap-utils.js'
 
 export default function Endpoint(parent) {
+  // has parent 
+  this.parent = parent 
   // has local data copy 
   this.data = new Uint8Array(0)
   this.token = false // 'occupied' or not 
@@ -23,54 +25,21 @@ export default function Endpoint(parent) {
   this.routes = []
   // has a position (parent will set), and type 
   this.indice = undefined
+  // has type, 
+  this.type = "endpoint"
 
   // parent checks 
   this.clear = () => {
     return !this.token
   }
 
+  this.onData = (pck) => {
+    console.log("endpoint onData")
+  }
+
+  // handler is functional / contextual, 
   this.handle = (pck, ptr) => {
-    console.warn(`Endpoint Handle: & ptr ${ptr}`)
-    PK.logPacket(pck.data)
-    // find the ptr, 
-    if (ptr == undefined) {
-      ptr = ptrLoop(pck.data)
-      if (ptr == undefined) {
-        pck.handled()
-        return
-      }
-    }
-    // would do check-for-times, 
-    // ... 
-    ptr ++;
-    // now ptr at next instruction, 
-    switch (pck.data[ptr]) {
-      case PK.DEST:
-        console.log("ENDPOINT Destination")
-        PK.logPacket(pck.data)
-        break;
-      case PK.SIB.KEY:
-        // read-out the indice, 
-        let indice = TS.read('uint16', pck.data, ptr + 1)
-        let next = parent.children[indice]
-        if(!next){
-          console.log("MISSING SIBLING")
-          pck.handled() 
-          return;
-        }
-        if(next.clear()){
-          // increment block & write 
-          pck.data[ptr - 1] = PK.SIB.KEY 
-          TS.write('uint16', this.indice, pck.data, ptr)
-          pck.data[ptr + 2] = PK.PTR 
-          next.handle(pck, ptr + 2)
-        }
-        break;
-      default:
-        // rx'd non-destination, can't do anything 
-        console.warn("endpoint rm packet: bad switch")
-        pck.handled()
-    }
+    handler(this, pck, ptr)
   }
 
   // ------------------------ add a route, using TS.route().[...].end(seg) 

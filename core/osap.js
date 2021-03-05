@@ -49,13 +49,18 @@ export default function OSAP(parent) {
     return ep
   }
 
+  // same as our children...
+
+  this.clear = () => { return true }
+
   // ------------------------------------------------------ SCAN RX ROUTINE
 
   this.handle = (pck, ptr) => {
     // req's to parent, 
-    console.warn(`OSAP Root Handle: & ptr ${ptr}`)
+    console.log(`OSAP Root Handle: & ptr ${ptr}`)
     PK.logPacket(pck.data)
     pck.handled() 
+    console.log("root not handling anything yet, consider functional re-write to avoid loop repetition")
   }
 
 } // end OSAP
