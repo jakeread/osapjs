@@ -12,7 +12,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, TIMES, TS } from './ts.js'
+import { PK, TS, OT, TIMES } from './ts.js'
 import { ptrLoop, handler } from './osap-utils.js'
 
 export default function VPort(parent) {
@@ -25,7 +25,7 @@ export default function VPort(parent) {
   this.maxSegLength = 128 // default minimum 
   this.parent = parent 
   this.indice = undefined // osap sets this 
-  this.type = "vport"
+  this.type = OT.VPORT
 
   // parent checks if we are clear to get new data 
   // note: difference between this & if clear to transmit... 
@@ -54,8 +54,8 @@ export default function VPort(parent) {
       return
     }
     // tx'er had same structure, so 
-    console.log(`VPort Rx & ptr ${ptr}`)
-    PK.logPacket(buffer)
+    //console.log(`VPort Rx & ptr ${ptr}`)
+    //PK.logPacket(buffer)
     // hot damn we can just throw this into the mixer, 
     let msg = {
       data: buffer,

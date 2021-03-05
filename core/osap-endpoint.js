@@ -12,7 +12,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, TS, TIMES } from './ts.js'
+import { PK, TS, OT, TIMES } from './ts.js'
 import { ptrLoop, handler, reverseRoute } from './osap-utils.js'
 
 export default function Endpoint(parent) {
@@ -26,7 +26,7 @@ export default function Endpoint(parent) {
   // has a position (parent will set), and type 
   this.indice = undefined
   // has type, 
-  this.type = "endpoint"
+  this.type = OT.SOFT
 
   // parent checks 
   this.clear = () => {

@@ -37,6 +37,13 @@ let TIMES = {
   }
 }
 
+let OT = {
+  ROOT: 22,
+  SOFT: 23,
+  VPORT: 24,
+  VBUS: 25
+}
+
 // 13: \r
 // 10: \n
 // these should be clearly delimited as L1 / L2 possible keys...
@@ -201,5 +208,6 @@ TS.write = (type, value, buffer, start) => {
 export {
   PK,     // onion routing keys 
   TS,     // typeset 
-  TIMES
+  OT,     // object types 
+  TIMES   // time utilities 
 }

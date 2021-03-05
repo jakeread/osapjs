@@ -12,7 +12,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, TS } from "./ts.js"
+import { OT, PK, TS } from "./ts.js"
 
 let ptrLoop = (buffer, ptr) => {
   if (!ptr) ptr = 0
@@ -44,8 +44,8 @@ let ptrLoop = (buffer, ptr) => {
 }
 
 let handler = (context, pck, ptr) => {
-  console.log(`${context.type} handle: ptr ${ptr}`)
-  PK.logPacket(pck.data)
+  //console.log(`${context.type} handle: ptr ${ptr}`)
+  //PK.logPacket(pck.data)
   // find the ptr if not defined, 
   if (ptr == undefined) {
     ptr = ptrLoop(pck.data)
@@ -60,7 +60,7 @@ let handler = (context, pck, ptr) => {
   // now ptr at next instruction 
   switch (pck.data[ptr]) {
     case PK.DEST:
-      console.log(`${context.type} is destination`)
+      //console.log(`${context.type} is destination`)
       context.onData(pck, ptr)
       pck.handled()
       break;
@@ -116,7 +116,7 @@ let handler = (context, pck, ptr) => {
       }
       break;
     case PK.PFWD.KEY:
-      if(context.type == "vport"){
+      if(context.type == OT.VPORT){
         // increment, so recipient sees ptr infront of next instruction 
         pck.data[ptr - 1] = PK.PFWD.KEY
         pck.data[ptr] = PK.PTR
@@ -137,8 +137,8 @@ let handler = (context, pck, ptr) => {
 }
 
 let reverseRoute = (pck, ptr) => {
-  console.log(`reverse w/ ptr ${ptr}`)
-  PK.logPacket(pck.data)
+  //console.log(`reverse w/ ptr ${ptr}`)
+  //PK.logPacket(pck.data)
   // similar here, 
   if (ptr == undefined) {
     ptr = ptrLoop(pck.data)
@@ -162,11 +162,11 @@ let reverseRoute = (pck, ptr) => {
   // similar to the ptr walk, 
   walker: for (let h = 0; h < 16; h++) {
     if(rptr >= end) {
-      console.log(`break ${rptr}`)
+      //console.log(`break ${rptr}`)
       route[0] = PK.PTR // start, 
       break walker;
     }
-    console.log(`step ${rptr} = ${pck.data[rptr]}`)
+    //console.log(`step ${rptr} = ${pck.data[rptr]}`)
     switch (pck.data[rptr]) {
       case PK.PTR:
         break;
@@ -207,8 +207,8 @@ let reverseRoute = (pck, ptr) => {
         return undefined
     }
   } // end reverse walk 
-  console.log("reversed")
-  PK.logPacket(route)
+  //console.log("reversed")
+  //PK.logPacket(route)
   return route 
 }
 

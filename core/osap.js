@@ -14,7 +14,7 @@ no warranty is provided, and users accept all liability.
 
 'use strict'
 
-import { PK, TS, TIMES } from './ts.js'
+import { PK, TS, OT, TIMES } from './ts.js'
 import VPort from './vport.js'
 import Module from './osap-module.js'
 import Endpoint from './osap-endpoint.js'
@@ -27,7 +27,7 @@ let LOGTX = false
 
 export default function OSAP() {
   // has no parent, is local root 
-  this.type = "root"
+  this.type = OT.ROOT
   // the node's children / objects 
   this.children = []
 
