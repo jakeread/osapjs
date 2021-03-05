@@ -13,7 +13,7 @@ no warranty is provided, and users accept all liability.
 */
 
 import { PK, TS, TIMES } from './ts.js'
-import { ptrLoop, handler } from './osap-utils.js'
+import { ptrLoop, handler, reverseRoute } from './osap-utils.js'
 
 export default function Endpoint(parent) {
   // has parent 
@@ -33,8 +33,9 @@ export default function Endpoint(parent) {
     return !this.token
   }
 
+  // pck[ptr] == PK.DEST 
   this.onData = (pck, ptr) => {
-    console.log("endpoint onData")
+    console.log("endpoint onData default")
   }
 
   // handler is functional / contextual, 

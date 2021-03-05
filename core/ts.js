@@ -54,7 +54,7 @@ let PK = {
   },
   PARENT: {
     KEY: 5,
-    INC: 1
+    INC: 3
   },
   CHILD: {
     KEY: 3,
