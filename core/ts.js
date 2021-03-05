@@ -29,7 +29,12 @@ if (typeof process === 'object') {
 
 let TIMES = {
   staleTimeout: 600,
-  getTimeStamp: function() {return getTimeStamp()}
+  getTimeStamp: function() {return getTimeStamp()},
+  delay: function(ms) {
+    return new Promise((resolve, reject) => {
+      setTimeout(resolve, ms)
+    })
+  }
 }
 
 // 13: \r
@@ -43,25 +48,24 @@ let TIMES = {
 let PK = {
   PTR: 88,    // packet pointer (next byte is instruction)
   DEST: 99,   // have arrived, (next bytes are for recipient)
-  SEARCH: 101,// want to get network topology info. at this knuckle 
-  PORTF: {    // forward on this port, 
-    KEY: 11,    // actual instruction key,
-    INC: 3      // number of bytes in instruction argument + 1 for the key
-  },
-  BUSF: {     // forward on this bus, to this drop 
-    KEY: 12,
-    INC: 5
-  },
-  BUSB: {     // broadcast on this bus, 
-    KEY: 14,
-    INC: 5,
-  },
-  DOWN_OBJ: { // traverse up this object, 
-    KEY: 21, 
+  SIB: {
+    KEY: 4,
     INC: 3
   },
-  UP_OBJ: {
-    KEY: 22, 
+  PARENT: {
+    KEY: 5,
+    INC: 1
+  },
+  CHILD: {
+    KEY: 3,
+    INC: 3
+  },
+  PFWD: {
+    KEY: 11, 
+    INC: 1
+  },
+  BFWD: {
+    KEY: 12,
     INC: 3
   }
 }
@@ -77,25 +81,30 @@ PK.logPacket = (buffer) => {
 }
 
 PK.route = () => {
-  let path = []
+  let path = [PK.PTR]
   return {
-    portf: function(exit) {
-      path = path.concat([PK.PORTF.KEY, exit & 255, (exit >> 8) & 255])
+    sib: function(indice) {
+      path = path.concat([PK.SIB.KEY, indice & 255, (indice >> 8) & 255])
       return this 
     },
-    busf: function(exit, address) {
-      path = path.concat([PK.BUSF.KEY, exit & 255, (exit >> 8) & 255, address & 255, (address >> 8) & 255])
+    parent: function() {
+      path = path.concat([PK.PARENT.KEY])
       return this 
     },
-    up_obj: function(indice) {
-      path = path.concat([PK.UP_OBJ.KEY, indice & 255, (indice >> 8) & 255])
+    child: function(indice) {
+      path = path.concat([PK.CHILD.KEY, indice & 255, (indice >> 8) & 255])
       return this
     },
-    down_obj: function(indice) {
-      path = path.concat([PK.DOWN_OBJ.KEY, indice & 255, (indice >> 8) & 255])
+    pfwd: function() {
+      path = path.concat([PK.PFWD.KEY])
+      return this 
+    },
+    bfwd: function(indice){
+      path = path.concat([PK.BFWD.KEY, indice & 255, (indice >> 8) & 255])
       return this 
     },
     end: function(seg) {
+      path = path.concat([PK.DEST])
       return {
         path: Uint8Array.from(path), 
         segSize: seg ? seg : 128 // if no segsize defined, use 128 

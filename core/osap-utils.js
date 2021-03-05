@@ -20,24 +20,25 @@ let ptrLoop = (buffer, ptr) => {
   for (let h = 0; h < 16; h++) {
     switch (buffer[ptr]) {
       case PK.PTR:
-        // there it is, 
         return ptr
-      case PK.PORTF.KEY:
-        // port-previous, keep looking for pointer,
-        ptr += PK.PORTF.INC
+      case PK.SIB.KEY:
+        ptr += PK.SIB.INC
         break;
-      case PK.BUSF.KEY:
-      case PK.BUSB.KEY:
-        // old instruction to forward on a bus,
-        ptr += PK.BUSF.INC
+      case PK.PARENT.KEY:
+        ptr += PK.PARENT.INC
         break;
-      case PK.DOWN_OBJ.KEY:
-      case PK.UP_OBJ.KEY: 
-        ptr += PK.DOWN_OBJ.INC
+      case PK.CHILD.KEY:
+        ptr += PK.CHILD.INC
+        break;
+      case PK.PFWD.KEY:
+        ptr += PK.PFWD.INC
+        break;
+      case PK.BFWD.KEY:
+        ptr += PK.BFWD.INC
         break;
       default:
         // unrecognized, escape !
-        return undefined 
+        return undefined
     }
   } // end ptrloop
 }
