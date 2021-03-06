@@ -34,7 +34,8 @@ let TIMES = {
     return new Promise((resolve, reject) => {
       setTimeout(resolve, ms)
     })
-  }
+  },
+  stackSize: 16,
 }
 
 let OT = {

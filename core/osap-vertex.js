@@ -66,7 +66,6 @@ export default class Vertex {
       handled: () => {
         for (let i = 0; i < this.stack.length; i++) {
           if (this.stack[i] == pck) {
-            console.log('splice')
             this.stack.splice(i, 1) // rm this element 
           }
         }
@@ -79,11 +78,14 @@ export default class Vertex {
   // we have a kind of runtime, 
   loopTimer = null
   // avoid having multiple timer events for this, 
-  // and run on timer always to prevent greedy shoot-through 
   startLoop = function () {
     // another caveat of 'class' in js: wrap class-based fn in 
     // anonymous fn for execution in timeout (which executes at window level)
-    if (!this.loopTimer) this.loopTimer = setTimeout(() => { this.loop() }, 0) //this.loop()
+    // note: if we run this.loop() right away, and the path is clear, 
+    // all will shoot through in a single turn of the loop...
+    // I think this is a greedy approach, but it improves performance ~ 2 orders magnitude
+    // for system escape (endpoint -> vport -> exit) (5ms -> 0.05ms)
+    if (!this.loopTimer) this.loop() //this.loopTimer = setTimeout(() => { this.loop() }, 0) //this.loop()
   }
 
   loop = function () {

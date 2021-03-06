@@ -49,7 +49,7 @@ let ptrLoop = (buffer, ptr) => {
 // may cause trouble, but we are assuming most traffic flows to 
 // endpoints, which (will) use endpoint-to-endpoint flowcontrol, 
 let handler = (context, pck, ptr) => {
-  console.log(`${context.type} handle: ptr ${ptr}`)
+  //console.log(`${context.type} handle: ptr ${ptr}`)
   //PK.logPacket(pck.data)
   // find the ptr if not defined, 
   if (ptr == undefined) {
@@ -73,13 +73,15 @@ let handler = (context, pck, ptr) => {
     case PK.DEST:
       //console.log(`${context.type} is destination`)
       // flow control where destination is data sink 
-      if (!context.occupied()) {
-        console.log('escape to destination')
+      if (context.occupied()) {
+        console.log('destination wait')
+      } else {
+        //console.log('escape to destination')
         // copy-in to destination, 
         context.dest(pck.data, ptr)
         // clear out of stack 
         pck.handled()
-      } // else will check again 
+      }
       break;
     case PK.SIB.KEY:
       // read-out the indice, 
@@ -90,15 +92,19 @@ let handler = (context, pck, ptr) => {
         pck.status = "err"
         return;
       }
-      console.log('shift into sib')
-      // increment block & write 
-      pck.data[ptr - 1] = PK.SIB.KEY
-      TS.write('uint16', context.indice, pck.data, ptr)
-      pck.data[ptr + 2] = PK.PTR
-      // copy-in to next, 
-      sib.handle(pck.data, ptr + 2)
-      // clear out of last 
-      pck.handled()
+      if(sib.stack.length >= TIMES.stackSize){
+        console.log(`sibling wait ${sib.stack.length}`)
+      } else {
+        //console.log('shift into sib')
+        // increment block & write 
+        pck.data[ptr - 1] = PK.SIB.KEY
+        TS.write('uint16', context.indice, pck.data, ptr)
+        pck.data[ptr + 2] = PK.PTR
+        // copy-in to next, 
+        sib.handle(pck.data, ptr + 2)
+        // clear out of last 
+        pck.handled()  
+      }
       break;
     case PK.PARENT.KEY:
       throw new Error("parent")
@@ -143,7 +149,7 @@ let handler = (context, pck, ptr) => {
     case PK.PFWD.KEY:
       if (context.type == OT.VPORT) {
         if(context.cts()){
-          console.log("escape to vport send")
+          //console.log("escape to vport send")
           // increment, so recipient sees ptr infront of next instruction 
           pck.data[ptr - 1] = PK.PFWD.KEY
           pck.data[ptr] = PK.PTR

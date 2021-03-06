@@ -40,11 +40,26 @@ export default class Endpoint extends Vertex {
 
   // transmit to all routes & await return before resolving, 
   write = function (datagram) {
+    // can't write if stack is full, 
+    if(this.stack.length > TIMES.stackSize){
+      throw new Error('faulty write')
+    }
     // 'write' updates the data stored here, lettuce do that first.
     // the best way to copy an array in js (source: internet) is:
     this.data = datagram.slice(0)
     // now send anything, no backpressure here yet 
-    return this.transmit()
+    this.transmit()
+    // resolve when stack < max 
+    return new Promise((resolve, reject) => {
+      let check = () => {
+        if(this.stack.length < TIMES.stackSize){
+          resolve()
+        } else {
+          setTimeout(check, 0)
+        }
+      }
+      check()
+    })
   }
 
   transmit = function () {
