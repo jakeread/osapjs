@@ -33,12 +33,34 @@ export default function Endpoint(parent) {
     return !this.token
   }
 
+  // handler for pck = us, 
   // pck[ptr] == PK.DEST 
-  this.onData = (pck, ptr) => {
-    console.log("endpoint onData default")
+  this.dest = (pck, ptr) => {
+    // now we have this unhandled data, 
+    this.token = true 
+    // it's the whole packet, copied out 
+    let data = pck.data.slice(0)
+    // we ask handler to clear, 
+    this.onData(data, ptr).then(() => {
+      // if it resolves, we are open again, and data copies in 
+      this.data = data 
+      this.token = false 
+    }).catch((err) => {
+      // otherwise we have rejected it, data doesn't change 
+      // but are still open again 
+      this.token = false 
+    })
+  }
+
+  this.onData = (data, ptr) => {
+    console.log('default endpoint onData')
+    return new Promise((resolve, reject) => {
+      resolve()
+    })
   }
 
   // handler is functional / contextual, 
+  // it should be assumed we're clear before handle is called
   this.handle = (pck, ptr) => {
     handler(this, pck, ptr)
   }
@@ -72,11 +94,31 @@ export default function Endpoint(parent) {
         data: datagram,
         origin: this,
         arrivalTime: TIMES.getTimeStamp(),
+        state: "awaiting",
+        timer: null, 
         handled: function () {
+          this.state = "transmitted"
           console.log("HANDLED from Endpoint Transmit origin")
         }
       }
-      this.handle(pck, 0)
+      let check = () => {
+        switch(pck.state){
+          case "awaiting":
+            this.handle(pck, 0)
+            break;
+          case "timeout":
+            clearTimeout(pck.timer)
+            return;
+          case "transmitted":
+            clearTimeout(pck.timer)
+            return;
+        }
+        pck.timer = setTimeout(check, 0)
+      }
+      setTimeout(() => {
+        pck.state = "timeout"
+      }, TIMES.staleTimeout)
+      check()
     }
 
   }

@@ -56,15 +56,15 @@ let PK = {
   PTR: 88,    // packet pointer (next byte is instruction)
   DEST: 99,   // have arrived, (next bytes are for recipient)
   SIB: {
-    KEY: 4,
+    KEY: 15,
     INC: 3
   },
   PARENT: {
-    KEY: 5,
+    KEY: 16,
     INC: 3
   },
   CHILD: {
-    KEY: 3,
+    KEY: 14,
     INC: 3
   },
   PFWD: {

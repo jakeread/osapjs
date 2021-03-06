@@ -28,8 +28,9 @@ export default function VPort(parent) {
   this.type = OT.VPORT
 
   // parent checks if we are clear to get new data 
-  // note: difference between this & if clear to transmit... 
-  this.clear = () => { return true }
+  this.clear = () => { 
+    return true 
+  }
 
   this.onData = (pck, ptr) => {
     console.log("vPort onData")
@@ -57,16 +58,38 @@ export default function VPort(parent) {
     //console.log(`VPort Rx & ptr ${ptr}`)
     //PK.logPacket(buffer)
     // hot damn we can just throw this into the mixer, 
-    let msg = {
+    let pck = {
       data: buffer,
       origin: this,
       arrivalTime: TIMES.getTimeStamp(),
+      state: "awaiting",
+      timer: null,
       handled: function () {
+        this.state = "transmitted"
         console.log("HANDLED from VPort origin")
       }
     }
-    // should just be like, 
-    this.handle(msg, ptr)
+    // push it through, against backpressure 
+    let check = () => {
+      switch (pck.state){
+        case "awaiting":
+          this.handle(pck, ptr)
+          break;
+        case "timeout":
+          clearTimeout(pck.timer)
+          return;
+        case "transmitted":
+          clearTimeout(pck.timer)
+          return;
+      }
+      pck.timer = setTimeout(check, 0)
+    }
+    // don't try too hard 
+    setTimeout(() => {
+      pck.state = "timeout"
+    }, TIMES.staleTimeout)
+    // kick process
+    check() 
   }
 
 } // end vPort def

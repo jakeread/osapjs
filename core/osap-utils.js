@@ -44,7 +44,7 @@ let ptrLoop = (buffer, ptr) => {
 }
 
 let handler = (context, pck, ptr) => {
-  //console.log(`${context.type} handle: ptr ${ptr}`)
+  console.log(`${context.type} handle: ptr ${ptr}`)
   //PK.logPacket(pck.data)
   // find the ptr if not defined, 
   if (ptr == undefined) {
@@ -57,12 +57,18 @@ let handler = (context, pck, ptr) => {
   // would do check for times, 
   // ...
   ptr++;
+  // log 
+  console.log(`${context.type} handle packet: switch at ${ptr} ${pck.data[ptr]}`)
+  PK.logPacket(pck.data)
   // now ptr at next instruction 
   switch (pck.data[ptr]) {
     case PK.DEST:
       //console.log(`${context.type} is destination`)
-      context.onData(pck, ptr)
-      pck.handled()
+      if(context.clear()){
+        console.log('escape to destination')
+        context.dest(pck, ptr)
+        pck.handled()
+      }
       break;
     case PK.SIB.KEY:
       // read-out the indice, 
@@ -74,6 +80,7 @@ let handler = (context, pck, ptr) => {
         return;
       }
       if (sib.clear()) {
+        console.log('shift into sib')
         // increment block & write 
         pck.data[ptr - 1] = PK.SIB.KEY
         TS.write('uint16', context.indice, pck.data, ptr)
@@ -90,6 +97,7 @@ let handler = (context, pck, ptr) => {
       }
       // can parent handle?
       if (context.parent.clear()) {
+        console.log('shift into parent')
         // increment and write to parent 
         pck.data[ptr - 1] = PK.CHILD.KEY
         TS.write('uint16', context.indice, pck.data, ptr)
@@ -108,6 +116,7 @@ let handler = (context, pck, ptr) => {
       }
       // can child handle?
       if(child.clear()){
+        console.log('shift into child')
         // increment and write to child 
         pck.data[ptr - 1] = PK.PARENT.KEY 
         TS.write('uint16', 0, pck.data, ptr)
@@ -117,6 +126,7 @@ let handler = (context, pck, ptr) => {
       break;
     case PK.PFWD.KEY:
       if(context.type == OT.VPORT){
+        console.log("escape to vport send")
         // increment, so recipient sees ptr infront of next instruction 
         pck.data[ptr - 1] = PK.PFWD.KEY
         pck.data[ptr] = PK.PTR
@@ -130,7 +140,7 @@ let handler = (context, pck, ptr) => {
       break;
     default:
       // rx'd non-destination, can't do anything 
-      console.log(`${context.type} rm packet: bad switch`)
+      console.log(`${context.type} rm packet: bad switch at ${ptr} ${pck.data[ptr]}`)
       PK.logPacket(pck.data)
       pck.handled()
   }
