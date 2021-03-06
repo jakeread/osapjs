@@ -33,20 +33,17 @@ export default function OSAP() {
 
   // children factories 
   this.vPort = () => {
-    let np = new VPort(this)
-    np.indice = this.children.length
+    let np = new VPort(this, this.children.length)
     this.children.push(np)
     return np
   }
   this.module = () => {
-    let md = new Module(this)
-    md.indice = this.children.length
+    let md = new Module(this, this.children.length)
     this.children.push(md)
     return md
   }
   this.endpoint = () => {
-    let ep = new Endpoint(this)
-    ep.indice = this.children.length
+    let ep = new Endpoint(this, this.children.length)
     this.children.push(ep)
     return ep
   }
@@ -60,7 +57,8 @@ export default function OSAP() {
   }
 
   this.handle = (pck, ptr) => {
-    handler(this, pck, ptr)
+    // pck is released from wherever it was before, so 
+    throw new Error("handle at root")
   }
 
 } // end OSAP

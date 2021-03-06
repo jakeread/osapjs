@@ -12,7 +12,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { OT, PK, TS } from "./ts.js"
+import { OT, PK, TIMES, TS } from "./ts.js"
 
 let ptrLoop = (buffer, ptr) => {
   if (!ptr) ptr = 0
@@ -43,6 +43,11 @@ let ptrLoop = (buffer, ptr) => {
   } // end ptrloop
 }
 
+// worth noting: there is no between-object buffering / flowcontrol 
+// in js: since we can generate / handoff objects on the fly 
+// w/o any real memory consideration. in practice this 
+// may cause trouble, but we are assuming most traffic flows to 
+// endpoints, which (will) use endpoint-to-endpoint flowcontrol, 
 let handler = (context, pck, ptr) => {
   console.log(`${context.type} handle: ptr ${ptr}`)
   //PK.logPacket(pck.data)
@@ -50,25 +55,31 @@ let handler = (context, pck, ptr) => {
   if (ptr == undefined) {
     ptr = ptrLoop(pck.data)
     if (ptr == undefined) {
+      console.log("bad ptr walk: handler")
       pck.handled()
       return
     }
   }
-  // would do check for times, 
+  // check for timeouts 
+  if (pck.arrivalTime + TIMES.staleTimeout < TIMES.getTimeStamp()) {
+    console.log("timeout")
+    pck.handled()
+    return
+  }
   // ...
   ptr++;
-  // log 
-  console.log(`${context.type} handle packet: switch at ${ptr} ${pck.data[ptr]}`)
-  PK.logPacket(pck.data)
   // now ptr at next instruction 
   switch (pck.data[ptr]) {
     case PK.DEST:
       //console.log(`${context.type} is destination`)
-      if(context.clear()){
+      // flow control where destination is data sink 
+      if (!context.occupied()) {
         console.log('escape to destination')
-        context.dest(pck, ptr)
+        // copy-in to destination, 
+        context.dest(pck.data, ptr)
+        // clear out of stack 
         pck.handled()
-      }
+      } // else will check again 
       break;
     case PK.SIB.KEY:
       // read-out the indice, 
@@ -76,63 +87,70 @@ let handler = (context, pck, ptr) => {
       let sib = context.parent.children[si]
       if (!sib) {
         console.log("missing sibling")
-        pck.handled()
+        pck.status = "err"
         return;
       }
-      if (sib.clear()) {
-        console.log('shift into sib')
-        // increment block & write 
-        pck.data[ptr - 1] = PK.SIB.KEY
-        TS.write('uint16', context.indice, pck.data, ptr)
-        pck.data[ptr + 2] = PK.PTR
-        sib.handle(pck, ptr + 2)
-      }
+      console.log('shift into sib')
+      // increment block & write 
+      pck.data[ptr - 1] = PK.SIB.KEY
+      TS.write('uint16', context.indice, pck.data, ptr)
+      pck.data[ptr + 2] = PK.PTR
+      // copy-in to next, 
+      sib.handle(pck.data, ptr + 2)
+      // clear out of last 
+      pck.handled()
       break;
     case PK.PARENT.KEY:
+      throw new Error("parent")
+      /*
       // has parent?
-      if(!(context.parent)){
+      if (!(context.parent)) {
         console.log("missing parent")
-        pck.handled()
+        pck.status = "err"
         return;
       }
-      // can parent handle?
-      if (context.parent.clear()) {
-        console.log('shift into parent')
-        // increment and write to parent 
-        pck.data[ptr - 1] = PK.CHILD.KEY
-        TS.write('uint16', context.indice, pck.data, ptr)
-        pck.data[ptr + 2] = PK.PTR
-        context.parent.handle(pck, ptr + 2)
-      }
+      console.log('shift into parent')
+      // increment and write to parent 
+      pck.data[ptr - 1] = PK.CHILD.KEY
+      TS.write('uint16', context.indice, pck.data, ptr)
+      pck.data[ptr + 2] = PK.PTR
+      // clear last, handle next 
+      pck.status = "transmitted"
+      context.parent.handle(pck.data, ptr + 2)
+      */
       break;
     case PK.CHILD.KEY:
+      throw new Error("child")
+      /*
       // find child, 
       let ci = TS.read('uint16', pck.data, ptr + 1)
       let child = context.children[ci]
-      if(!child){
+      if (!child) {
         console.log("missing child")
-        pck.handled() 
+        pck.status = "err"
         return;
       }
-      // can child handle?
-      if(child.clear()){
-        console.log('shift into child')
-        // increment and write to child 
-        pck.data[ptr - 1] = PK.PARENT.KEY 
-        TS.write('uint16', 0, pck.data, ptr)
-        pck.data[ptr + 2] = PK.PTR 
-        child.handle(pck, ptr + 2)
-      }
+      console.log('shift into child')
+      // increment and write to child 
+      pck.data[ptr - 1] = PK.PARENT.KEY
+      TS.write('uint16', 0, pck.data, ptr)
+      pck.data[ptr + 2] = PK.PTR
+      // clear last, handle next 
+      pck.status = "transmitted"
+      child.handle(pck.data, ptr + 2)
+      */
       break;
     case PK.PFWD.KEY:
-      if(context.type == OT.VPORT){
-        console.log("escape to vport send")
-        // increment, so recipient sees ptr infront of next instruction 
-        pck.data[ptr - 1] = PK.PFWD.KEY
-        pck.data[ptr] = PK.PTR
-        // would check flowcontrol, 
-        context.send(pck.data)
-        pck.handled()
+      if (context.type == OT.VPORT) {
+        if(context.cts()){
+          console.log("escape to vport send")
+          // increment, so recipient sees ptr infront of next instruction 
+          pck.data[ptr - 1] = PK.PFWD.KEY
+          pck.data[ptr] = PK.PTR
+          // would check flowcontrol, 
+          context.send(pck.data)
+          pck.handled()
+        } // else, awaits here 
       } else {
         console.log("pfwd at non-vport")
         pck.handled()
@@ -142,7 +160,8 @@ let handler = (context, pck, ptr) => {
       // rx'd non-destination, can't do anything 
       console.log(`${context.type} rm packet: bad switch at ${ptr} ${pck.data[ptr]}`)
       PK.logPacket(pck.data)
-      pck.handled()
+      pck.status = "exit"
+      break;
   }
 }
 
@@ -152,17 +171,16 @@ let reverseRoute = (pck, ptr) => {
   // similar here, 
   if (ptr == undefined) {
     ptr = ptrLoop(pck.data)
-    ptr ++ // ptr @ 'dest' key, 
+    ptr++ // ptr @ 'dest' key, 
     if (ptr == undefined) {
-      pck.handled()
-      return
+      return undefined 
     }
   }
   // now pck[ptr] = PK.DEST
   // route is a new uint8, 
   let route = new Uint8Array(ptr + 3)
   // the tail is the same: same segsize, dest at end 
-  for(let i = 3; i > 0; i --){
+  for (let i = 3; i > 0; i--) {
     route[route.length - i] = pck.data[ptr + 3 - i]
   }
   // now we can reverse the stepwise,  
@@ -171,7 +189,7 @@ let reverseRoute = (pck, ptr) => {
   let rptr = 0        // read from the head 
   // similar to the ptr walk, 
   walker: for (let h = 0; h < 16; h++) {
-    if(rptr >= end) {
+    if (rptr >= end) {
       //console.log(`break ${rptr}`)
       route[0] = PK.PTR // start, 
       break walker;
@@ -181,33 +199,33 @@ let reverseRoute = (pck, ptr) => {
       case PK.PTR:
         break;
       case PK.SIB.KEY:
-        wptr -= PK.SIB.INC 
-        for(let i = 0; i < PK.SIB.INC; i ++){
-          route[wptr + i] = pck.data[rptr ++]
+        wptr -= PK.SIB.INC
+        for (let i = 0; i < PK.SIB.INC; i++) {
+          route[wptr + i] = pck.data[rptr++]
         }
         break;
       case PK.PARENT.KEY:
-        wptr -= PK.PARENT.INC 
-        for(let i = 0; i < PK.PARENT.INC; i ++){
-          route[wptr + i] = pck.data[rptr ++]
+        wptr -= PK.PARENT.INC
+        for (let i = 0; i < PK.PARENT.INC; i++) {
+          route[wptr + i] = pck.data[rptr++]
         }
         break;
       case PK.CHILD.KEY:
-        wptr -= PK.CHILD.INC 
-        for(let i = 0; i < PK.CHILD.INC; i ++){
-          route[wptr + i] = pck.data[rptr ++]
+        wptr -= PK.CHILD.INC
+        for (let i = 0; i < PK.CHILD.INC; i++) {
+          route[wptr + i] = pck.data[rptr++]
         }
         break;
       case PK.PFWD.KEY:
-        wptr -= PK.PFWD.INC 
-        for(let i = 0; i < PK.PFWD.INC; i ++){
-          route[wptr + i] = pck.data[rptr ++]
+        wptr -= PK.PFWD.INC
+        for (let i = 0; i < PK.PFWD.INC; i++) {
+          route[wptr + i] = pck.data[rptr++]
         }
         break;
       case PK.BFWD.KEY:
-        wptr -= PK.BFWD.INC 
-        for(let i = 0; i < PK.BFWD.INC; i ++){
-          route[wptr + i] = pck.data[rptr ++]
+        wptr -= PK.BFWD.INC
+        for (let i = 0; i < PK.BFWD.INC; i++) {
+          route[wptr + i] = pck.data[rptr++]
         }
         break;
       default:
@@ -219,7 +237,7 @@ let reverseRoute = (pck, ptr) => {
   } // end reverse walk 
   //console.log("reversed")
   //PK.logPacket(route)
-  return route 
+  return route
 }
 
 export { ptrLoop, handler, reverseRoute }
