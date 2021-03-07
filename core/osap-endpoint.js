@@ -12,7 +12,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, TS, OT, TIMES } from './ts.js'
+import { PK, TS, VT, TIMES } from './ts.js'
 import { ptrLoop, handler, reverseRoute } from './osap-utils.js'
 import Vertex from './osap-vertex.js'
 
@@ -28,13 +28,11 @@ export default class Endpoint extends Vertex {
 
   // endpoint addnl'y has outgoing routes, 
   routes = []
-  type = OT.SOFT
-
-  // has local data store, state (token: occupied / not)
-  data = new Uint8Array(0)
+  type = VT.SOFT
   
   // has outgoing routes, 
   addRoute = function (route) {
+    console.log('adding route', route)
     this.routes.push(route)
   }
 

@@ -12,7 +12,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, TS, OT, TIMES } from './ts.js'
+import { PK, TS, VT, TIMES } from './ts.js'
 import { ptrLoop, handler } from './osap-utils.js'
 import Vertex from './osap-vertex.js'
 
@@ -29,7 +29,7 @@ export default class VPort extends Vertex {
   // on data, call this.recieve(buffer) with a uint8array arg 
 
   maxSegLength = 128
-  type = OT.VPORT
+  type = VT.VPORT
 
   // phy implements this, 
   cts = function () { return false }
@@ -42,6 +42,7 @@ export default class VPort extends Vertex {
     // which may be called multiple times on flowcontrol state 
     if (ptr == undefined) {
       console.log("pop for bad ptr walk at vport")
+      PK.logPacket(buffer)
       return
     }
     // datagram goes straight through 

@@ -26,6 +26,8 @@ export default class Vertex {
     this.indice = indice
   }
 
+  // local data store / freshness 
+  data = new Uint8Array(0)
   token = false
   occupied = function () {
     return this.token

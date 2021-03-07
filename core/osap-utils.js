@@ -12,7 +12,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { OT, PK, TIMES, TS } from "./ts.js"
+import { VT, PK, TIMES, TS } from "./ts.js"
 
 let ptrLoop = (buffer, ptr) => {
   if (!ptr) ptr = 0
@@ -36,6 +36,8 @@ let ptrLoop = (buffer, ptr) => {
       case PK.BFWD.KEY:
         ptr += PK.BFWD.INC
         break;
+      case PK.LLESCAPE.KEY:
+        ptr += PK.LLESCAPE.INC
       default:
         // unrecognized, escape !
         return undefined
@@ -147,7 +149,7 @@ let handler = (context, pck, ptr) => {
       */
       break;
     case PK.PFWD.KEY:
-      if (context.type == OT.VPORT) {
+      if (context.type == VT.VPORT) {
         if(context.cts()){
           //console.log("escape to vport send")
           // increment, so recipient sees ptr infront of next instruction 
@@ -161,6 +163,11 @@ let handler = (context, pck, ptr) => {
         console.log("pfwd at non-vport")
         pck.handled()
       }
+      break;
+    case PK.LLESCAPE.KEY:
+      let str = TS.read('string', pck.data, ptr + 1, true).value
+      console.error('LL ESCAPE:', str)
+      pck.handled()
       break;
     default:
       // rx'd non-destination, can't do anything 

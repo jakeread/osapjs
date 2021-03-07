@@ -38,7 +38,7 @@ let TIMES = {
   stackSize: 16,
 }
 
-let OT = {
+let VT = {
   ROOT: 22,
   SOFT: 23,
   VPORT: 24,
@@ -75,6 +75,10 @@ let PK = {
   BFWD: {
     KEY: 12,
     INC: 3
+  },
+  LLESCAPE: {
+    KEY: 44, 
+    INC: 1
   }
 }
 
@@ -209,6 +213,6 @@ TS.write = (type, value, buffer, start) => {
 export {
   PK,     // onion routing keys 
   TS,     // typeset 
-  OT,     // object types 
+  VT,     // object types 
   TIMES   // time utilities 
 }
