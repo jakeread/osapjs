@@ -58,6 +58,10 @@ export default class Vertex {
   }
 
   // we keep a stack of messages... 
+  maxStackLength = TIMES.stackSize 
+  stackSpace = () => {
+    return this.maxStackLength - this.stack.length 
+  }
   stack = []
   lastHandled = 0
   handle = function (data, ptr) {

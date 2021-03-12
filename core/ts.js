@@ -35,7 +35,7 @@ let TIMES = {
       setTimeout(resolve, ms)
     })
   },
-  stackSize: 16,
+  stackSize: 4,
 }
 
 let VT = {
