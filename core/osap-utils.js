@@ -95,7 +95,7 @@ let handler = (context, pck, ptr) => {
         return;
       }
       if(sib.stack.length >= TIMES.stackSize){
-        console.log(`sibling wait ${sib.stack.length}`)
+        //console.log(`sibling wait ${sib.stack.length}`)
       } else {
         //console.log('shift into sib')
         // increment block & write 
@@ -166,7 +166,7 @@ let handler = (context, pck, ptr) => {
       break;
     case PK.LLESCAPE.KEY:
       let str = TS.read('string', pck.data, ptr + 1, true).value
-      console.error('LL ESCAPE:', str)
+      console.log('LL ESCAPE:', str)
       pck.handled()
       break;
     default:
