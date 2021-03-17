@@ -90,8 +90,9 @@ let handler = (context, pck, ptr) => {
       let si = TS.read('uint16', pck.data, ptr + 1)
       let sib = context.parent.children[si]
       if (!sib) {
-        console.log("missing sibling")
-        pck.status = "err"
+        console.log(`missing sibling ${si}`)
+        console.log(context)
+        pck.handled()
         return;
       }
       if(sib.stack.length >= TIMES.stackSize){
