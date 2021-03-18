@@ -1,5 +1,5 @@
 /*
-osap-utils.js
+osapLoop.js
 
 common packet manipulation routines for OSAP
 
@@ -64,7 +64,8 @@ let handler = (context, pck, ptr) => {
   }
   // check for timeouts 
   if (pck.arrivalTime + TIMES.staleTimeout < TIMES.getTimeStamp()) {
-    console.log("timeout")
+    console.log(`timeout at ${context.name}`)
+    PK.logPacket(pck.data)
     pck.handled()
     return
   }
@@ -95,8 +96,8 @@ let handler = (context, pck, ptr) => {
         pck.handled()
         return;
       }
-      if(sib.stack.length >= TIMES.stackSize){
-        //console.log(`sibling wait ${sib.stack.length}`)
+      if(sib.stack.length >= 1024){ //TIMES.stackSize){
+        console.log(`sibling wait ${sib.stack.length}`)
       } else {
         //console.log('shift into sib')
         // increment block & write 
@@ -159,7 +160,9 @@ let handler = (context, pck, ptr) => {
           // would check flowcontrol, 
           context.send(pck.data)
           pck.handled()
-        } // else, awaits here 
+        } else { // else, awaits here 
+          console.log(`hodl ${context.name}`)
+        }
       } else {
         console.log("pfwd at non-vport")
         pck.handled()

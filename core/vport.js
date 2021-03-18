@@ -13,7 +13,7 @@ no warranty is provided, and users accept all liability.
 */
 
 import { PK, TS, VT, TIMES } from './ts.js'
-import { ptrLoop, handler } from './osap-utils.js'
+import { ptrLoop, handler } from './osapLoop.js'
 import Vertex from './osap-vertex.js'
 
 export default class VPort extends Vertex {

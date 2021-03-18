@@ -13,7 +13,7 @@ no warranty is provided, and users accept all liability.
 */
 
 import { PK, TS, VT, TIMES } from './ts.js'
-import { ptrLoop, handler, reverseRoute } from './osap-utils.js'
+import { ptrLoop, handler, reverseRoute } from './osapLoop.js'
 import Vertex from './osap-vertex.js'
 
 export default class Endpoint extends Vertex {
@@ -29,6 +29,7 @@ export default class Endpoint extends Vertex {
   // endpoint addnl'y has outgoing routes, 
   routes = []
   type = VT.SOFT
+  name = "unnamed endpoint"
   
   // has outgoing routes, 
   addRoute = function (route) {

@@ -18,7 +18,7 @@ import { PK, TS, VT, TIMES } from './ts.js'
 import VPort from './vport.js'
 import Module from './osap-module.js'
 import Endpoint from './osap-endpoint.js'
-import { handler, ptrLoop } from './osap-utils.js'
+import { handler, ptrLoop } from './osapLoop.js'
 
 let LOGERRPOPS = true
 let LOGRCRXBS = false
@@ -32,8 +32,9 @@ export default function OSAP() {
   this.children = []
 
   // children factories 
-  this.vPort = () => {
+  this.vPort = (name) => {
     let np = new VPort(this, this.children.length)
+    if(name) np.name = name 
     this.children.push(np)
     return np
   }
@@ -42,8 +43,9 @@ export default function OSAP() {
     this.children.push(md)
     return md
   }
-  this.endpoint = () => {
+  this.endpoint = (name) => {
     let ep = new Endpoint(this, this.children.length)
+    if(name) ep.name = name 
     this.children.push(ep)
     return ep
   }

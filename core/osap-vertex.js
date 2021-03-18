@@ -13,7 +13,7 @@ no warranty is provided, and users accept all liability.
 */
 
 import { TIMES } from './ts.js'
-import { handler } from './osap-utils.js'
+import { handler } from './osapLoop.js'
 
 export default class Vertex {
   /* to implement */
@@ -25,6 +25,8 @@ export default class Vertex {
     this.parent = parent
     this.indice = indice
   }
+
+  name = "unnamed vertex"
 
   // local data store / freshness 
   data = new Uint8Array(0)
