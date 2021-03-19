@@ -14,6 +14,9 @@ no warranty is provided, and users accept all liability.
 
 import { VT, PK, TIMES, TS } from "./ts.js"
 
+let LOGHANDLER = false 
+let LOGSWITCH = false 
+
 let osapLoop = (vt) => {
   osapHandler(vt)
   for (let child of vt.children) {
@@ -29,7 +32,7 @@ let osapHandler = (vt) => {
     // collecting a list of items in the stack to handle 
     let count = Math.min(vt.stack[od].length, TIMES.stackSize)
     let items = vt.stack[od].slice(0, count)
-    if(count) console.log(`handle ${count} at ${vt.name}`)
+    if(count && LOGHANDLER) console.warn(`switch pcks: ${count} at ${vt.indice} stack ${od}`)
     for (let i = 0; i < count; i++) {
       // get handle, pointer, 
       let item = items[i]
@@ -62,9 +65,10 @@ let osapSwitch = (vt, od, item, ptr, now) => {
       //console.log(`${vt.type} is destination`)
       // flow control where destination is data sink 
       if (vt.occupied()) {
-        console.log('destination wait')
+        if(LOGSWITCH) console.log('destination wait')
+        vt.requestLoopCycle() // req. to loop again next time, 
       } else {
-        console.log('escape to destination')
+        if(LOGSWITCH) { console.log(`escape to destination ${vt.indice}`); PK.logPacket(pck) }
         // copy-in to destination, 
         vt.dest(pck, ptr)
         // clear out of stack 
@@ -81,9 +85,10 @@ let osapSwitch = (vt, od, item, ptr, now) => {
         return;
       }
       if (sib.stackAvailableSpace(VT.STACK_DEST) <= 0) {
-        console.log(`sibling wait ${sib.stack.length}`)
+        if(LOGSWITCH) console.log(`sibling wait ${sib.stack.length}`)
+        vt.requestLoopCycle()
       } else {
-        console.log('shift into sib')
+        if(LOGSWITCH) console.log('shift into sib')
         // increment block & write 
         pck[ptr - 1] = PK.SIB.KEY
         TS.write('uint16', vt.indice, pck, ptr)
@@ -145,7 +150,8 @@ let osapSwitch = (vt, od, item, ptr, now) => {
           vt.send(pck)
           item.handled()
         } else { // else, awaits here 
-          console.log(`pfwd hodl ${vt.name}`)
+          if(LOGSWITCH) console.log(`pfwd hodl ${vt.name}`)
+          vt.requestLoopCycle()
         }
       } else {
         console.log("pfwd at non-vport")

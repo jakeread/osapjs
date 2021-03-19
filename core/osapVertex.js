@@ -76,26 +76,25 @@ export default class Vertex {
     item.data = data.slice() // copy in, old will be gc 
     item.arrivalTime = TIMES.getTimeStamp()
     item.handled = () => {
-      console.warn(`handled from ${od} stack`)
+      //console.warn(`handled from ${od} stack at ${this.indice}`)
       let ok = false 
       for(let i in this.stack[od]){
         if(this.stack[od][i] == item){
-          this.stack[od].slice(i, 1)
+          this.stack[od].splice(i, 1)
           ok = true 
           break;
         }
       }
-      if(!ok) throw new Error("on handled, item not present")
+      if(!ok) console.error("bad stack search") //throw new Error("on handled, item not present")
     }
     this.stack[od].push(item)
-    this.kickLoop()
+    this.requestLoopCycle()
   }
 
   // handle to kick loops, passes up parent chain to root 
   loopTimer = null 
-  kickLoop = () => {
-    this.parent.kickLoop()
-    // would setup timer here, 
+  requestLoopCycle = () => {
+    this.parent.requestLoopCycle()
   }
 
 }

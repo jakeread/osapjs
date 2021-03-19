@@ -60,16 +60,17 @@ export default class OSAP extends Vertex {
     })
   }
 
-  // root loop is unique, children's kickLoop() all terminate here, 
+  // root loop is unique, children's requestLoopCycle() all terminate here, 
   // only schedule once per turn, 
   loopTimer = null 
-  kickLoop = () => {
+  requestLoopCycle = () => {
     if(!this.loopTimer) this.loopTimer = setTimeout(this.loop, 0)
   }
 
   loop = () => {
-    // start the loop from root, 
-    console.warn('lp')
+    console.warn('lp --------------')
+    // cancel old timer & start loop
+    this.loopTimer = null 
     osapLoop(this)
   }
 } // end OSAP
