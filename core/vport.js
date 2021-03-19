@@ -13,8 +13,8 @@ no warranty is provided, and users accept all liability.
 */
 
 import { PK, TS, VT, TIMES } from './ts.js'
-import { ptrLoop, handler } from './osapLoop.js'
-import Vertex from './osap-vertex.js'
+import { ptrLoop } from './osapLoop.js'
+import Vertex from './osapVertex.js'
 
 export default class VPort extends Vertex {
   constructor(parent, indice) {
@@ -22,12 +22,12 @@ export default class VPort extends Vertex {
   }
 
   /* to implement */
-  // write this.onData() to receive / reply to 
-  // datagrams direct to vport (not for fwding)
+  // write this.onData() to receive / reply to dms 
   // write this.cts(), returning whether / not thing is open & clear to send 
   // write this.send(buffer), putting bytes on the line 
   // on data, call this.recieve(buffer) with a uint8array arg 
 
+  name = "unnamed vport"
   maxSegLength = 128
   type = VT.VPORT
 
@@ -38,15 +38,14 @@ export default class VPort extends Vertex {
   receive = function (buffer) {
     // find the ptr, shift arrival in 
     let ptr = ptrLoop(buffer)
-    // check ptr walk was ok, do once here to help handler, 
-    // which may be called multiple times on flowcontrol state 
+    // check ptrwalk is OK on entrance to help clear bad pckts faster
     if (ptr == undefined) {
       console.log("pop for bad ptr walk at vport")
       PK.logPacket(buffer)
       return
     }
     // datagram goes straight through 
-    this.handle(buffer, ptr)
+    this.handle(buffer, 0)
   }
 
 } // end vPort def

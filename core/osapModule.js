@@ -12,7 +12,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import Endpoint from "./osap-endpoint.js"
+import Endpoint from "./osapEndpoint.js"
 
 export default function Module(osap){
     throw new Error("unwritten")

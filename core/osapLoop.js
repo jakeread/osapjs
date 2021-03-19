@@ -14,43 +14,31 @@ no warranty is provided, and users accept all liability.
 
 import { VT, PK, TIMES, TS } from "./ts.js"
 
-let ptrLoop = (buffer, ptr) => {
-  if (!ptr) ptr = 0
-
-  for (let h = 0; h < 16; h++) {
-    switch (buffer[ptr]) {
-      case PK.PTR:
-        return ptr
-      case PK.SIB.KEY:
-        ptr += PK.SIB.INC
-        break;
-      case PK.PARENT.KEY:
-        ptr += PK.PARENT.INC
-        break;
-      case PK.CHILD.KEY:
-        ptr += PK.CHILD.INC
-        break;
-      case PK.PFWD.KEY:
-        ptr += PK.PFWD.INC
-        break;
-      case PK.BFWD.KEY:
-        ptr += PK.BFWD.INC
-        break;
-      case PK.LLESCAPE.KEY:
-        ptr += PK.LLESCAPE.INC
-      default:
-        // unrecognized, escape !
-        return undefined
-    }
-  } // end ptrloop
+let osapLoop = (vt) => {
+  osapHandler(vt)
+  for(let child of vt.children){
+    osapLoop(child)
+  }
 }
 
-// worth noting: there is no between-object buffering / flowcontrol 
-// in js: since we can generate / handoff objects on the fly 
-// w/o any real memory consideration. in practice this 
-// may cause trouble, but we are assuming most traffic flows to 
-// endpoints, which (will) use endpoint-to-endpoint flowcontrol, 
-let handler = (context, pck, ptr) => {
+let osapHandler = (vt) => {
+  // for each context, we run over origin and destination stacks
+  for(let od = 0; od < 2; od ++){
+    // collecting a list of items in the stack to handle 
+    let count = Math.min(vt.stack[od].length, TIMES.stackSize)
+    let items = vt.stack[od].slice(0, count)
+    console.log('handle', items)
+    for(let i = 0; i < count; i ++){
+      let item = items[0]
+      let ptr = ptrLoop(item.datagram, 0)
+      console.log(ptr)
+      here // continue w/ rework of this... should be pretty straight 
+      // then test w/o flowcontrol to hella busses,
+      // then get into flowcontrol at websockets / usb link 
+    }
+  }
+  return
+
   //console.log(`${context.type} handle: ptr ${ptr}`)
   //PK.logPacket(pck.data)
   // find the ptr if not defined, 
@@ -182,6 +170,37 @@ let handler = (context, pck, ptr) => {
   }
 }
 
+let ptrLoop = (buffer, ptr) => {
+  if (!ptr) ptr = 0
+
+  for (let h = 0; h < 16; h++) {
+    switch (buffer[ptr]) {
+      case PK.PTR:
+        return ptr
+      case PK.SIB.KEY:
+        ptr += PK.SIB.INC
+        break;
+      case PK.PARENT.KEY:
+        ptr += PK.PARENT.INC
+        break;
+      case PK.CHILD.KEY:
+        ptr += PK.CHILD.INC
+        break;
+      case PK.PFWD.KEY:
+        ptr += PK.PFWD.INC
+        break;
+      case PK.BFWD.KEY:
+        ptr += PK.BFWD.INC
+        break;
+      case PK.LLESCAPE.KEY:
+        ptr += PK.LLESCAPE.INC
+      default:
+        // unrecognized, escape !
+        return undefined
+    }
+  } // end ptrloop
+}
+
 let reverseRoute = (pck, ptr) => {
   //console.log(`reverse w/ ptr ${ptr}`)
   //PK.logPacket(pck.data)
@@ -257,4 +276,4 @@ let reverseRoute = (pck, ptr) => {
   return route
 }
 
-export { ptrLoop, handler, reverseRoute }
+export { osapLoop, ptrLoop, reverseRoute }
