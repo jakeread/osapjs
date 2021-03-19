@@ -42,7 +42,9 @@ let VT = {
   ROOT: 22,
   SOFT: 23,
   VPORT: 24,
-  VBUS: 25
+  VBUS: 25,
+  STACK_ORIGIN: 0, 
+  STACK_DEST: 1
 }
 
 // 13: \r

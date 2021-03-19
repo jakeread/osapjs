@@ -16,86 +16,82 @@ import { VT, PK, TIMES, TS } from "./ts.js"
 
 let osapLoop = (vt) => {
   osapHandler(vt)
-  for(let child of vt.children){
+  for (let child of vt.children) {
     osapLoop(child)
   }
 }
 
 let osapHandler = (vt) => {
+  // time uniform across loops 
+  let now = TIMES.getTimeStamp()
   // for each context, we run over origin and destination stacks
-  for(let od = 0; od < 2; od ++){
+  for (let od = 0; od < 2; od++) {
     // collecting a list of items in the stack to handle 
     let count = Math.min(vt.stack[od].length, TIMES.stackSize)
     let items = vt.stack[od].slice(0, count)
-    console.log('handle', items)
-    for(let i = 0; i < count; i ++){
-      let item = items[0]
-      let ptr = ptrLoop(item.datagram, 0)
-      console.log(ptr)
-      here // continue w/ rework of this... should be pretty straight 
-      // then test w/o flowcontrol to hella busses,
-      // then get into flowcontrol at websockets / usb link 
+    if(count) console.log(`handle ${count} at ${vt.name}`)
+    for (let i = 0; i < count; i++) {
+      // get handle, pointer, 
+      let item = items[i]
+      let ptr = ptrLoop(item.data, 0)
+      // clear on bad ptr, 
+      if (ptr == undefined) {
+        console.log(`bad ptr walk at ${vt.name}`)
+        PK.logPacket(item.data)
+        item.handled()
+        continue;
+      }
+      // clear on timeout, 
+      if (item.arrivalTime + TIMES.staleTimeout < now) {
+        console.log(`timeout at ${vt.name}`)
+        item.handled()
+        continue;
+      }
+      // run la switche 
+      osapSwitch(vt, od, item, ptr, now)
     }
   }
-  return
+}
 
-  //console.log(`${context.type} handle: ptr ${ptr}`)
-  //PK.logPacket(pck.data)
-  // find the ptr if not defined, 
-  if (ptr == undefined) {
-    ptr = ptrLoop(pck.data)
-    if (ptr == undefined) {
-      console.log("bad ptr walk: handler")
-      pck.handled()
-      return
-    }
-  }
-  // check for timeouts 
-  if (pck.arrivalTime + TIMES.staleTimeout < TIMES.getTimeStamp()) {
-    console.log(`timeout at ${context.name}`)
-    PK.logPacket(pck.data)
-    pck.handled()
-    return
-  }
-  // ...
+let osapSwitch = (vt, od, item, ptr, now) => {
+  // ... was pck[ptr] = PTR, want pck[PTR] = next instruction 
+  let pck = item.data
   ptr++;
-  // now ptr at next instruction 
-  switch (pck.data[ptr]) {
+  switch (pck[ptr]) {
     case PK.DEST:
-      //console.log(`${context.type} is destination`)
+      //console.log(`${vt.type} is destination`)
       // flow control where destination is data sink 
-      if (context.occupied()) {
+      if (vt.occupied()) {
         console.log('destination wait')
       } else {
-        //console.log('escape to destination')
+        console.log('escape to destination')
         // copy-in to destination, 
-        context.dest(pck.data, ptr)
+        vt.dest(pck, ptr)
         // clear out of stack 
-        pck.handled()
+        item.handled()
       }
       break;
     case PK.SIB.KEY:
       // read-out the indice, 
-      let si = TS.read('uint16', pck.data, ptr + 1)
-      let sib = context.parent.children[si]
+      let si = TS.read('uint16', pck, ptr + 1)
+      let sib = vt.parent.children[si]
       if (!sib) {
-        console.log(`missing sibling ${si}`)
-        console.log(context)
-        pck.handled()
+        console.log(`missing sibling ${si} at ${vt.indice}`)
+        item.handled()
         return;
       }
-      if(sib.stack.length >= 1024){ //TIMES.stackSize){
+      if (sib.stackAvailableSpace(VT.STACK_DEST) <= 0) {
         console.log(`sibling wait ${sib.stack.length}`)
       } else {
-        //console.log('shift into sib')
+        console.log('shift into sib')
         // increment block & write 
-        pck.data[ptr - 1] = PK.SIB.KEY
-        TS.write('uint16', context.indice, pck.data, ptr)
-        pck.data[ptr + 2] = PK.PTR
+        pck[ptr - 1] = PK.SIB.KEY
+        TS.write('uint16', vt.indice, pck, ptr)
+        pck[ptr + 2] = PK.PTR
         // copy-in to next, 
-        sib.handle(pck.data, ptr + 2)
+        sib.handle(pck, VT.STACK_DEST)
         // clear out of last 
-        pck.handled()  
+        item.handled()
       }
       break;
     case PK.PARENT.KEY:
@@ -109,19 +105,19 @@ let osapHandler = (vt) => {
       }
       console.log('shift into parent')
       // increment and write to parent 
-      pck.data[ptr - 1] = PK.CHILD.KEY
-      TS.write('uint16', context.indice, pck.data, ptr)
-      pck.data[ptr + 2] = PK.PTR
+      pck[ptr - 1] = PK.CHILD.KEY
+      TS.write('uint16', context.indice, pck, ptr)
+      pck[ptr + 2] = PK.PTR
       // clear last, handle next 
       pck.status = "transmitted"
-      context.parent.handle(pck.data, ptr + 2)
+      context.parent.handle(pck, ptr + 2)
       */
       break;
     case PK.CHILD.KEY:
       throw new Error("child")
       /*
       // find child, 
-      let ci = TS.read('uint16', pck.data, ptr + 1)
+      let ci = TS.read('uint16', pck, ptr + 1)
       let child = context.children[ci]
       if (!child) {
         console.log("missing child")
@@ -130,51 +126,51 @@ let osapHandler = (vt) => {
       }
       console.log('shift into child')
       // increment and write to child 
-      pck.data[ptr - 1] = PK.PARENT.KEY
-      TS.write('uint16', 0, pck.data, ptr)
-      pck.data[ptr + 2] = PK.PTR
+      pck[ptr - 1] = PK.PARENT.KEY
+      TS.write('uint16', 0, pck, ptr)
+      pck[ptr + 2] = PK.PTR
       // clear last, handle next 
       pck.status = "transmitted"
-      child.handle(pck.data, ptr + 2)
+      child.handle(pck, ptr + 2)
       */
       break;
     case PK.PFWD.KEY:
-      if (context.type == VT.VPORT) {
-        if(context.cts()){
+      if (vt.type == VT.VPORT) {
+        if (vt.cts()) {
           //console.log("escape to vport send")
           // increment, so recipient sees ptr infront of next instruction 
-          pck.data[ptr - 1] = PK.PFWD.KEY
-          pck.data[ptr] = PK.PTR
-          // would check flowcontrol, 
-          context.send(pck.data)
-          pck.handled()
+          pck[ptr - 1] = PK.PFWD.KEY
+          pck[ptr] = PK.PTR
+          // ship it 
+          vt.send(pck)
+          item.handled()
         } else { // else, awaits here 
-          console.log(`hodl ${context.name}`)
+          console.log(`pfwd hodl ${vt.name}`)
         }
       } else {
         console.log("pfwd at non-vport")
-        pck.handled()
+        item.handled()
       }
       break;
     case PK.LLESCAPE.KEY:
-      let str = TS.read('string', pck.data, ptr + 1, true).value
+      let str = TS.read('string', pck, ptr + 1, true).value
       console.log('LL ESCAPE:', str)
-      pck.handled()
+      item.handled()
       break;
     default:
       // rx'd non-destination, can't do anything 
-      console.log(`${context.type} rm packet: bad switch at ${ptr} ${pck.data[ptr]}`)
-      PK.logPacket(pck.data)
-      pck.status = "exit"
+      console.log(`${vt.name} rm packet: bad switch at ${ptr} ${pck[ptr]}`)
+      PK.logPacket(pck)
+      item.handled()
       break;
   }
 }
 
-let ptrLoop = (buffer, ptr) => {
+let ptrLoop = (pck, ptr) => {
   if (!ptr) ptr = 0
 
   for (let h = 0; h < 16; h++) {
-    switch (buffer[ptr]) {
+    switch (pck[ptr]) {
       case PK.PTR:
         return ptr
       case PK.SIB.KEY:
@@ -202,14 +198,12 @@ let ptrLoop = (buffer, ptr) => {
 }
 
 let reverseRoute = (pck, ptr) => {
-  //console.log(`reverse w/ ptr ${ptr}`)
-  //PK.logPacket(pck.data)
   // similar here, 
   if (ptr == undefined) {
-    ptr = ptrLoop(pck.data)
+    ptr = ptrLoop(pck)
     ptr++ // ptr @ 'dest' key, 
     if (ptr == undefined) {
-      return undefined 
+      return undefined
     }
   }
   // now pck[ptr] = PK.DEST
@@ -217,7 +211,7 @@ let reverseRoute = (pck, ptr) => {
   let route = new Uint8Array(ptr + 3)
   // the tail is the same: same segsize, dest at end 
   for (let i = 3; i > 0; i--) {
-    route[route.length - i] = pck.data[ptr + 3 - i]
+    route[route.length - i] = pck[ptr + 3 - i]
   }
   // now we can reverse the stepwise,  
   let wptr = ptr      // write from the tail
@@ -230,43 +224,43 @@ let reverseRoute = (pck, ptr) => {
       route[0] = PK.PTR // start, 
       break walker;
     }
-    //console.log(`step ${rptr} = ${pck.data[rptr]}`)
-    switch (pck.data[rptr]) {
+    //console.log(`step ${rptr} = ${pck[rptr]}`)
+    switch (pck[rptr]) {
       case PK.PTR:
         break;
       case PK.SIB.KEY:
         wptr -= PK.SIB.INC
         for (let i = 0; i < PK.SIB.INC; i++) {
-          route[wptr + i] = pck.data[rptr++]
+          route[wptr + i] = pck[rptr++]
         }
         break;
       case PK.PARENT.KEY:
         wptr -= PK.PARENT.INC
         for (let i = 0; i < PK.PARENT.INC; i++) {
-          route[wptr + i] = pck.data[rptr++]
+          route[wptr + i] = pck[rptr++]
         }
         break;
       case PK.CHILD.KEY:
         wptr -= PK.CHILD.INC
         for (let i = 0; i < PK.CHILD.INC; i++) {
-          route[wptr + i] = pck.data[rptr++]
+          route[wptr + i] = pck[rptr++]
         }
         break;
       case PK.PFWD.KEY:
         wptr -= PK.PFWD.INC
         for (let i = 0; i < PK.PFWD.INC; i++) {
-          route[wptr + i] = pck.data[rptr++]
+          route[wptr + i] = pck[rptr++]
         }
         break;
       case PK.BFWD.KEY:
         wptr -= PK.BFWD.INC
         for (let i = 0; i < PK.BFWD.INC; i++) {
-          route[wptr + i] = pck.data[rptr++]
+          route[wptr + i] = pck[rptr++]
         }
         break;
       default:
         // unrecognized, escape !
-        console.log('nonreq', rptr, pck.data[rptr])
+        console.log('nonreq', rptr, pck[rptr])
         PK.logPacket(route)
         return undefined
     }

@@ -63,14 +63,20 @@ export default class Vertex {
   maxStackLength = TIMES.stackSize
   stack = [[],[]]
 
+  // can check availability 
+  stackAvailableSpace = (od) => {
+    if(od > 2 || od == undefined) throw new Error("bad od arg")
+    return (this.maxStackLength - this.stack[od].length)
+  }
+
   // this is the data uptake, 
   handle = (data, od) => {
     if(od == null || od > 2) throw new Error(`bad od argument ${od} at handle`)
     let item = {}
-    item.datagram = data.slice() // copy in, old will be gc 
+    item.data = data.slice() // copy in, old will be gc 
     item.arrivalTime = TIMES.getTimeStamp()
     item.handled = () => {
-      console.warn(`${od} handled`)
+      console.warn(`handled from ${od} stack`)
       let ok = false 
       for(let i in this.stack[od]){
         if(this.stack[od][i] == item){

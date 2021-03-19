@@ -50,7 +50,7 @@ export default class Endpoint extends Vertex {
     return new Promise((resolve, reject) => {
       // want to write one per route, 
       // but need room in the stack for each route... 
-      if (this.maxStackLength - this.stack[0].length < 0) {
+      if (this.maxStackLength - this.stack[VT.STACK_ORIGIN].length < this.routes.length) {
         reject('write to full stack')
         return
       }
@@ -67,7 +67,7 @@ export default class Endpoint extends Vertex {
       let resolved = false 
       let rejected = false 
       let check = () => {
-        if (this.maxStackLength - this.stack[0].length > 0) {
+        if (this.maxStackLength - this.stack[VT.STACK_ORIGIN].length >= this.routes.length) {
           resolved = true 
           if(!rejected) resolve()
         } else {
