@@ -68,7 +68,7 @@ export default class OSAP extends Vertex {
   }
 
   loop = () => {
-    console.warn('lp --------------')
+    //console.warn('lp --------------')
     // cancel old timer & start loop
     this.loopTimer = null 
     osapLoop(this)

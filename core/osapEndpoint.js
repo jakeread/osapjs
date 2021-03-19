@@ -36,7 +36,7 @@ export default class Endpoint extends Vertex {
   // has outgoing routes, 
   addRoute = function (route) {
     console.log('adding route', route)
-    if (this.maxStackLength < this.routes.length) {
+    if (this.maxStackLength <= this.routes.length) {
       console.warn('increasing stack space to match count of routes')
       this.maxStackLength++
     }
