@@ -27,7 +27,7 @@ export default class Endpoint extends Vertex {
 
   // endpoint addnl'y has outgoing routes, 
   routes = []
-  type = VT.SOFT
+  type = VT.ENDPOINT
   name = "unnamed endpoint"
 
   // and has a local data cache 

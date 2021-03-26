@@ -40,9 +40,10 @@ let TIMES = {
 
 let VT = {
   ROOT: 22,
-  SOFT: 23,
-  VPORT: 24,
-  VBUS: 25,
+  MODULE: 23,
+  ENDPOINT: 24, 
+  VPORT: 44,
+  VBUS: 45,
   STACK_ORIGIN: 0, 
   STACK_DEST: 1
 }
