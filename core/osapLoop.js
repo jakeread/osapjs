@@ -63,16 +63,10 @@ let osapSwitch = (vt, od, item, ptr, now) => {
   switch (pck[ptr]) {
     case PK.DEST:
       //console.log(`${vt.type} is destination`)
-      // flow control where destination is data sink 
-      if (vt.occupied()) {
-        if(LOGSWITCH) console.log('destination wait')
-        vt.requestLoopCycle() // req. to loop again next time, 
-      } else {
-        if(LOGSWITCH) { console.log(`escape to destination ${vt.indice}`); PK.logPacket(pck) }
-        // copy-in to destination, 
-        vt.dest(pck, ptr)
-        // clear out of stack 
+      if(vt.destHandler(pck, ptr)){
         item.handled()
+      } else {
+        // await here, call next run 
       }
       break;
     case PK.SIB.KEY:

@@ -125,6 +125,15 @@ PK.route = () => {
   }
 }
 
+// endpoint layer 
+let EP = {
+  SS_ACK: 101,      // the ack, 
+  SS_ACKLESS: 121,  // ackless transmit 
+  SS_ACKED: 122,    // transmit requests ack 
+  QUERY: 131,       // query for current data 
+  QUERY_RESP: 132   // query response 
+}
+
 let TS = {}
 
 let decoder = new TextDecoder()
@@ -217,5 +226,6 @@ export {
   PK,     // onion routing keys 
   TS,     // typeset 
   VT,     // object types 
+  EP,     // endpoint keys 
   TIMES   // time utilities 
 }

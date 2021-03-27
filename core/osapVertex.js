@@ -28,35 +28,12 @@ export default class Vertex {
   name = "unnamed vertex"
   children = [] // all have some children array, not all have children 
 
-  // local data store / freshness 
-  data = new Uint8Array(0)
-  token = false
-  occupied = function () {
-    return this.token
-  }
-
-  dest = function (data, ptr) {
-    // now we have this unhandled data, 
-    this.token = true
-    // it's the whole packet, copied out 
-    let buffer = data.slice(0)
-    // we ask handler to clear, 
-    this.onData(buffer, ptr).then(() => {
-      // if it resolves, we are open again, and data copies in 
-      this.data = buffer
-      this.token = false
-    }).catch((err) => {
-      // otherwise we have rejected it, data doesn't change 
-      // but are still open again 
-      this.token = false
-    })
-  }
-
-  onData = function (data, ptr) {
-    console.log(`default vertex ${this.type} onData`)
-    return new Promise((resolve, reject) => {
-      resolve()
-    })
+  // return true when message flushes / is OK / handled, 
+  // return false if we want this to bother again on next main loop 
+  // i.e. endpoint types extend this to disambiguate acks / messages etc, 
+  destHandler = function (data, ptr) {
+    console.log(`default vertex type ${this.type} indice ${this.indice} destHandler`)
+    return true 
   }
 
   // we keep a stack of messages... 
@@ -65,13 +42,13 @@ export default class Vertex {
 
   // can check availability 
   stackAvailableSpace = (od) => {
-    if(od > 2 || od == undefined) throw new Error("bad od arg")
+    if(od > 2 || od == undefined) console.error("bad od arg")
     return (this.maxStackLength - this.stack[od].length)
   }
 
   // this is the data uptake, 
   handle = (data, od) => {
-    if(od == null || od > 2) throw new Error(`bad od argument ${od} at handle`)
+    if(od == null || od > 2) console.error(`bad od argument ${od} at handle`)
     let item = {}
     item.data = data.slice() // copy in, old will be gc 
     item.arrivalTime = TIMES.getTimeStamp()

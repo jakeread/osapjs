@@ -52,14 +52,6 @@ export default class OSAP extends Vertex {
     return ep
   }
 
-  // root onData 
-  onData = (pck, ptr) => {
-    console.log(`default root onData`)
-    return new Promise((resolve, reject) => {
-      resolve()
-    })
-  }
-
   // root loop is unique, children's requestLoopCycle() all terminate here, 
   // only schedule once per turn, 
   loopTimer = null 

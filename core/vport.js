@@ -22,7 +22,6 @@ export default class VPort extends Vertex {
   }
 
   /* to implement */
-  // write this.onData() to receive / reply to dms 
   // write this.cts(), returning whether / not thing is open & clear to send 
   // write this.send(buffer), putting bytes on the line 
   // on data, call this.recieve(buffer) with a uint8array arg 
