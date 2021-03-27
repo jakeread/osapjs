@@ -82,7 +82,7 @@ function GCodePanel(xPlace, yPlace) {
   // 'save/3dp-zdrive-left.gcode' 15940kb (too big for current setup)
   // 'save/clank-lz-bed-face.gcode'
   // 'save/3dp-10mmbox.gcode'
-  initWith('save/3dp-10mmbox.gcode').then((res) => {
+  initWith('save/3dp-extruder-test.gcode').then((res) => {
     incoming.value = res
   }).catch((err) => {
     console.error(err)

@@ -61,7 +61,10 @@ export default function OSAP() {
   let lastQID = 2002
   this.getNewQueryID = () => {
     lastQID ++
-    if(lastQID > 65535) lastQID = 0
+    if(lastQID > 65535){
+      lastQID = 0
+      console.warn('query wrap')
+    }
     return lastQID
   }
 
@@ -338,7 +341,7 @@ export default function OSAP() {
     if(query && query.callback){
       query.callback(pck.data.slice(ptr + 7))
     } else {
-      console.error('handled query reply w/ no callback')
+      console.error(`handled query reply w/ no callback, id ${qid}`)
     }
     // clear it
     pck.vp.clear()
@@ -410,6 +413,7 @@ export default function OSAP() {
       case DK.LLERR:
         let str = TS.read('string', pck.data, ptr + 1, true).value
         console.error('LL ERR:', str)
+        console.error('arrival', pck.data)
         pck.vp.clear()
         break;
       // low level string escape 
@@ -469,7 +473,7 @@ export default function OSAP() {
         }
       }
     } else {
-      if (LOGERRPOPS) console.log('ERRPOP for port forward on non existent port here', indice)
+      if (LOGERRPOPS) console.log('ERRPOP for port forward on non existent port here', indice, pck.data)
       pck.vp.clear()
       return
     }

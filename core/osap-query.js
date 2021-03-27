@@ -23,17 +23,19 @@ export default function Query(osap, path, endpoint, segsize) {
   this.id = 0 
 
   // full route object, 
-  let route = {
+  this.route = {
     path: path,
     segsize: segsize 
   }
+
+  this.endpoint = endpoint 
 
   // header, when we transmit 
   let header = new Uint8Array(7)
   header[0] = DK.VMODULE_QUERY;
   header[1] = 0; header[2] = 0; // this will be filled in w/ qid 
-  header[3] = endpoint[1]; header[4] = endpoint[2] // virtual module to q 
-  header[5] = endpoint[3]; header[6] = endpoint[4];
+  header[3] = this.endpoint[1]; header[4] = this.endpoint[2] // virtual module to q 
+  header[5] = this.endpoint[3]; header[6] = this.endpoint[4];
 
   // the action 
   this.getLatest = () => { return this.data }
@@ -45,9 +47,9 @@ export default function Query(osap, path, endpoint, segsize) {
       this.id = osap.getNewQueryID()
       TS.write('uint16', this.id, header, 1, true)
       // ship it 
-      osap.send(route, header).then(() => {
+      osap.send(this.route, header).then(() => {
         setTimeout(() => {
-          reject('timeout')
+          reject(`timeout to ${this.route.path} for id ${this.id}`)
         }, TIMES.endpointQueryTimeout)
       }).catch((err) => {
         reject(err)
