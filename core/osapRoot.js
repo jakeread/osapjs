@@ -14,11 +14,12 @@ no warranty is provided, and users accept all liability.
 
 'use strict'
 
-import { PK, TS, VT, TIMES } from './ts.js'
+import { PK, TS, VT, EP, TIMES } from './ts.js'
 import VPort from './vport.js'
 import Vertex from './osapVertex.js'
 import Module from './osapModule.js'
 import Endpoint from './osapEndpoint.js'
+import Query from './osapQuery.js'
 import { osapLoop } from './osapLoop.js'
 
 // root is also a vertex, yah 
@@ -50,6 +51,49 @@ export default class OSAP extends Vertex {
     if(name) ep.name = name 
     this.children.push(ep)
     return ep
+  }
+
+  // see osapEndpoint.js for notes on this fn 
+  destHandler = function (data, ptr) {
+    ptr += 3 
+    switch(data[ptr]){
+      case EP.QUERY_RESP:
+        // match on queries 
+        let id = data[ptr + 1]
+        let resolved = false 
+        for(let q of this.queries){
+          if(q.queryAwaiting.id == id){
+            resolved = true 
+            clearTimeout(q.queryAwaiting.timeout)
+            q.queryAwaiting.resolve(data.slice(ptr + 2))
+          }
+        }
+        if(!resolved){
+          console.error('on query reply, no matching resolution')
+        } 
+        // clear always anyways 
+        return true 
+      default:
+        console.error('root recvs data / not query resp')
+        return true 
+    }
+  }
+
+  // query objects **are not children in the tree** they are little software handles 
+  // that tx / rx from here 
+  runningQueryId = 101 
+  getNewQueryId = () => {
+    this.runningQueryId ++ 
+    if(this.runningQueryId > 255){
+      this.runningQueryId = 0 
+    }
+    return this.runningQueryId
+  }
+  queries = [] 
+  query = (route) => {
+    let qr = new Query(this, route)
+    this.queries.push(qr)
+    return qr 
   }
 
   // root loop is unique, children's requestLoopCycle() all terminate here, 

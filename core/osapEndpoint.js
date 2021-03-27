@@ -63,8 +63,7 @@ export default class Endpoint extends Vertex {
     ptr += 3;
     switch (data[ptr]) {
       case EP.SS_ACK:
-        {
-          // the ack arriveth,
+        { // ack *to us* arriveth, check against awaiting transmits 
           let ackId = data[ptr + 1]
           let spliced = false
           for (let a = 0; a < this.acksAwaiting.length; a++) {
@@ -120,19 +119,28 @@ export default class Endpoint extends Vertex {
           })
         }
         return true
-        break;
       case EP.QUERY:
-        console.warn('query reqd')
-        // query request, 
-        resolve()
-        break;
+        if(this.stackAvailableSpace(VT.STACK_ORIGIN)){
+          // have query & space to reply, 
+          let route = reverseRoute(data)
+          let repl = new Uint8Array(route.length + 2 + this.data.length)
+          // *should do* checks data length against max. segsize... 
+          repl.set(route, 0)
+          repl[route.length] = EP.QUERY_RESP;
+          repl[route.length + 1] = data[ptr + 1];
+          repl.set(this.data, route.length + 2)
+          this.handle(repl, 0)
+          return true
+        } 
+        return false
       case EP.QUERY_RESP:
         // query response, 
-        console.warn('query resp to endpoint, should go to root')
+        console.error('query resp to endpoint, should go to root')
         resolve()
         break;
       default:
         // not recognized: resolving here will cause pck to clear above 
+        console.error(`nonrec endpoint key at ep ${this.indice}`)
         resolve()
     }
   }
@@ -204,7 +212,7 @@ export default class Endpoint extends Vertex {
             id: ackId,
             timeout: setTimeout(() => {
               this.acksAwaiting.length = 0 
-              reject('timeout')
+              reject('write timeout')
             }, TIMES.staleTimeout)
           });
           this.handle(datagram, 0)

@@ -65,6 +65,7 @@ let osapSwitch = (vt, od, item, ptr, now) => {
       //console.log(`${vt.type} is destination`)
       if(vt.destHandler(pck, ptr)){
         item.handled()
+        break;
       } else {
         // await here, call next run 
       }
@@ -79,7 +80,7 @@ let osapSwitch = (vt, od, item, ptr, now) => {
         return;
       }
       if (sib.stackAvailableSpace(VT.STACK_DEST) <= 0) {
-        if(LOGSWITCH) console.log(`sibling wait ${sib.stack.length}`)
+        if(LOGSWITCH) console.log(`sibling wait ${sib.stack[VT.STACK_DEST].length}`)
         vt.requestLoopCycle()
       } else {
         if(LOGSWITCH) console.log('shift into sib')
@@ -94,44 +95,49 @@ let osapSwitch = (vt, od, item, ptr, now) => {
       }
       break;
     case PK.PARENT.KEY:
-      throw new Error("parent")
-      /*
       // has parent?
-      if (!(context.parent)) {
-        console.log("missing parent")
-        pck.status = "err"
+      if (!(vt.parent)) {
+        console.log(`missing parent at ${vt.indice}`)
+        item.handled()
         return;
       }
-      console.log('shift into parent')
-      // increment and write to parent 
-      pck[ptr - 1] = PK.CHILD.KEY
-      TS.write('uint16', context.indice, pck, ptr)
-      pck[ptr + 2] = PK.PTR
-      // clear last, handle next 
-      pck.status = "transmitted"
-      context.parent.handle(pck, ptr + 2)
-      */
+      if(vt.parent.stackAvailableSpace(VT.STACK_DEST) <= 0){
+        if(LOGSWITCH) console.log(`parent wait ${vt.parent.stack[VT.STACK_DEST].length}`)
+        vt.requestLoopCycle()
+      } else {
+        if(LOGSWITCH) console.log('shift into parent')
+        // increment block and write 
+        pck[ptr - 1] = PK.CHILD.KEY
+        TS.write('uint16', vt.indice, pck, ptr)
+        pck[ptr + 2] = PK.PTR 
+        // copy in dest & clear source 
+        vt.parent.handle(pck, VT.STACK_DEST)
+        item.handled()
+      }
       break;
     case PK.CHILD.KEY:
-      throw new Error("child")
-      /*
       // find child, 
       let ci = TS.read('uint16', pck, ptr + 1)
-      let child = context.children[ci]
+      let child = vt.children[ci]
       if (!child) {
-        console.log("missing child")
-        pck.status = "err"
+        console.log(`missing child ${ci} at ${vt.indice}`)
+        item.handled()
         return;
       }
-      console.log('shift into child')
-      // increment and write to child 
-      pck[ptr - 1] = PK.PARENT.KEY
-      TS.write('uint16', 0, pck, ptr)
-      pck[ptr + 2] = PK.PTR
-      // clear last, handle next 
-      pck.status = "transmitted"
-      child.handle(pck, ptr + 2)
-      */
+      if(child.stackAvailableSpace(VT.STACK_DEST) <= 0){
+        if(LOGSWITCH) console.log(`child wait ${child.stack[VT.STACK_DEST].length}`)
+        vt.requestLoopCycle()
+      } else {
+        if(LOGSWITCH) console.log('shift into child')
+        // increment block & write 
+        pck[ptr - 1] = PK.PARENT.KEY 
+        TS.write('uint16', 0, pck, ptr)
+        pck[ptr + 2] = PK.PTR 
+        // copy in to child 
+        child.handle(pck, VT.STACK_DEST)
+        // clear out of parent 
+        item.handled()
+      }
       break;
     case PK.PFWD.KEY:
       if (vt.type == VT.VPORT) {
