@@ -88,9 +88,9 @@ export default class Endpoint extends Vertex {
           return false
         } else {
           //console.warn('data -> endpoint, ackless')
-          this.onData(data.slice(ptr + 2)).then(() => {
+          this.onData(data.slice(ptr + 1)).then(() => {
             // resolution to the promise means data is OK, we accept 
-            this.data = data.slice(ptr + 2)
+            this.data = data.slice(ptr + 1)
             this.token = false
           }).catch((err) => {
             // error / rejection means not our data, donot change internal, but clear for new 
