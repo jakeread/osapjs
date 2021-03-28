@@ -24,11 +24,10 @@ more intelligently, i.e. not rendering the whole file into the 'incoming' body.
 
 'use strict'
 
-import { Output, Input } from '../../core/modules.js'
 import DT from '../interface/domTools.js'
 import { Button } from '../interface/button.js'
 
-function GCodePanel(xPlace, yPlace) {
+function GCodePanel(vm, xPlace, yPlace) {
   // home dom
   let dom = $('.plane').get(0)
 
@@ -96,13 +95,13 @@ function GCodePanel(xPlace, yPlace) {
   // setup has 'axis order', to pick X, Y, Z, etc, that's a string / csv list 
   // move: {pos: [], rate: <num>} units/s ... that it? saturn is responsible for accel vals etc 
 
-  this.moveOut = new Output()
-  this.spindleOut = new Output()
-  this.awaitMotionEnd = new Output()
-  this.extruderTempOut = new Output()
-  this.awaitExtruderTemp = new Output()
-  this.bedTempOut = new Output()
-  this.awaitBedTemp = new Output() 
+  console.warn("pls replace these w/ direct vm calls")
+  // this.spindleOut = new Output()
+  // this.awaitMotionEnd = new Output()
+  // this.extruderTempOut = new Output()
+  // this.awaitExtruderTemp = new Output()
+  // this.bedTempOut = new Output()
+  // this.awaitBedTemp = new Output() 
 
   // thru-feed: pull from incoming, await, push to previous 
   let thruFeed = () => {
@@ -226,14 +225,14 @@ function GCodePanel(xPlace, yPlace) {
         let g0move = gMove(words)
         // some of these *just* set feedrate, 
         if(g0move.rateOnly) return 
-        await this.moveOut.send(g0move)
+        await vm.addMoveToQueue(g0move)
         return
       case 'G01':
       case 'G1':
         feedMode = 'G01'
         let g1move = gMove(words)
         if(g1move.rateOnly) return 
-        await this.moveOut.send(g1move)
+        await vm.addMoveToQueue(g1move)
         return
       case 'G28':
         console.warn('ignoring G28 home')
@@ -254,7 +253,7 @@ function GCodePanel(xPlace, yPlace) {
           rpm = 0
           console.error('bad RPM parse')
         }
-        await this.awaitMotionEnd.send()
+        await vm.awaitMotionEnd()
         await this.spindleOut.send(rpm)
         break;
       case 'M05':

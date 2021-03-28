@@ -118,7 +118,7 @@ PK.route = () => {
       path = path.concat([PK.BFWD.KEY, indice & 255, (indice >> 8) & 255])
       return this 
     },
-    end: function(segsize) {
+    end: function(segsize = 512) {
       path = path.concat([PK.DEST, segsize & 255, (segsize >> 8) & 255])
       return path 
     }

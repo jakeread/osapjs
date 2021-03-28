@@ -62,6 +62,7 @@ export default class OSAP extends Vertex {
         let id = data[ptr + 1]
         let resolved = false 
         for(let q of this.queries){
+          if(!q.queryAwaiting) continue;
           if(q.queryAwaiting.id == id){
             resolved = true 
             clearTimeout(q.queryAwaiting.timeout)

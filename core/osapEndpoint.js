@@ -45,6 +45,12 @@ export default class Endpoint extends Vertex {
     this.routes.push(route)
   }
 
+  // can upd8 how long it takes to to 
+  timeoutLength = TIMES.staleTimeout
+  setTimeoutLength = (time) => {
+    this.timeoutLength = time 
+  }
+
   // software data delivery, define per endpoint, should return promise 
   onData = function (data) {
     return new Promise((resolve, reject) => {
@@ -66,6 +72,7 @@ export default class Endpoint extends Vertex {
         { // ack *to us* arriveth, check against awaiting transmits 
           let ackId = data[ptr + 1]
           let spliced = false
+          // console.log('before pick', JSON.parse(JSON.stringify(this.acksAwaiting)))
           for (let a = 0; a < this.acksAwaiting.length; a++) {
             if (this.acksAwaiting[a].id == ackId) {
               spliced = true
@@ -75,7 +82,6 @@ export default class Endpoint extends Vertex {
           }
           if (!spliced) { console.error("on ack, no ID awaiting..."); PK.logPacket(data); return true; }
           if (this.acksAwaiting.length == 0) {
-            console.warn('res all acks')
             this.acksResolve()
             this.acksResolve = null
           }
@@ -194,7 +200,7 @@ export default class Endpoint extends Vertex {
         setTimeout(() => {
           rejected = true
           if (!resolved) reject('timeout')
-        }, TIMES.staleTimeout)
+        }, this.timeoutLength)
       } else if (mode == "acked") {
         if (this.acksAwaiting.length > 0) {
           reject("on write, still awaiting previous acks")
@@ -213,8 +219,9 @@ export default class Endpoint extends Vertex {
             timeout: setTimeout(() => {
               this.acksAwaiting.length = 0 
               reject('write timeout')
-            }, TIMES.staleTimeout)
+            }, this.timeoutLength)
           });
+          //console.log('push', JSON.parse(JSON.stringify(this.acksAwaiting)))
           this.handle(datagram, 0)
         }
         // setup for on-all-acks to clear this promise, 

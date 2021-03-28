@@ -139,11 +139,15 @@ function JogBox(xPlace, yPlace, vm) {
     }
     let jog = (key, rate) => {
         $(jogBtn).text('...').css('background-color', BTN_YLW)
+        console.log('jog: await no motion')
         vm.awaitMotionEnd().then(() => {
+            console.log('jog: set wait time')
             return vm.setWaitTime(10)
         }).then(() => {
+            console.log('jog: get pos')
             return vm.getPos()
         }).then((pos) => {
+            console.log(pos, 'add move')
             // aaaah, hotfix for extruder moves, 
             pos.E = 0
             let inc = getIncrement()
@@ -177,10 +181,13 @@ function JogBox(xPlace, yPlace, vm) {
                     break;
             }
         }).then(() => {
+            console.log('jog: await no motion')
             return vm.awaitMotionEnd()
         }).then(() => {
+            console.log('jog: set wait time')
             return vm.setWaitTime(1000)
         }).then(() => {
+            console.log('jog: restart jog')
             this.restart()
         }).catch((err) => {
             console.error(err)
