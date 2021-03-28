@@ -73,6 +73,12 @@ let osapSwitch = (vt, od, item, ptr, now) => {
     case PK.SIB.KEY:
       // read-out the indice, 
       let si = TS.read('uint16', pck, ptr + 1)
+      if(!vt.parent){
+        console.error('no vt parent at sib switch')
+        PK.logPacket(pck)
+        item.handled();
+        return 
+      }
       let sib = vt.parent.children[si]
       if (!sib) {
         console.log(`missing sibling ${si} at ${vt.indice}`)
@@ -157,6 +163,11 @@ let osapSwitch = (vt, od, item, ptr, now) => {
         console.log("pfwd at non-vport")
         item.handled()
       }
+      break;
+    case PK.BFWD.KEY:
+      console.log(`${vt.name} rm packet for busfwd in js`)
+      PK.logPacket(pck)
+      item.handled()
       break;
     case PK.LLESCAPE.KEY:
       let str = TS.read('string', pck, ptr + 1, true).value

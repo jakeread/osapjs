@@ -12,12 +12,16 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { EP, TIMES } from './ts.js'
+import { PK, EP, TIMES } from './ts.js'
 
 export default class Query {
   constructor(parent, route) {
     this.parent = parent
+    // bit of a hack: mod route to traverse parent -> child, 
+    // for better inheritence w/ endpoints 
     this.route = route 
+    this.route[1] = PK.CHILD.KEY
+    console.log(`query route`, route)
   }
 
   queryAwaiting = null 

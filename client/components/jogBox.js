@@ -140,12 +140,12 @@ function JogBox(xPlace, yPlace, vm) {
     let jog = (key, rate) => {
         $(jogBtn).text('...').css('background-color', BTN_YLW)
         console.log('jog: await no motion')
-        vm.awaitMotionEnd().then(() => {
+        vm.motion.awaitMotionEnd().then(() => {
             console.log('jog: set wait time')
-            return vm.setWaitTime(10)
+            return vm.motion.setWaitTime(10)
         }).then(() => {
             console.log('jog: get pos')
-            return vm.getPos()
+            return vm.motion.getPos()
         }).then((pos) => {
             console.log(pos, 'add move')
             // aaaah, hotfix for extruder moves, 
@@ -154,10 +154,10 @@ function JogBox(xPlace, yPlace, vm) {
             switch (key) {
                 case 'left':
                     pos.X -= inc
-                    return vm.addMoveToQueue({ position: pos, rate: rate })
+                    return vm.motion.addMoveToQueue({ position: pos, rate: rate })
                 case 'right':
                     pos.X += inc
-                    return vm.addMoveToQueue({ position: pos, rate: rate })
+                    return vm.motion.addMoveToQueue({ position: pos, rate: rate })
                 case 'up':
                     if (zDown) {
                         pos.Z += inc
@@ -166,7 +166,7 @@ function JogBox(xPlace, yPlace, vm) {
                     } else {
                         pos.Y += inc
                     }
-                    return vm.addMoveToQueue({ position: pos, rate: rate })
+                    return vm.motion.addMoveToQueue({ position: pos, rate: rate })
                 case 'down':
                     if (zDown) {
                         pos.Z -= inc
@@ -175,17 +175,17 @@ function JogBox(xPlace, yPlace, vm) {
                     } else {
                         pos.Y -= inc
                     }
-                    return vm.addMoveToQueue({ position: pos, rate: rate })
+                    return vm.motion.addMoveToQueue({ position: pos, rate: rate })
                 default:
                     console.error('bad key for jog switch')
                     break;
             }
         }).then(() => {
             console.log('jog: await no motion')
-            return vm.awaitMotionEnd()
+            return vm.motion.awaitMotionEnd()
         }).then(() => {
             console.log('jog: set wait time')
-            return vm.setWaitTime(1000)
+            return vm.motion.setWaitTime(1000)
         }).then(() => {
             console.log('jog: restart jog')
             this.restart()

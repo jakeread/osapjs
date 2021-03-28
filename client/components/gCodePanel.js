@@ -225,14 +225,14 @@ function GCodePanel(vm, xPlace, yPlace) {
         let g0move = gMove(words)
         // some of these *just* set feedrate, 
         if(g0move.rateOnly) return 
-        await vm.addMoveToQueue(g0move)
+        await vm.motion.addMoveToQueue(g0move)
         return
       case 'G01':
       case 'G1':
         feedMode = 'G01'
         let g1move = gMove(words)
         if(g1move.rateOnly) return 
-        await vm.addMoveToQueue(g1move)
+        await vm.motion.addMoveToQueue(g1move)
         return
       case 'G28':
         console.warn('ignoring G28 home')
@@ -253,7 +253,7 @@ function GCodePanel(vm, xPlace, yPlace) {
           rpm = 0
           console.error('bad RPM parse')
         }
-        await vm.awaitMotionEnd()
+        await vm.motion.awaitMotionEnd()
         await this.spindleOut.send(rpm)
         break;
       case 'M05':

@@ -95,8 +95,14 @@ PK.logPacket = (buffer) => {
   console.log(pert)
 }
 
-PK.route = () => {
+PK.route = (existing) => {
   let path = [PK.PTR]
+  if(existing != null && existing.length > 0){
+    //console.log('existing', JSON.parse(JSON.stringify(existing)))
+    path = JSON.parse(JSON.stringify(existing))
+    path.splice(-3, 3)
+    //console.log('fin start', JSON.parse(JSON.stringify(path)))
+  }
   return {
     sib: function(indice) {
       path = path.concat([PK.SIB.KEY, indice & 255, (indice >> 8) & 255])
