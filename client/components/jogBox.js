@@ -1,7 +1,7 @@
 /*
-gCodePanel.js
+jogBox.js
 
-input gcodes 
+jog input 
 
 Jake Read at the Center for Bits and Atoms
 (c) Massachusetts Institute of Technology 2020
@@ -10,16 +10,6 @@ This work may be reproduced, modified, distributed, performed, and
 displayed for any purpose, but must acknowledge the open systems assembly protocol (OSAP) project.
 Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
-*/
-
-/*
-notes on this thing
-
-this is pretty straightforward at the moment, it'll read small gcodes
-i.e. those used to mill circuits. for larger files, like 3DP files,
-reading times / manipulating large streams of texts needs to be handled 
-more intelligently, i.e. not rendering the whole file into the 'incoming' body. 
-
 */
 
 'use strict'
@@ -50,11 +40,11 @@ let BTN_ERRTIME = 2000
 
 function JogBox(xPlace, yPlace, vm) {
     // jog 
-    let jogBtn = Button(xPlace, yPlace, 104, 104, 'click-in to jog')
-    let jogBigInput = TextInput(xPlace + 120, yPlace, 60, 20, '50.0')
-    let jogNormalInput = TextInput(xPlace + 120, yPlace + 30, 60, 20, '1.0')
-    let jogSmallInput = TextInput(xPlace + 120, yPlace + 60, 60, 20, '0.1')
-    let status = Button(xPlace + 120, yPlace + 90, 54, 14, '...')
+    let jogBtn = Button(xPlace, yPlace, 84, 94, 'click-in to jog')
+    let jogBigInput = TextInput(xPlace, yPlace + 110, 90, 20, '50.0')
+    let jogNormalInput = TextInput(xPlace, yPlace + 140, 90, 20, '1.0')
+    let jogSmallInput = TextInput(xPlace, yPlace + 170, 90, 20, '0.1')
+    let status = Button(xPlace, yPlace + 200, 84, 14, '...')
     // key status 
     let eDown = false;
     let setE = (bool) => {

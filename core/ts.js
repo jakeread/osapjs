@@ -146,6 +146,8 @@ let decoder = new TextDecoder()
 
 TS.read = (type, buffer, start) => {
   switch (type) {
+    case 'int32':
+      return (buffer[start] & 255) | (buffer[start + 1] << 8) | (buffer[start + 2] << 16) | (buffer[start + 3] << 24)
     case 'uint8':
       return buffer[start]
     case 'uint16':
