@@ -30,12 +30,14 @@ function Button(xPlace, yPlace, width, height, text) {
         })
     }
     btn.good = (msg, time) => {
+        if(!time) time = 500
         $(elem).text(msg).css('background-color', style.grn)
         setTimeout(() => {
             $(elem).text(text).css('background-color', style.grey)
         }, time)
     }
     btn.bad = (msg, time) => {
+        if(!time) time = 500 
         $(elem).text(msg).css('background-color', style.red)
         setTimeout(() => {
             $(elem).text(text).css('background-color', style.grey)
