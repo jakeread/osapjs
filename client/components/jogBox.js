@@ -137,7 +137,6 @@ function JogBox(xPlace, yPlace, vm) {
             console.log('jog: get pos')
             return vm.motion.getPos()
         }).then((pos) => {
-            console.log(pos, 'add move')
             // aaaah, hotfix for extruder moves, 
             pos.E = 0
             let inc = getIncrement()
@@ -202,16 +201,16 @@ function JogBox(xPlace, yPlace, vm) {
                 setSmall(true)
                 break;
             case 38:
-                jog('up', 24000)    // to max. 400mm/sec, 
+                jog('up', 12000)    // to max. 400mm/sec, 
                 break;
             case 40:
-                jog('down', 24000)
+                jog('down', 12000)
                 break;
             case 37:
-                jog('left', 24000)
+                jog('left', 12000)
                 break;
             case 39:
-                jog('right', 24000)
+                jog('right', 12000)
                 break;
             default:
                 break;

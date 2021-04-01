@@ -67,6 +67,7 @@ export default class OSAP extends Vertex {
             resolved = true 
             clearTimeout(q.queryAwaiting.timeout)
             q.queryAwaiting.resolve(data.slice(ptr + 2))
+            q.queryAwaiting = null 
           }
         }
         if(!resolved){

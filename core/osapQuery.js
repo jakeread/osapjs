@@ -19,30 +19,34 @@ export default class Query {
     this.parent = parent
     // bit of a hack: mod route to traverse parent -> child, 
     // for better inheritence w/ endpoints 
-    this.route = route 
+    this.route = route
     this.route[1] = PK.CHILD.KEY
     console.log(`query route`, route)
   }
 
-  queryAwaiting = null 
+  queryAwaiting = null
 
   pull = () => {
     return new Promise((resolve, reject) => {
-      let queryId = this.parent.getNewQueryId()
-      let req = new Uint8Array(this.route.length + 2)
-      req.set(this.route, 0)
-      req[this.route.length] = EP.QUERY
-      req[this.route.length  + 1] = queryId 
-      this.queryAwaiting = {
-        id: queryId, 
-        resolve: resolve,
-        timeout: setTimeout(() => {
-          this.queriesAwaiting = null 
-          reject('query timeout')
-        }, TIMES.staleTimeout)
+      if (this.queryAwaiting) {
+        reject("already awaiting on this line")
+      } else {
+        let queryId = this.parent.getNewQueryId()
+        let req = new Uint8Array(this.route.length + 2)
+        req.set(this.route, 0)
+        req[this.route.length] = EP.QUERY
+        req[this.route.length + 1] = queryId
+        this.queryAwaiting = {
+          id: queryId,
+          resolve: resolve,
+          timeout: setTimeout(() => {
+            this.queriesAwaiting = null
+            reject('query timeout')
+          }, TIMES.staleTimeout)
+        }
+        // parent handles,
+        this.parent.handle(req, 0)
       }
-      // parent handles,
-      this.parent.handle(req, 0)
     })
   }
 }
