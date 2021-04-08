@@ -40,7 +40,7 @@ export default class Query {
           id: queryId,
           resolve: resolve,
           timeout: setTimeout(() => {
-            this.queriesAwaiting = null
+            this.queryAwaiting = null
             reject('query timeout')
           }, TIMES.staleTimeout)
         }
