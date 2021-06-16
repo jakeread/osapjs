@@ -43,6 +43,9 @@ function Button(xPlace, yPlace, width, height, text) {
             $(elem).text(text).css('background-color', style.grey)
         }, time)
     }
+    btn.setText = (text) => {
+        $(elem).text(text)
+    }
     btn.elem = elem 
     return btn
 }
