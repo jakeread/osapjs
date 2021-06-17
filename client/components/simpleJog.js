@@ -16,11 +16,11 @@ no warranty is provided, and users accept all liability.
 
 import { EZButton } from '../interface/button.js'
 
-export default function SimpleJog(xPlace, yPlace, vm){
+export default function SimpleJog(xPlace, yPlace, vm, rate){
 
     // rate
 
-    let jogAccel = 10 
+    let jogAccel = rate
 
     // ------------------------------------------ buttons 
 
@@ -29,12 +29,16 @@ export default function SimpleJog(xPlace, yPlace, vm){
     let rightBtn = EZButton(xPlace + 130, yPlace, 14, 84, '>')
 
     // ------------------------------------------ buf of moves
+    // on down-promise return: is key still down? if not, release accel 
+    // if any key during promise, nothing happens 
+    // or before that, have pos-query just query accel, see what's up? 
 
     let buf = [] 
     let bufRunning = false 
     
     let bufAdd = (move) => {
         buf.push(move)
+        //console.log('queue len', buf.length)
         if(buf.length == 1){
             bufRun()
         }
