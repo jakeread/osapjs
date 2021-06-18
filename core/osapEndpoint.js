@@ -164,7 +164,7 @@ export default class Endpoint extends Vertex {
 
   // transmit to all routes & await return before resolving, 
   write = function (data, mode = "ackless") {
-    console.warn(`endpoint ${this.indice} writes ${mode}`)
+    //console.warn(`endpoint ${this.indice} writes ${mode}`)
     // then, onData modification... and should modify loop similar to embedded 
     // keep the cache always: 
     this.data = data
