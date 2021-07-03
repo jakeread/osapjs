@@ -43,8 +43,35 @@ function Button(xPlace, yPlace, width, height, text) {
             $(elem).text(text).css('background-color', style.grey)
         }, time)
     }
+    btn.setText = (text) => {
+        $(elem).text(text)
+    }
     btn.elem = elem 
     return btn
 }
 
-export { Button }
+function EZButton(xPlace, yPlace, width, height, text){
+    let elem = $('<div>').addClass('button')
+        .text(text)
+        .get(0)
+    DT.placeField(elem, width, height, xPlace, yPlace)
+    let btn = {}
+    btn.onClick = (fn) => {
+        $(elem).on('click', (evt) => { fn() })
+    }
+    btn.setText = (text) => {
+        $(elem).text(text) 
+    }
+    btn.green = () => {
+        $(elem).text(text).css('background-color', style.grn)
+    }
+    btn.red = () => {
+        $(elem).text(text).css('background-color', style.red)
+    }
+    btn.grey = () => {
+        $(elem).text(text).css('background-color', style.grey)
+    }
+    return btn 
+}
+
+export { Button, EZButton }

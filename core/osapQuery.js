@@ -17,8 +17,12 @@ import { PK, EP, TIMES } from './ts.js'
 export default class Query {
   constructor(parent, route) {
     this.parent = parent
-    // bit of a hack: mod route to traverse parent -> child, 
-    // for better inheritence w/ endpoints 
+    // so: queries don't originate from an endpoint, they originate from 
+    // the osap root: so we just modify this route to traverse from root, to first child, 
+    // route down is otherwise the same, assuming the 'original' route description 
+    // was from an endpoint at 1st level under the root... 
+    // this just makes defining query routes more straightforward, as we often use them 
+    // beside endpoints that are more like mirrors... 
     this.route = route
     this.route[1] = PK.CHILD.KEY
     //console.log(`query route`, route)
