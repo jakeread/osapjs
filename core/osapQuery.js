@@ -21,7 +21,7 @@ export default class Query {
     // for better inheritence w/ endpoints 
     this.route = route
     this.route[1] = PK.CHILD.KEY
-    console.log(`query route`, route)
+    //console.log(`query route`, route)
   }
 
   queryAwaiting = null
