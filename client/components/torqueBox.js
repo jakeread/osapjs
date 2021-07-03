@@ -13,8 +13,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { Button } from '../interface/button.js'
-import { TextInput } from '../interface/textInput.js'
+import { Button, TextInput } from '../interface/basics.js'
 
 function TorqueBox(xPlace, yPlace, vm) {
     // jog 

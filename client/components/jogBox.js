@@ -14,22 +14,7 @@ no warranty is provided, and users accept all liability.
 
 'use strict'
 
-import DT from '../interface/domTools.js'
-
-function Button(xPlace, yPlace, width, height, text) {
-    let btn = $('<div>').addClass('button')
-        .text(text)
-        .get(0)
-    placeField(btn, width, height, xPlace, yPlace)
-    return btn
-}
-
-function TextInput(xPlace, yPlace, width, height, text) {
-    let input = $('<input>').addClass('inputwrap').get(0)
-    input.value = text
-    placeField(input, width, height, xPlace, yPlace)
-    return input
-}
+import { Button, TextInput, TextBlock } from '../interface/basics.js'
 
 let BTN_RED = 'rgb(242, 201, 201)'
 let BTN_GRN = 'rgb(201, 242, 201)'
@@ -41,9 +26,9 @@ let BTN_ERRTIME = 2000
 function JogBox(xPlace, yPlace, vm) {
     // jog 
     let jogBtn = Button(xPlace, yPlace, 84, 94, 'click-in to jog')
-    let jogBigInput = TextInput(xPlace, yPlace + 110, 90, 20, '50.0')
-    let jogNormalInput = TextInput(xPlace, yPlace + 140, 90, 20, '1.0')
-    let jogSmallInput = TextInput(xPlace, yPlace + 170, 90, 20, '0.1')
+    let jogBigInput = TextInput(xPlace, yPlace + 110, 87, 20, '50.0')
+    let jogNormalInput = TextInput(xPlace, yPlace + 140, 87, 20, '1.0')
+    let jogSmallInput = TextInput(xPlace, yPlace + 170, 87, 20, '0.1')
     let status = Button(xPlace, yPlace + 200, 84, 14, '...')
     // key status 
     let eDown = false;
@@ -286,46 +271,3 @@ function JogBox(xPlace, yPlace, vm) {
 }
 
 export { JogBox }
-
-// lifted from https://github.com/cncjs/gcode-parser/blob/master/src/index.js
-const stripComments = (() => {
-    const re1 = new RegExp(/\s*\([^\)]*\)/g); // Remove anything inside the parentheses
-    const re2 = new RegExp(/\s*;.*/g); // Remove anything after a semi-colon to the end of the line, including preceding spaces
-    const re3 = new RegExp(/\s+/g);
-    return (line => line.replace(re1, '').replace(re2, '').replace(re3, ''));
-})()
-const re = /(%.*)|({.*)|((?:\$\$)|(?:\$[a-zA-Z0-9#]*))|([a-zA-Z][0-9\+\-\.]+)|(\*[0-9]+)/igm
-
-let pullAxes = (str) => {
-    const whiteSpace = new RegExp(/\s*/g)
-    str = str.replace(whiteSpace, '')
-    return str.split(',')
-}
-
-let placeField = (field, width, height, xpos, ypos) => {
-    $(field).css('position', 'absolute')
-        .css('border', 'none')
-        .css('width', `${width}px`)
-        .css('height', `${height}px`)
-    $($('.plane').get(0)).append(field)
-    let dft = { s: 1, x: xpos, y: ypos, ox: 0, oy: 0 }
-    DT.writeTransform(field, dft)
-}
-
-// startup with demo gcode, for testing 
-let initWith = (file) => {
-    return new Promise((resolve, reject) => {
-        if (!file) {
-            reject('no startup file, ok')
-            return
-        }
-        $.ajax({
-            type: "GET",
-            url: file,
-            error: function () { reject(`req for ${file} fails`) },
-            success: function (xhr, statusText) {
-                resolve(xhr)
-            }
-        })
-    })
-}

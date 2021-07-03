@@ -25,7 +25,7 @@ more intelligently, i.e. not rendering the whole file into the 'incoming' body.
 'use strict'
 
 import DT from '../interface/domTools.js'
-import { Button } from '../interface/button.js'
+import { Button } from '../interface/basics.js'
 
 function GCodePanel(vm, xPlace, yPlace) {
   // home dom

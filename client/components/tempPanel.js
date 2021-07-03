@@ -15,8 +15,7 @@ no warranty is provided, and users accept all liability.
 'use strict'
 
 import DT from '../interface/domTools.js'
-import { Button } from '../../client/interface/button.js'
-import { TextInput } from '../../client/interface/textInput.js'
+import { Button, TextInput } from '../interface/basics.js'
 import { AutoPlot } from '../../client/components/autoPlot.js'
 
 export default function TempPanel(vm, xPlace, yPlace, init, name) {
