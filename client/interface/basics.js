@@ -64,20 +64,23 @@ function Button(xPlace, yPlace, width, height, defaultText) {
   btn.setText = (text) => {
     $(elem).text(text)
   }
+  btn.setHTML = (html) => {
+    $(elem).html(html)
+  }
   btn.green = (text) => {
-    if(text) $(elem).text(text)
+    if (text) $(elem).text(text)
     $(elem).css('background-color', style.grn)
   }
   btn.yellow = (text) => {
-    if(text) $(elem).text(text)
+    if (text) $(elem).text(text)
     $(elem).css('background-color', style.ylw)
   }
   btn.red = (text) => {
-    if(text) $(elem).text(text)
+    if (text) $(elem).text(text)
     $(elem).css('background-color', style.red)
   }
   btn.grey = (text) => {
-    if(text) $(elem).text(text)
+    if (text) $(elem).text(text)
     $(elem).css('background-color', style.grey)
   }
   return btn
@@ -88,7 +91,7 @@ function TextBlock(xPlace, yPlace, width, height, text, justify) {
   let elem = $('<div>').addClass('textBlock')
     .text(text)
     .get(0)
-  if(justify){
+  if (justify) {
     $(elem).css('justify-content', 'left').css('padding-left', '10px')
     width -= 7
   }
@@ -117,8 +120,25 @@ function TextInput(xPlace, yPlace, width, height, text) {
   let input = $('<input>').addClass('inputwrap').get(0)
   input.value = text
   DT.placeField(input, width, height, xPlace, yPlace)
+  input.green = () => {
+    $(input).text(text).css('background-color', style.grn)
+  }
+  input.red = () => {
+    $(input).text(text).css('background-color', style.red)
+  }
+  input.grey = () => {
+    $(input).text(text).css('background-color', style.grey)
+  }
   input.getValue = () => {
-    return input.value 
+    return input.value
+  }
+  input.getNumber = () => {
+    let val = parseFloat(input.value)
+    if (Number.isNaN(val)) {
+      return 0
+    } else {
+      return val
+    }
   }
   // could do: input.getNum() returning err if bad parse (?) 
   return input
