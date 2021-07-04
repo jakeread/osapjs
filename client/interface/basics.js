@@ -52,10 +52,14 @@ function EZButton(xPlace, yPlace, width, height, text) {
 }
 
 // for more complex / set button state yourself 
-function Button(xPlace, yPlace, width, height, defaultText) {
+function Button(xPlace, yPlace, width, height, defaultText, justify) {
   let elem = $('<div>').addClass('button')
     .text(defaultText)
     .get(0)
+  if (justify) {
+    $(elem).css('justify-content', 'left').css('padding-left', '10px')
+    width -= 7
+  }
   DT.placeField(elem, width, height, xPlace, yPlace)
   let btn = {}
   btn.onClick = (fn) => {

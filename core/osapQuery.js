@@ -33,7 +33,8 @@ export default class Query {
   pull = () => {
     return new Promise((resolve, reject) => {
       if (this.queryAwaiting) {
-        reject("already awaiting on this line")
+        console.warn("already awaiting on this line, adding 2nd response")
+        this.queryAwaiting.resolutions.push(resolve)
       } else {
         let queryId = this.parent.getNewQueryId()
         let req = new Uint8Array(this.route.length + 2)
@@ -42,7 +43,7 @@ export default class Query {
         req[this.route.length + 1] = queryId
         this.queryAwaiting = {
           id: queryId,
-          resolve: resolve,
+          resolutions: [resolve],
           timeout: setTimeout(() => {
             this.queryAwaiting = null
             reject('query timeout')

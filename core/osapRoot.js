@@ -25,7 +25,7 @@ import { osapLoop } from './osapLoop.js'
 // root is also a vertex, yah 
 export default class OSAP extends Vertex {
   // yes, but !parent, indice == 0 
-  constructor(){
+  constructor() {
     super(null, 0)
   }
 
@@ -36,79 +36,82 @@ export default class OSAP extends Vertex {
   // children factories 
   vPort = (name) => {
     let np = new VPort(this, this.children.length)
-    if(name) np.name = name 
+    if (name) np.name = name
     this.children.push(np)
     return np
   }
   module = (name) => {
     let md = new Module(this, this.children.length)
-    if(name) md.name = name 
+    if (name) md.name = name
     this.children.push(md)
     return md
   }
   endpoint = (name) => {
     let ep = new Endpoint(this, this.children.length)
-    if(name) ep.name = name 
+    if (name) ep.name = name
     this.children.push(ep)
     return ep
   }
 
   // see osapEndpoint.js for notes on this fn 
   destHandler = function (data, ptr) {
-    ptr += 3 
-    switch(data[ptr]){
+    ptr += 3
+    switch (data[ptr]) {
       case EP.QUERY_RESP:
         // match on queries 
         let id = data[ptr + 1]
-        let resolved = false 
-        for(let q of this.queries){
-          if(!q.queryAwaiting) continue;
-          if(q.queryAwaiting.id == id){
-            resolved = true 
+        let resolved = false
+        for (let q of this.queries) {
+          if (!q.queryAwaiting) continue;
+          if (q.queryAwaiting.id == id) {
+            resolved = true
             clearTimeout(q.queryAwaiting.timeout)
-            q.queryAwaiting.resolve(data.slice(ptr + 2))
-            q.queryAwaiting = null 
+            for (let res of q.queryAwaiting.resolutions) {
+              res(data.slice(ptr + 2))
+            }
+            //q.queryAwaiting.resolve(data.slice(ptr + 2))
+            q.queryAwaiting = null
           }
         }
-        if(!resolved){
+        if (!resolved) {
           console.error('on query reply, no matching resolution')
-        } 
+        }
         // clear always anyways 
-        return true 
+        return true
       default:
         console.error('root recvs data / not query resp')
-        return true 
+        return true
     }
   }
 
   // query objects **are not children in the tree** they are little software handles 
   // that tx / rx from here 
-  runningQueryId = 101 
+  runningQueryId = 101
   getNewQueryId = () => {
-    this.runningQueryId ++ 
-    if(this.runningQueryId > 255){
-      this.runningQueryId = 0 
+    this.runningQueryId++
+    if (this.runningQueryId > 255) {
+      this.runningQueryId = 0
     }
     return this.runningQueryId
   }
-  queries = [] 
+  queries = []
   query = (route) => {
     let qr = new Query(this, route)
     this.queries.push(qr)
-    return qr 
+    return qr
   }
 
   // root loop is unique, children's requestLoopCycle() all terminate here, 
   // only schedule once per turn, 
-  loopTimer = null 
+  loopTimer = null
   requestLoopCycle = () => {
-    if(!this.loopTimer) this.loopTimer = setTimeout(this.loop, 0)
+    if (!this.loopTimer) this.loopTimer = setTimeout(this.loop, 0)
   }
 
   loop = () => {
     //console.warn('lp --------------')
     // cancel old timer & start loop
-    this.loopTimer = null 
+    this.loopTimer = null
     osapLoop(this)
   }
 } // end OSAP
