@@ -181,7 +181,7 @@ export default class Endpoint extends Vertex {
           datagram.set(route, 0)
           datagram[route.length] = EP.SS_ACKLESS
           datagram.set(this.data, route.length + 1)
-          console.log(datagram)
+          //console.log(datagram)
           // this is the universal vertex data uptake, '0' for origin stack, 
           this.handle(datagram, 0)
         }

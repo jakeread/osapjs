@@ -15,16 +15,16 @@ no warranty is provided, and users accept all liability.
 'use strict'
 
 import DT from '../interface/domTools.js'
-import { Button, TextInput } from '../interface/basics.js'
+import { EZButton, TextInput, TextBlock } from '../interface/basics.js'
 import { AutoPlot } from '../../client/components/autoPlot.js'
 
 export default function TempPanel(vm, xPlace, yPlace, init, name) {
-  let title = new Button(xPlace, yPlace, 104, 34, name)
+  let title = new TextBlock(xPlace, yPlace, 104, 34, name)
 
   yPlace += 50 
   let tempSet = new TextInput(xPlace, yPlace, 110, 20, `${init}`)
 
-  let tempSetBtn = new Button(xPlace, yPlace + 30, 104, 14, 'set temp')
+  let tempSetBtn = new EZButton(xPlace, yPlace + 30, 104, 14, 'set temp')
   tempSetBtn.onClick(() => {
     let temp = parseFloat(tempSet.value)
     if (Number.isNaN(temp)) {
@@ -39,7 +39,7 @@ export default function TempPanel(vm, xPlace, yPlace, init, name) {
     })
   })
 
-  let tempCoolBtn = new Button(xPlace, yPlace + 60, 104, 14, 'cooldown')
+  let tempCoolBtn = new EZButton(xPlace, yPlace + 60, 104, 14, 'cooldown')
   tempCoolBtn.onClick(() => {
     vm.setExtruderTemp(0).then(() => {
       tempCoolBtn.good("ok", 500)
@@ -59,7 +59,7 @@ export default function TempPanel(vm, xPlace, yPlace, init, name) {
   //effortPlot.setYDomain(-10, 10)
   effortPlot.redraw()
 
-  let tempLpBtn = new Button(xPlace, yPlace + 90, 104, 14, 'plot temp')
+  let tempLpBtn = new EZButton(xPlace, yPlace + 90, 104, 14, 'plot temp')
   let tempLp = false
   let tempLpCount = 0
   tempLpBtn.onClick(() => {
@@ -95,7 +95,7 @@ export default function TempPanel(vm, xPlace, yPlace, init, name) {
   let iVal = new TextInput(xPlace, yPlace + 150, 110, 20, '0.0')
   let dVal = new TextInput(xPlace, yPlace + 180, 110, 20, '0.1')
 
-  let pidSetBtn = new Button(xPlace, yPlace + 210, 104, 14, 'set PID')
+  let pidSetBtn = new EZButton(xPlace, yPlace + 210, 104, 14, 'set PID')
   pidSetBtn.onClick(() => {
     let p = parseFloat(pVal.value)
     let i = parseFloat(iVal.value)

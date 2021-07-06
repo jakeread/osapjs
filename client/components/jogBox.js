@@ -216,7 +216,7 @@ function JogBox(xPlace, yPlace, vm, rate) {
   this.start = () => {
     jogBtn.clicked = true
     jogBtn.green()
-    jogBtn.setHTML('x: big<br>c: small<br>z: map y to z')
+    jogBtn.setHTML('x: big inc<br>c: small inc<br>z: map y->z<br>e: map y->e')
     status.setText('xy')
     document.addEventListener('keydown', this.keyDownListener)
     document.addEventListener('keyup', this.keyUpListener)
