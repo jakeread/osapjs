@@ -19,45 +19,25 @@ this is pretty straightforward at the moment, it'll read small gcodes
 i.e. those used to mill circuits. for larger files, like 3DP files,
 reading times / manipulating large streams of texts needs to be handled 
 more intelligently, i.e. not rendering the whole file into the 'incoming' body. 
-
 */
 
 'use strict'
 
 import DT from '../interface/domTools.js'
-import { Button } from '../interface/basics.js'
+import { Button, TextBlock, TextInput } from '../interface/basics.js'
 
-function GCodePanel(vm, xPlace, yPlace) {
-  // home dom
-  let dom = $('.plane').get(0)
-
-  // previously, in, incoming, etc 
-  let domx = xPlace
-  let domwidth = 220
-  let yspace = 10
-  let yplace = yPlace
+function GCodePanel(xPlace, yPlace, width, machine, hotend) {
+  // some hack padding correction 
+  width -= 3
+  // text box for elements that have been handled, 
   // previous gcodes thru 
   let previously = $('<textarea>').addClass('inputwrap')
     .attr('wrap', 'off')
     .attr('readonly', 'true')
     .get(0)
-  DT.placeField(previously, domwidth, 200, domx, yplace)
-  // optional manual type/feed 
-  let lineIn = $('<input>').addClass('inputwrap')
-    .get(0)
-  DT.placeField(lineIn, domwidth, 20, domx, yplace += 200 + yspace)
-  // run / stop 
-  let runStop = $('<div>').addClass('button')
-    .text('run')
-    .get(0)
-  DT.placeField(runStop, 44, 14, domx, yplace += 20 + yspace) // 3px padding
-  // one line 
-  let once = $('<div>').addClass('button')
-    .text('once')
-    .get(0)
-  DT.placeField(once, 44, 14, domx + 60, yplace)
-  // load 
-  let load = $('<input type = "file">')
+  DT.placeField(previously, width, 207, xPlace, yPlace)
+  // to load files, 
+  let loadBtn = $('<input type = "file">')
     .on('change', (evt) => {
       let reader = new FileReader()
       reader.onload = () => {
@@ -69,115 +49,123 @@ function GCodePanel(vm, xPlace, yPlace) {
       console.log('load', evt.target.files[0])
     })
     .get(0)
-  DT.placeField(load, 94, 20, domx + 120, yplace)
+  // load 
+  DT.placeField(loadBtn, width, 20, xPlace, yPlace += 220)
+  // run / pause ... >, ||, 
+  let runBtn = new Button(xPlace, yPlace += 30, 54, 14, '>')
+  runBtn.onClick(() => {
+    if (running) {
+      this.pause()
+    } else {
+      this.start()
+    }
+  })
+  // one line, >|
+  //  let onceBtn = new Button(xPlace + 60, yPlace, 44, 14, '>|')
+  // some status display:
+  let status = new TextBlock(xPlace, yPlace += 30, width - 3, 24, 'paused')
   // incoming gcodes 
   let incoming = $('<textarea>').addClass('inputwrap')
     .attr('wrap', 'off')
     .get(0)
-  DT.placeField(incoming, domwidth, 460, domx, yplace += 20 + yspace)
+  DT.placeField(incoming, width, 460, xPlace, yPlace += 30 + 10)
 
-  // startup with, 
-  // 'save/pcbmill-stepper.gcode' 114kb
-  // 'save/3dp-zdrive-left.gcode' 15940kb (too big for current setup)
-  // 'save/clank-lz-bed-face.gcode'
-  // 'save/3dp-10mmbox.gcode'
-  initWith('save/3dp-extruder-test.gcode').then((res) => {
-    incoming.value = res
-  }).catch((err) => {
-    console.error(err)
-  })
-
-  // for this runtime, we need a port to throw moves onto, 
-  // that should have similar properties to old CF things:
-  // ... 
-  // I also need to determine a type for that, maybe I want typescript in here. 
-  // first, I need to think up what kinds of things I'm going to be sending to saturn 
-  // setup has 'axis order', to pick X, Y, Z, etc, that's a string / csv list 
-  // move: {pos: [], rate: <num>} units/s ... that it? saturn is responsible for accel vals etc 
-
-  console.warn("pls replace these w/ direct vm calls")
-  // this.spindleOut = new Output()
-  // this.awaitMotionEnd = new Output()
-  // this.extruderTempOut = new Output()
-  // this.awaitExtruderTemp = new Output()
-  // this.bedTempOut = new Output()
-  // this.awaitBedTemp = new Output() 
-
-  // thru-feed: pull from incoming, await, push to previous 
-  let thruFeed = () => {
+  // load files w/ 
+  this.loadServerFile = (path) => {
+    this.pause()
     return new Promise((resolve, reject) => {
+      getServerFile(path).then((res) => {
+        incoming.value = res
+        resolve()
+      }).catch((err) => {
+        reject(err)
+      })
+    })
+  }
+
+  // load w/ string:
+  this.loadString = (str) => {
+    this.pause()
+    incoming.value = str
+  }
+
+  // running, or not: some state:
+  let running = false
+  let onFileEnd = () => {
+    console.warn('end of file')
+    this.pause()
+  }
+
+  // we should have a basic API, like:
+  this.pause = () => {
+    running = false
+    runBtn.grey(">")
+    status.grey('paused')
+  }
+
+  // begins the loop, 
+  this.start = () => {
+    running = true
+    runBtn.green("||")
+    status.green('starting')
+    run()
+  }
+
+  // promise resolves when all lines are thru 
+  this.runToCompletion = () => {
+    console.error('runToCompletion... is not complete')
+    // ... trigger start, check flag 'finished' ? 
+  }
+
+  // feeds one line, resolves when line is complete: 
+  let feedNext = () => {
+    return new Promise((resolve, reject) => {
+      // parse substring of file on next newline, 
       let eol = incoming.value.indexOf('\n') + 1
       // if end of file & no new-line terminating, 
       if (eol == 0) eol = incoming.value.length
+      // get the new thing, 
       let line = incoming.value.substring(0, eol)
-      lineIn.value = line
       // should check if is end of file 
       if (incoming.value.length == 0) {
-        resolve(true)
+        onFileEnd()
+        resolve()
         return
       }
       // otherwise parse 
       parse(line).then(() => {
         // success, clear and add to prev 
-        lineIn.value = ''
         previously.value += line
         previously.scrollTop = previously.scrollHeight
-        resolve(false)
-        //resolve()
+        //console.log('completed', line)
+        resolve()
       }).catch((err) => {
         // failure, backup 
-        console.error('err feeding', line, err)
-        lineIn.value = ''
+        console.error(`error feeding gcode '${line}'`, err)
+        status.red()
+        status.setHTML(`error feeding line, see console:<br>${line}`)
         incoming.value = line.concat(incoming.value)
         reject()
       })
       incoming.value = incoming.value.substring(eol)
     })
   }
-  // one line increment... ad 'hold' flag when awaiting ? 
-  // could match globally: whenever awaiting processing... set red 
-  $(once).on('click', (evt) => {
-    thruFeed().then(() => {
-      //console.log('thru')
-    }).catch((err) => {
-      console.error(err)
-    })
-  })
-  // then we need loops... 
-  let running = false
-  $(runStop).on('click', (evt) => {
-    if (running) {
-      running = false
-      $(runStop).text('run')
-    } else {
-      running = true
-      $(runStop).text('stop')
-      run()
-    }
-  })
+
   // the loop, 
   let run = async () => {
-    while (running) {
+    if (running) {
       try {
-        let complete = await thruFeed()
-        if (complete) {
-          running = false
-          $(runStop).text('run')
-        } else {
-          // inserts a break in js event system, important 
-          await new Promise((resolve, reject) => {
-            setTimeout(resolve, 0)
-          })
-        }
+        await feedNext()
+        setTimeout(run, 0)
       } catch (err) {
-        console.error(err)
-        running = false
+        // feedNext prints all errors - so we just quit here, 
+        this.pause()
       }
     }
   }
 
   // the actual gcode parsing, 
-  let axesString = "X, Y, Z, E" 
+  let axesString = "X, Y, Z, E"
   let axes = pullAxes(axesString)
   let position = {}
   for (let axis of axes) {
@@ -214,26 +202,30 @@ function GCodePanel(vm, xPlace, yPlace) {
       case 'G20':
         posConvert = 25.4
         feedConvert = 25.4
-        return
+        break;
       case 'G21':
         posConvert = 1
         feedConvert = 1
-        return
+        break;
       case 'G00':
       case 'G0':
         feedMode = 'G00'
         let g0move = gMove(words)
         // some of these *just* set feedrate, 
-        if(g0move.rateOnly) return 
-        await vm.motion.addMoveToQueue(g0move)
-        return
+        if (g0move.rateOnly) return
+        // HERE 
+        console.log('would add move', g0Move)
+        //await vm.motion.addMoveToQueue(g0move)
+        break;
       case 'G01':
       case 'G1':
         feedMode = 'G01'
         let g1move = gMove(words)
-        if(g1move.rateOnly) return 
-        await vm.motion.addMoveToQueue(g1move)
-        return
+        if (g1move.rateOnly) return
+        // HERE 
+        console.log('would add move', g1move)
+        //await vm.motion.addMoveToQueue(g1move)
+        break;
       case 'G28':
         console.warn('ignoring G28 home')
         break;
@@ -253,12 +245,16 @@ function GCodePanel(vm, xPlace, yPlace) {
           rpm = 0
           console.error('bad RPM parse')
         }
-        await vm.motion.awaitMotionEnd()
-        await this.spindleOut.send(rpm)
+        // HERE
+        console.log('would await end, then set rpm', rpm)
+        //await vm.motion.awaitMotionEnd()
+        //await this.spindleOut.send(rpm)
         break;
       case 'M05':
-        await this.awaitMotionEnd.send()
-        await this.spindleOut.send(0)
+        // HERE 
+        console.log('would await end, then set rpm 0')
+        //await this.awaitMotionEnd.send()
+        //await this.spindleOut.send(0)
         break;
       case 'M83':
         // use relative extruder mode,
@@ -267,25 +263,32 @@ function GCodePanel(vm, xPlace, yPlace) {
       case 'M104': {
         // set extruder temp,
         let temp = parseFloat(words[1].substring(1))
-        await this.extruderTempOut.send(temp)
+        console.log('would set extruder temp', temp)
+        //await this.extruderTempOut.send(temp)
         break;
       }
       case 'M140': {
         // set bed temp,
         let temp = parseFloat(words[1].substring(1))
-        await this.bedTempOut.send(temp)
+        // HERE
+        console.log('would await bed temp', temp)
+        //await this.bedTempOut.send(temp)
         break;
       }
-      case 'M109':{
+      case 'M109': {
         // await extruder temp, 
         let temp = parseFloat(words[1].substring(1))
-        await this.awaitExtruderTemp.send(temp)
+        // HERE 
+        console.log('would await extruder temp', temp)
+        //await this.awaitExtruderTemp.send(temp)
         break;
       }
-      case 'M190':{
+      case 'M190': {
         // await bed temp 
         let temp = parseFloat(words[1].substring(1))
-        await this.awaitBedTemp.send(temp)
+        // HERE 
+        console.log('would await bed temp', temp)
+        //await this.awaitBedTemp.send(temp)
         break;
       }
       case 'M201':
@@ -304,27 +307,27 @@ function GCodePanel(vm, xPlace, yPlace) {
       // sets extrusion pressure lookahead parameters... 
       default:
         console.warn('ignoring GCode', line)
-        return
+        break;
     } // end first word switch     
   } // end parse 
 
   let gMove = (words) => {
     // to check for E-alone moves, 
     let includesE, includesX, includesY, includesZ, includesF = false;
-    for(let word of words){
-      if(word.includes('E')) includesE = true;
-      if(word.includes('X')) includesX = true;
-      if(word.includes('Y')) includesY = true;
-      if(word.includes('Z')) includesZ = true;
-      if(word.includes('F')) includesF = true;
+    for (let word of words) {
+      if (word.includes('E')) includesE = true;
+      if (word.includes('X')) includesX = true;
+      if (word.includes('Y')) includesY = true;
+      if (word.includes('Z')) includesZ = true;
+      if (word.includes('F')) includesF = true;
     }
-    if(includesE && (!includesX && !includesY && !includesZ)){
+    if (includesE && (!includesX && !includesY && !includesZ)) {
       // turns out, this works OK... 
       console.warn('E-Only G Code')
     }
     // always reset e-position to zero, 
     // this one isn't stateful, is incremental: 
-    position.E = 0 
+    position.E = 0
     // now load in posns, 
     for (let word of words) {
       for (let axis of axes) {
@@ -352,11 +355,11 @@ function GCodePanel(vm, xPlace, yPlace) {
       move.position[axis] = position[axis] * posConvert
     }
     // or, // check for rate-only move, 
-    if (includesF && !includesX && !includesY && !includesZ && !includesE){
+    if (includesF && !includesX && !includesY && !includesZ && !includesE) {
       console.warn('F-Only G Code')
-      move.rateOnly = true 
+      move.rateOnly = true
     } else {
-      move.rateOnly = false 
+      move.rateOnly = false
     }
     return move
   }
@@ -401,7 +404,7 @@ let pullAxes = (str) => {
 }
 
 // startup with demo gcode, for testing 
-let initWith = (file) => {
+let getServerFile = (file) => {
   return new Promise((resolve, reject) => {
     if (!file) {
       reject('no startup file, ok')

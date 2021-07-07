@@ -23,7 +23,7 @@ export default function LeastSquares() {
       let lsqr = smallmath.lsq(observations[0], observations[1])
       m = lsqr.m 
       b = lsqr.b 
-      console.log(m, b)
+      //console.log(m, b)
     }
   }
 

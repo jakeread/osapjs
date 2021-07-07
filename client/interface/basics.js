@@ -107,14 +107,17 @@ function TextBlock(xPlace, yPlace, width, height, text, justify) {
   blk.setHTML = (html) => {
     $(elem).html(html)
   }
-  blk.green = () => {
-    $(elem).text(text).css('background-color', style.grn)
+  blk.green = (text) => {
+    if (text) $(elem).text(text)
+    $(elem).css('background-color', style.grn)
   }
-  blk.red = () => {
-    $(elem).text(text).css('background-color', style.red)
+  blk.red = (text) => {
+    if (text) $(elem).text(text)
+    $(elem).css('background-color', style.red)
   }
-  blk.grey = () => {
-    $(elem).text(text).css('background-color', style.grey)
+  blk.grey = (text) => {
+    if (text) $(elem).text(text)
+    $(elem).css('background-color', style.grey)
   }
   return blk
 }

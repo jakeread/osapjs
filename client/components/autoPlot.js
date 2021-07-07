@@ -17,7 +17,7 @@ no warranty is provided, and users accept all liability.
 import DT from '../interface/domTools.js'
 import style from '../interface/style.js'
 
-function AutoPlot(xPlace, yPlace, xSize, ySize, title) {
+function AutoPlot(xPlace, yPlace, xSize, ySize, title, margin = { top: 40, right: 20, bottom: 30, left: 90}) {
   let chart = $(`<div>`).get(0)
   $(chart).css('background-color', style.grey)
   let uid = `lineChart_${Math.round(Math.random() * 1000)}_uid`
@@ -34,14 +34,6 @@ function AutoPlot(xPlace, yPlace, xSize, ySize, title) {
   let yDomain = null
   this.setYDomain = (min, max) => {
     yDomain = [min, max]
-  }
-
-  // our vars,
-  var margin = {
-    top: 40,
-    right: 20,
-    bottom: 30,
-    left: 90
   }
 
   if (!title) margin.top = 20
