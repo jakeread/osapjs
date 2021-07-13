@@ -177,7 +177,8 @@ function GCodePanel(xPlace, yPlace, width, machine, hotend) {
   }
   let feedMode = 'G01'
   let posConvert = 1 // to swap mm / inches if G20 or G21 
-  let feedConvert = 1 // to swap units/s and units/inch ... 
+  let feedConvert = 1 / 60 // to swap units/s and units/inch ... 
+  // here we go: 
   let parse = async (line) => {
     if (line.length == 0) {
       return
@@ -201,30 +202,28 @@ function GCodePanel(xPlace, yPlace, width, machine, hotend) {
     switch (words[0]) {
       case 'G20':
         posConvert = 25.4
-        feedConvert = 25.4
+        feedConvert = 25.4 / 60   // mm/min to mm/sec 
         break;
       case 'G21':
         posConvert = 1
-        feedConvert = 1
+        feedConvert = 1 / 60      // at gcode interface we swap mm/min to mm/sec
         break;
       case 'G00':
       case 'G0':
         feedMode = 'G00'
         let g0move = gMove(words)
+        status.setText(line)
         // some of these *just* set feedrate, 
         if (g0move.rateOnly) return
-        // HERE 
-        console.log('would add move', g0Move)
-        //await vm.motion.addMoveToQueue(g0move)
+        await machine.motion.addMoveToQueue(g0move)
         break;
       case 'G01':
       case 'G1':
         feedMode = 'G01'
         let g1move = gMove(words)
+        status.setText(line)
         if (g1move.rateOnly) return
-        // HERE 
-        console.log('would add move', g1move)
-        //await vm.motion.addMoveToQueue(g1move)
+        await machine.motion.addMoveToQueue(g1move)
         break;
       case 'G28':
         console.warn('ignoring G28 home')
@@ -234,7 +233,7 @@ function GCodePanel(xPlace, yPlace, width, machine, hotend) {
         break;
       case 'G90':
         // 'use absolute coordinates'
-        console.warn('ignoring G90')
+        console.warn('ignoring G90 use absolute coordinates')
         break;
       case 'G92':
         console.warn('ignoring G92 set pos')
