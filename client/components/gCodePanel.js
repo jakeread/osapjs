@@ -43,7 +43,7 @@ function GCodePanel(xPlace, yPlace, width, machine, hotend) {
       reader.onload = () => {
         let text = reader.result
         console.log(`loaded file with len ${text.length}`)
-        incoming.value = text
+        gCodeIncoming = text
       }
       reader.readAsText(evt.target.files[0])
       console.log('load', evt.target.files[0])
@@ -75,7 +75,7 @@ function GCodePanel(xPlace, yPlace, width, machine, hotend) {
     this.pause()
     return new Promise((resolve, reject) => {
       getServerFile(path).then((res) => {
-        incoming.value = res
+        this.loadString(res)
         resolve()
       }).catch((err) => {
         reject(err)
@@ -84,9 +84,11 @@ function GCodePanel(xPlace, yPlace, width, machine, hotend) {
   }
 
   // load w/ string:
+  let gCodeIncoming = ""
   this.loadString = (str) => {
     this.pause()
     incoming.value = str
+    gCodeIncoming = str 
   }
 
   // running, or not: some state:
@@ -121,13 +123,13 @@ function GCodePanel(xPlace, yPlace, width, machine, hotend) {
   let feedNext = () => {
     return new Promise((resolve, reject) => {
       // parse substring of file on next newline, 
-      let eol = incoming.value.indexOf('\n') + 1
+      let eol = gCodeIncoming.indexOf('\n') + 1
       // if end of file & no new-line terminating, 
-      if (eol == 0) eol = incoming.value.length
+      if (eol == 0) eol = gCodeIncoming.length
       // get the new thing, 
-      let line = incoming.value.substring(0, eol)
+      let line = gCodeIncoming.substring(0, eol)
       // should check if is end of file 
-      if (incoming.value.length == 0) {
+      if (gCodeIncoming.length == 0) {
         onFileEnd()
         resolve()
         return
@@ -135,8 +137,8 @@ function GCodePanel(xPlace, yPlace, width, machine, hotend) {
       // otherwise parse 
       parse(line).then(() => {
         // success, clear and add to prev 
-        previously.value += line
-        previously.scrollTop = previously.scrollHeight
+        //previously.value += line
+        //previously.scrollTop = previously.scrollHeight
         //console.log('completed', line)
         resolve()
       }).catch((err) => {
@@ -144,10 +146,10 @@ function GCodePanel(xPlace, yPlace, width, machine, hotend) {
         console.error(`error feeding gcode '${line}'`, err)
         status.red()
         status.setHTML(`error feeding line, see console:<br>${line}`)
-        incoming.value = line.concat(incoming.value)
+        gCodeIncoming = line.concat(gCodeIncoming)
         reject()
       })
-      incoming.value = incoming.value.substring(eol)
+      gCodeIncoming = gCodeIncoming.substring(eol)
     })
   }
 
