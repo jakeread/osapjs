@@ -100,7 +100,10 @@ function JogBox(xPlace, yPlace, vm, rate) {
     }
   }
 
+  let jogging = false 
+
   let jog = (key, rate) => {
+    jogging = true 
     jogBtn.yellow('...')
     console.log('jog: await no motion')
     vm.motion.awaitMotionEnd().then(() => {
@@ -150,6 +153,7 @@ function JogBox(xPlace, yPlace, vm, rate) {
       return vm.motion.setWaitTime(1000)
     }).then(() => {
       console.log('jog: restart jog')
+      jogging = false 
       this.restart()
     }).catch((err) => {
       console.error(err)
@@ -162,6 +166,7 @@ function JogBox(xPlace, yPlace, vm, rate) {
   }
   // key listeners 
   this.keyDownListener = (evt) => {
+    if(jogging) return 
     if (evt.repeat) return
     switch (evt.keyCode) {
       case 69:
