@@ -39,7 +39,7 @@ export default class VPort extends Vertex {
     let ptr = ptrLoop(buffer)
     // check ptrwalk is OK on entrance to help clear bad pckts faster
     if (ptr == undefined) {
-      console.log("pop for bad ptr walk at vport")
+      console.log(`pop for bad ptr walk at vport ${this.name}`)
       PK.logPacket(buffer)
       return
     }
