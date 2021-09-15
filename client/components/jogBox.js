@@ -100,10 +100,10 @@ function JogBox(xPlace, yPlace, vm, rate) {
     }
   }
 
-  let jogging = false 
+  let jogging = false
 
   let jog = (key, rate) => {
-    jogging = true 
+    jogging = true
     jogBtn.yellow('...')
     console.log('jog: await no motion')
     vm.motion.awaitMotionEnd().then(() => {
@@ -128,6 +128,8 @@ function JogBox(xPlace, yPlace, vm, rate) {
             pos.Z += inc
           } else if (eDown) {
             pos.E -= inc
+            // same note as below, this is hack, 
+            return vm.motion.addMoveToQueue({ position: pos, rate: 4 })
           } else {
             pos.Y += inc
           }
@@ -137,6 +139,8 @@ function JogBox(xPlace, yPlace, vm, rate) {
             pos.Z -= inc
           } else if (eDown) {
             pos.E += inc
+            // bit hack, rate is global when passed in during construct, shouldn't be 
+            return vm.motion.addMoveToQueue({ position: pos, rate: 2 })
           } else {
             pos.Y -= inc
           }
@@ -153,20 +157,20 @@ function JogBox(xPlace, yPlace, vm, rate) {
       return vm.motion.setWaitTime(1000)
     }).then(() => {
       console.log('jog: restart jog')
-      jogging = false 
+      jogging = false
       this.restart()
     }).catch((err) => {
       console.error(err)
       jogBtn.red('jog error, see console')
-      setTimeout(() => { 
-        jogBtn.clicked = false 
-        this.restart() 
+      setTimeout(() => {
+        jogBtn.clicked = false
+        this.restart()
       }, BTN_ERRTIME)
     })
   }
   // key listeners 
   this.keyDownListener = (evt) => {
-    if(jogging) return 
+    if (jogging) return
     if (evt.repeat) return
     switch (evt.keyCode) {
       case 69:
