@@ -268,6 +268,13 @@ function GCodePanel(xPlace, yPlace, width, machine, hotend) {
         //await this.extruderTempOut.send(temp)
         break;
       }
+      case 'M106': {
+        // set fan speed 
+        let speed = parseFloat(words[1].substring(1)) / 255
+        await hotend.setPCF(speed)
+        console.log('set fan speed', speed)
+        break;
+      }
       case 'M140': {
         // set bed temp,
         let temp = parseFloat(words[1].substring(1))

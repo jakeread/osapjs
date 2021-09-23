@@ -18,7 +18,7 @@ import DT from '../interface/domTools.js'
 import { Button, EZButton, TextInput, TextBlock } from '../interface/basics.js'
 import { AutoPlot } from '../../client/components/autoPlot.js'
 
-export default function TempPanel(vm, xPlace, yPlace, init, name, pidDisplay = false) {
+export default function TempPanel(vm, xPlace, yPlace, init, name, pidDisplay = false, pcfPresent = false) {
   let title = new TextBlock(xPlace, yPlace, 84, 34, name)
 
   yPlace += 50
@@ -92,7 +92,7 @@ export default function TempPanel(vm, xPlace, yPlace, init, name, pidDisplay = f
         tempLpBtn.red('temp update err, see console', 500)
       }
     }
-    setTimeout(tempLpRun, 100)
+    setTimeout(tempLpRun, 200)
   }
   tempLpBtn.onClick(() => {
     if (tempLp) {
@@ -123,6 +123,24 @@ export default function TempPanel(vm, xPlace, yPlace, init, name, pidDisplay = f
       }).catch((err) => {
         console.error(err)
         pidSetBtn.bad("err", 1000)
+      })
+    })
+  }
+
+  let pcfSetVal = 0;
+  if (pcfPresent){
+    let pcfBtn = new EZButton(xPlace, yPlace + 150, 84, 14, 'set pcf')
+    pcfBtn.onClick(() => {
+      if(pcfSetVal){
+        pcfSetVal = 0;
+      } else {
+        pcfSetVal = 1;
+      }
+      vm.setPCF(pcfSetVal).then(() => {
+        pcfBtn.good("ok")
+      }).catch((err) => {
+        console.error(err)
+        pcfBtn.bad("err")
       })
     })
   }
