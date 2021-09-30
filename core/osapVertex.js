@@ -44,22 +44,25 @@ export default class Vertex {
     // to note: reverse route assumes we have the DEST key & segsize at the tail...
     let rr = reverseRoute(item.data)
     // response is length of og route (where ptr is)
-    // +1 for the key, +1 for type,
+    // +1 for the key, +1 for the id, +1 for type,
     // +2 for own indice, +2 for # siblings, +2 for # children
     // + string name length +4 counts for string's length
-    let resp = new Uint8Array(ptr + 8 + this.name.length + 4)
+    let resp = new Uint8Array(ptr + 9 + this.name.length + 4)
     resp.set(rr.subarray(0, ptr), 0)
+    let wptr = ptr // make new write pointer, keep og ptr position 
     // ptr is at the end of the route, now we replace the REQ with a RES key,
-    resp[ptr ++] = PK.SCOPE_RES.KEY 
+    resp[wptr ++] = PK.SCOPE_RES.KEY 
+    // the ID from the OG pckt,
+    resp[wptr ++] = item.data[ptr + 1]
     // our type, 
-    resp[ptr ++] = this.type
+    resp[wptr ++] = this.type
     // our own indice, # of siblings, # of children:
-    ptr += TS.write('uint16', this.indice, resp, ptr)
-    ptr += TS.write('uint16', this.parent.children.length, resp, ptr)
-    ptr += TS.write('uint16', this.children.length, resp, ptr)
+    wptr += TS.write('uint16', this.indice, resp, wptr)
+    wptr += TS.write('uint16', this.parent.children.length, resp, wptr)
+    wptr += TS.write('uint16', this.children.length, resp, wptr)
     // finally, our name:
-    ptr += TS.write('string', this.name, resp, ptr)
-    console.log('response generated:', resp, ptr)
+    wptr += TS.write('string', this.name, resp, wptr)
+    console.log('response generated:', resp, wptr)
     // now we can reset this item in-place, all js dirty like:
     item.data = resp 
     item.arrivalTime = TIMES.getTimeStamp()
