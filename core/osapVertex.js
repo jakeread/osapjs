@@ -62,7 +62,7 @@ export default class Vertex {
     wptr += TS.write('uint16', this.children.length, resp, wptr)
     // finally, our name:
     wptr += TS.write('string', this.name, resp, wptr)
-    console.log('response generated:', resp, wptr)
+    //console.log('scope response generated:', resp, wptr)
     // now we can reset this item in-place, all js dirty like:
     item.data = resp 
     item.arrivalTime = TIMES.getTimeStamp()

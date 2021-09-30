@@ -221,7 +221,6 @@ TS.write = (type, value, buffer, start) => {
       return 1
     case 'string': // so, would be good to send long strings (i.e. dirty old gcodes), so 32b base
       let stringStream = encoder.encode(value)
-      console.log(stringStream)
       //console.log("WRITING STRING", value)
       buffer[start] = stringStream.length & 255
       buffer[start + 1] = (stringStream.length >> 8) & 255

@@ -12,7 +12,9 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, VT, TIMES } from './ts.js'
+import { PK, TS, VT, TIMES } from './ts.js'
+
+let PING_MAX_TIME = 2500 // ms 
 
 export default function NetRunner(osap) {
   // runs the whole situation 
@@ -33,43 +35,38 @@ export default function NetRunner(osap) {
   this.ping = async (route) => {
     try {
       // maybe a nice API in general is like 
-      // (1) set a timeout, 
-      let to = setTimeout(() => {
-        throw new Error("netRunner ping times out")
-      }, 1000)
-      // (2) wait for outgoing space in the root's origin stack: 
+      // (1) wait for outgoing space in the root's origin stack: 
       await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
-      // (3) write a packet, just the scope request, to whatever route:
+      // (2) write a packet, just the scope request, to whatever route:
       let datagram = new Uint8Array(route.length + 2)
       datagram.set(route, 0)
       datagram[route.length] = PK.SCOPE_REQ.KEY
       datagram[route.length + 1] = getNewPingID()
       // what's next? an ID for us to demux? 
-      // (4) send the packet !
+      // (3) send the packet !
       osap.handle(datagram, VT.STACK_ORIGIN)
-      // (4) await the result... 
-      pingsAwaiting.push({
-        request: datagram,
-        id: datagram[route.length + 1],
-        onResponse: function(item, ptr){
-          // HERE: u r resolving this:
-          console.log(item, ptr)
-          console.warn('resoooooolution')
-          // so: clear the timeout below (not above)
-          // actually: should clear above timeout and 
-          // attach another to this response object... right? see endpoint acks 
-          // then generate whatever graph data you need from that reply (?) 
-          // then recurse... 
-        }
-      })
-      // resolve that / clear the timeout: 
-      clearTimeout(to)
-      console.log('sent ping req', datagram)
-      // to catch, could do:
+      // (4) setup to handle the request, associating it w/ this fn  
       return new Promise((resolve, reject) => {
-        setTimeout(() => {
-          reject('timeout')
-        }, 2000)
+        pingsAwaiting.push({
+          request: datagram.slice(),                   // the og request 
+          id: datagram[route.length + 1],               // it's id 
+          timeout: setTimeout(() => {                   // a timeout
+            reject('timeout')
+          }, PING_MAX_TIME),
+          onResponse: function(item, ptr){              // callback / handler 
+            // clear timeout 
+            clearTimeout(this.timeout)
+            // now we want to resolve this w/ a description of the ...
+            // virtual vertex ? vvt ? 
+            let vvt = {}
+            vvt.type = item.data[ptr + 2]
+            vvt.indice = TS.read('uint16', item.data, ptr + 3)
+            vvt.numSiblings = TS.read('uint16', item.data, ptr + 5)
+            vvt.numChildren = TS.read('uint16', item.data, ptr + 7)
+            vvt.name = TS.read('string', item.data, ptr + 9).value 
+            resolve(vvt)
+          }
+        })  
       })
     } catch (err) {
       throw err
