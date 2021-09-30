@@ -17,50 +17,62 @@ import { PK, TS, VT, TIMES } from './ts.js'
 let PING_MAX_TIME = 2500 // ms 
 
 export default function NetRunner(osap) {
-  // fills in scope info for children of any root:
-  this.scopeAllChildren = async (parent) => {
-    try {
-      // since we are assuming each sibling is reachable (the parent is reachable)
-      // we can toss it all in one try block (?) 
-      for (let c = 0; c < parent.children.length; c++) {
-        let vvt = await this.scope(PK.route(parent.route, true).child(c).end(256, true))
-        if(vvt.indice != c) throw new Error("vvt indice != searched indice, big bork")
-        parent.children[c] = {
-          type: vvt.type,
-          indice: vvt.indice, 
-          name: vvt.name,
-          children: new Array(vvt.numChildren),
+
+  // depth-first search is the easiest... will just try this: 
+  this.recursor = async (root) => {
+    // we always start w/ the root
+    for (let c = 0; c < root.children.length; c++) {
+      if (root.children[c] == undefined) {
+        try {
+          let vvt = await this.scope(PK.route(root.route, true).child(c).end(256, true))
+          if (vvt.indice != c) throw new Error("vvt indice != searched indice, big bork")
+          root.children[c] = vvt
+          root.children[c].parent = root // aaaand we want to hook upstream 
+        } catch (err) {
+          console.warn(`unreachable child ${c} w/ parent ${root.name}`, err)
+          root.children[c] = {
+            type: "unreachable",
+            parent: root 
+          }
         }
       }
-    } catch (err) {
-      throw (err)
+    } // end root children, 
+
+    // now we want to see about any vports, 
+    for (let c = 0; c < root.children.length; c++) {
+      if (root.children[c].type == VT.VPORT && !(root.children[c].reciprocal)) {
+        try {
+          // this'll be a bit hack: first we look for the reciprocal vport:
+          let vvtVPort = await this.scope(PK.route(root.route, true).child(c).pfwd().end(256, true))
+          // if that works, find it's parent:
+          let vvtParent = await this.scope(PK.route(root.route, true).child(c).pfwd().parent().end(256, true))
+          // now we can attach the vport -> parent a-la: 
+          vvtParent.children[vvtVPort.indice] = vvtVPort
+          vvtVPort.parent = vvtParent
+          // and hook the vports up to one another:
+          vvtVPort.reciprocal = root.children[c] 
+          root.children[c].reciprocal = vvtVPort 
+          // and should be able to recurse down, 
+          await this.recursor(vvtParent)
+        } catch (err) {
+          console.warn(`untraversable vport ${c} w/ parent ${root.name}`, err)
+          // in this case 'vvt.reciprocal' will just == null... 
+        }
+      } else if (root.children[c].type == VT.VBUS){
+        console.warn("! busses not yet sweepable")
+      }
     }
+
   }
 
   // runs a sweep, starting at the osap root vertex 
   this.sweep = async () => {
     try {
-      let root = {} // virtual graph root node... 
-      // let's see if we can just scope the root ...
-      let vvtRoot = await this.scope(PK.route().end(256, true))
-      // now we can tack these on to the object... 
-      root.type = vvtRoot.type
-      root.indice = vvtRoot.indice
-      root.name = vvtRoot.name
-      root.children = new Array(vvtRoot.numChildren)
-      root.siblings = new Array(vvtRoot.numSiblings)
-      // then we want to track a route to each object: 
-      root.route = PK.route().end(256, true)
-      // now we would have some recursing, so maybe if it's a root object:
-      await this.scopeAllChildren(root)
-      console.log(root)
-      // now... for each child, if it's a vport, see if we can find a new parent:
-      for(let c = 0; c < root.children.length; c ++){
-        if(root.children[c].type == VT.VPORT){
-          let vvt = await this.scope(PK.route(root.route, true).child(c).pfwd().parent().end(256, true))
-          console.log('next parent', vvt)
-        }
-      }
+      // scope for an (empty, unconnected) virtual graph vertex:
+      let root = await this.scope(PK.route().end(256, true))
+      // now we wait for the recursor to iteratively scan this tree...
+      await this.recursor(root)
+      return root
     } catch (err) {
       console.error(err)
       throw (err)
@@ -104,11 +116,12 @@ export default function NetRunner(osap) {
             // now we want to resolve this w/ a description of the ...
             // virtual vertex ? vvt ? 
             let vvt = {}
+            vvt.route = route 
             vvt.type = item.data[ptr + 2]
             vvt.indice = TS.read('uint16', item.data, ptr + 3)
-            vvt.numSiblings = TS.read('uint16', item.data, ptr + 5)
-            vvt.numChildren = TS.read('uint16', item.data, ptr + 7)
             vvt.name = TS.read('string', item.data, ptr + 9).value
+            //vvt.siblings = TS.read('uint16', item.data, ptr + 5) // try ignoring siblings for now, 
+            vvt.children = new Array(TS.read('uint16', item.data, ptr + 7)) 
             resolve(vvt)
           }
         })
