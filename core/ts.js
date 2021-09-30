@@ -103,12 +103,12 @@ PK.logPacket = (buffer) => {
   console.log(pert)
 }
 
-PK.route = (existing) => {
+PK.route = (existing, scope = false) => {
   let path = [PK.PTR]
   if(existing != null && existing.length > 0){
     //console.log('existing', JSON.parse(JSON.stringify(existing)))
     path = JSON.parse(JSON.stringify(existing))
-    path.splice(-3, 3)
+    if(!scope) { path.splice(-3, 3) } // don't sleugh off dest if dealing w/ scope pckts 
     //console.log('fin start', JSON.parse(JSON.stringify(path)))
   }
   return {
@@ -133,10 +133,10 @@ PK.route = (existing) => {
       return this 
     },
     end: function(segsize = 512, scope = false) {
-      if(!scope){
+      if(!scope){ // most packets go to 'dest' - and include the route segsize 
         path = path.concat([PK.DEST, segsize & 255, (segsize >> 8) & 255])
         return path   
-      } else {
+      } else {    // packets for 'scope' keys are outside of the dest switch 
         return path
       }
     }

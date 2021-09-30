@@ -58,7 +58,11 @@ export default class Vertex {
     resp[wptr ++] = this.type
     // our own indice, # of siblings, # of children:
     wptr += TS.write('uint16', this.indice, resp, wptr)
-    wptr += TS.write('uint16', this.parent.children.length, resp, wptr)
+    if(this.parent){
+      wptr += TS.write('uint16', this.parent.children.length, resp, wptr)
+    } else {
+      wptr += TS.write('uint16', 0, resp, wptr)
+    }
     wptr += TS.write('uint16', this.children.length, resp, wptr)
     // finally, our name:
     wptr += TS.write('string', this.name, resp, wptr)
