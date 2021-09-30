@@ -79,6 +79,14 @@ let PK = {
     KEY: 12,
     INC: 3
   },
+  SCOPE_REQ: {
+    KEY: 21,
+    INC: 1
+  },
+  SCOPE_RES: {
+    KEY: 22,
+    INC: 1
+  },
   LLESCAPE: {
     KEY: 44, 
     INC: 1
@@ -124,9 +132,13 @@ PK.route = (existing) => {
       path = path.concat([PK.BFWD.KEY, indice & 255, (indice >> 8) & 255])
       return this 
     },
-    end: function(segsize = 512) {
-      path = path.concat([PK.DEST, segsize & 255, (segsize >> 8) & 255])
-      return path 
+    end: function(segsize = 512, scope = false) {
+      if(!scope){
+        path = path.concat([PK.DEST, segsize & 255, (segsize >> 8) & 255])
+        return path   
+      } else {
+        return path
+      }
     }
   }
 }
@@ -209,6 +221,7 @@ TS.write = (type, value, buffer, start) => {
       return 1
     case 'string': // so, would be good to send long strings (i.e. dirty old gcodes), so 32b base
       let stringStream = encoder.encode(value)
+      console.log(stringStream)
       //console.log("WRITING STRING", value)
       buffer[start] = stringStream.length & 255
       buffer[start + 1] = (stringStream.length >> 8) & 255

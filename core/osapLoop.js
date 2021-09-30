@@ -169,6 +169,13 @@ let osapSwitch = (vt, od, item, ptr, now) => {
       PK.logPacket(pck)
       item.handled()
       break;
+    case PK.SCOPE_REQ.KEY:
+      // we are actually going to write the reply *right back* into the OG item, 
+      vt.scopeRequestHandler(item, ptr)
+      break;
+    case PK.SCOPE_RES.KEY:
+      vt.scopeResponseHandler(item, ptr)
+      break;
     case PK.LLESCAPE.KEY:
       let str = TS.read('string', pck, ptr + 1, true).value
       console.log('LL ESCAPE:', str)
@@ -214,7 +221,7 @@ let ptrLoop = (pck, ptr) => {
   } // end ptrloop
 }
 
-let reverseRoute = (pck, ptr) => {
+let reverseRoute = (pck, ptr, scope = false) => {
   // similar here, 
   if (ptr == undefined) {
     ptr = ptrLoop(pck)
@@ -223,9 +230,9 @@ let reverseRoute = (pck, ptr) => {
       return undefined
     }
   }
-  // now pck[ptr] = PK.DEST
+  // now pck[ptr] = PK.DEST (!) unless this is a scope pckt, 
   // route is a new uint8, 
-  let route = new Uint8Array(ptr + 3)
+  let route = new Uint8Array(ptr + 3) 
   // the tail is the same: same segsize, dest at end 
   for (let i = 3; i > 0; i--) {
     route[route.length - i] = pck[ptr + 3 - i]

@@ -21,6 +21,7 @@ import Module from './osapModule.js'
 import Endpoint from './osapEndpoint.js'
 import Query from './osapQuery.js'
 import { osapLoop } from './osapLoop.js'
+import NetRunner from './netRunner.js'
 
 // root is also a vertex, yah 
 export default class OSAP extends Vertex {
@@ -85,7 +86,7 @@ export default class OSAP extends Vertex {
   }
 
   // query objects **are not children in the tree** they are little software handles 
-  // that tx / rx from here 
+  // that tx / rx from here (the root)
   runningQueryId = 101
   getNewQueryId = () => {
     this.runningQueryId++
@@ -114,4 +115,10 @@ export default class OSAP extends Vertex {
     this.loopTimer = null
     osapLoop(this)
   }
+
+  // graph search tool;
+  netRunner = new NetRunner(this)
+  // root will want responses to scope queries, so 
+  scopeResponseHandler = this.netRunner.scopeResponseHandler
+
 } // end OSAP

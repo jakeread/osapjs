@@ -106,7 +106,8 @@ export default class Endpoint extends Vertex {
         }
         break;
       case EP.SS_ACKED:
-        if (this.token) {
+        if (this.token || !(this.stackAvailableSpace(VT.STACK_ORIGIN))) {
+          // are occupied or don't have space ready to ack it, so can't handle yet
           return false
         } else {
           //console.warn('data -> endpoint, ack required')
@@ -123,8 +124,8 @@ export default class Endpoint extends Vertex {
           }).catch((err) => {
             this.token = false
           })
+          return true
         }
-        return true
       case EP.QUERY:
         if(this.stackAvailableSpace(VT.STACK_ORIGIN)){
           // have query & space to reply, 
@@ -137,8 +138,9 @@ export default class Endpoint extends Vertex {
           repl.set(this.data, route.length + 2)
           this.handle(repl, 0)
           return true
-        } 
-        return false
+        } else {
+          return false
+        }
       case EP.QUERY_RESP:
         // query response, 
         console.error('query resp to endpoint, should go to root')

@@ -12,7 +12,8 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { TIMES } from './ts.js'
+import { PK, TIMES, TS } from './ts.js'
+import { reverseRoute } from './osapLoop.js'
 
 export default class Vertex {
   /* to implement */
@@ -36,14 +37,69 @@ export default class Vertex {
     return true 
   }
 
+  // for *scope* keys:
+  scopeRequestHandler = function(item, ptr){
+    // gener8 response, in-place 
+    // 1st we reverse the route:
+    // to note: reverse route assumes we have the DEST key & segsize at the tail...
+    let rr = reverseRoute(item.data)
+    // response is length of og route (where ptr is)
+    // +1 for the key, +1 for type,
+    // +2 for own indice, +2 for # siblings, +2 for # children
+    // + string name length +4 counts for string's length
+    let resp = new Uint8Array(ptr + 8 + this.name.length + 4)
+    resp.set(rr.subarray(0, ptr), 0)
+    // ptr is at the end of the route, now we replace the REQ with a RES key,
+    resp[ptr ++] = PK.SCOPE_RES.KEY 
+    // our type, 
+    resp[ptr ++] = this.type
+    // our own indice, # of siblings, # of children:
+    ptr += TS.write('uint16', this.indice, resp, ptr)
+    ptr += TS.write('uint16', this.parent.children.length, resp, ptr)
+    ptr += TS.write('uint16', this.children.length, resp, ptr)
+    // finally, our name:
+    ptr += TS.write('string', this.name, resp, ptr)
+    console.log('response generated:', resp, ptr)
+    // now we can reset this item in-place, all js dirty like:
+    item.data = resp 
+    item.arrivalTime = TIMES.getTimeStamp()
+    // and request that OSAP handle it at some point, 
+    this.requestLoopCycle()
+  }
+
+  scopeResponseHandler = function(item, ptr){
+    console.error("recieved scope response to default vertex handler, bailing")
+    PK.logPacket(item.data)
+    item.handled()
+  }
+
   // we keep a stack of messages... 
   maxStackLength = TIMES.stackSize
   stack = [[],[]]
 
-  // can check availability 
+  // can check availability, we use this for FC 
   stackAvailableSpace = (od) => {
-    if(od > 2 || od == undefined) console.error("bad od arg")
+    if(od > 2 || od == undefined) { console.error("bad od arg"); return 0 }
     return (this.maxStackLength - this.stack[od].length)
+  }
+
+  awaitStackAvailableSpace = (od, timeout = 1000) => {
+    return new Promise((resolve, reject) => {
+      let to = setTimeout(() => {
+        reject('await stack available space timeout')
+      }, timeout)
+      let check = () => {
+        if(this.stackAvailableSpace(od)){
+          clearTimeout(to)
+          resolve()
+        } else {
+          // TODO: curious to watch if this occurs, so: (should delete later)
+          console.warn('stack await space...')
+          setTimeout(check, 10)
+        }
+      }
+      check()
+    })
   }
 
   // this is the data uptake, 
