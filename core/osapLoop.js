@@ -216,9 +216,11 @@ let ptrLoop = (pck, ptr) => {
         ptr += PK.LLESCAPE.INC
       default:
         // unrecognized, escape !
+        console.error('ptr not recognized', pck[ptr])
         return undefined
     }
   } // end ptrloop
+  console.error('ptr exceeds 16 moves')
 }
 
 let reverseRoute = (pck, ptr, scope = false) => {
