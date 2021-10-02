@@ -24,6 +24,7 @@ export default function NetRunner(osap) {
   let gs;
   let ccTimer = null
   let onCompletedSweep = null
+  let latestScanTime = 0 
 
   let requestCompletionCheck = () => {
     if (!ccTimer) ccTimer = setTimeout(checkCompletion, 50)
@@ -90,23 +91,28 @@ export default function NetRunner(osap) {
   this.inspectFrontier = async (vport) => {
     if (LOG_NETRUNNER) console.log(`NR: now traversing vport ${vport.indice} ${vport.name} at ${vport.parent.name}`)
     try {
-      let portScanTime = TIMES.getTimeStamp()
       // collect vport on the other side of this one:
-      vport.reciprocal = await this.scope(PK.route(vport.route, true).pfwd().end(256, true), portScanTime)
+      vport.reciprocal = await this.scope(PK.route(vport.route, true).pfwd().end(256, true), latestScanTime)
+      if(vport.reciprocal.previousTimeTag == latestScanTime){ 
+        throw new Error("loop detected")
+        // TODO: actually find the matched reciprocal (which should already be in the object) and hook 'em up 
+        // likely that we need to get more complex: if previousTagTime > latestScanStart, 
+        // then go match w/ the vport's actual scan time, right? 
+      }
       let reciprocal = vport.reciprocal
       // check it out, lol, the plumbing flushes both ways:
       reciprocal.reciprocal = vport
       // TODO: I think we would already have enough info to detect overlaps: w/ the reciprocal's 
       // console.log(vport.reciprocal.previousTimeTag)
       // it's parent: 
-      vport.reciprocal.parent = await this.scope(PK.route(reciprocal.route, true).parent().end(256, true), portScanTime)
+      vport.reciprocal.parent = await this.scope(PK.route(reciprocal.route, true).parent().end(256, true), latestScanTime)
       let parent = vport.reciprocal.parent
       // and plumb that:
       parent.children[reciprocal.indice] = reciprocal
       // now we want to fill in the rest of the children:
       for (let c = 0; c < parent.children.length; c++) {
         if (parent.children[c] == undefined) {
-          parent.children[c] = await this.scope(PK.route(reciprocal.route, true).sib(c).end(256, true), portScanTime)
+          parent.children[c] = await this.scope(PK.route(reciprocal.route, true).sib(c).end(256, true), latestScanTime)
           parent.children[c].parent = parent
         }
       }
@@ -116,6 +122,7 @@ export default function NetRunner(osap) {
       // if the thing is a vport & it's *not* the one we entered on:
       for (let c = 0; c < parent.children.length; c++) {
         if (parent.children[c].type == VT.VPORT && c != reciprocal.indice) {
+          //if(reciprocal.previousTimeTag == )
           this.inspectFrontier(parent.children[c])
         }
       }
@@ -130,13 +137,13 @@ export default function NetRunner(osap) {
 
   // runs a sweep, starting at the osap root vertex 
   this.sweep = async () => {
+    latestScanTime = TIMES.getTimeStamp()
     return new Promise(async (resolve, reject) => {
       try {
-        let rootScanTime = TIMES.getTimeStamp()
-        let root = await this.scope(PK.route().end(256, true), rootScanTime)
+        let root = await this.scope(PK.route().end(256, true), latestScanTime)
         // now each child, 
         for (let c = 0; c < root.children.length; c++) {
-          root.children[c] = await this.scope(PK.route(root.route, true).child(c).end(256, true), rootScanTime)
+          root.children[c] = await this.scope(PK.route(root.route, true).child(c).end(256, true), latestScanTime)
           root.children[c].parent = root
         }
         // now launch query per virtual port,
