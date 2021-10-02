@@ -59,7 +59,6 @@ export default class Vertex {
     wptr += TS.write('uint32', this.scopeTimeTag, resp, wptr)
     // and read-in the new scope time data: 
     this.scopeTimeTag = TS.read('uint32', item.data, ptr + 2)
-    console.warn('scope reads time', this.scopeTimeTag)
     // our type, 
     resp[wptr ++] = this.type
     // our own indice, # of siblings, # of children:

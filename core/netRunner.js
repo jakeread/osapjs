@@ -15,122 +15,143 @@ no warranty is provided, and users accept all liability.
 import { PK, TS, VT, TIMES } from './ts.js'
 
 let PING_MAX_TIME = 1000 // ms 
-let LOG_NETRUNNER = false 
+let LOG_NETRUNNER = false
+let LOG_COMPLETION_CHECKS = false
 
 export default function NetRunner(osap) {
 
-  let gs = {} // current graph object 
-  let gsUpdateTimer = null 
-  let onCompletedSweep = null 
+  // global graph state, 
+  let gs;
+  let ccTimer = null
+  let onCompletedSweep = null
 
-  // little buffer, as a treat. if you want to abuse FC systems to test, remove this guard @ just set the timeout... 
-  this.requestUpdateGS = () => {
-    if(!gsUpdateTimer) gsUpdateTimer = setTimeout(this.updateGS, 50)
+  let requestCompletionCheck = () => {
+    if (!ccTimer) ccTimer = setTimeout(checkCompletion, 50)
   }
 
-  this.updateGS = async () => {
-    // ensure timer dead 
-    gsUpdateTimer = null 
-    // so we want to start at the root (gs) and work our way through:
-    // at any given time, any vertex has some state:
-    /*
-    (1) we don't know it exists yet 
-    (2) we suspect it does, but haven't asked it out 
-    (3) we are waiting for a reply [x] yes [x]no [o]maybe 
-    (4) we have heard back, and it either replied or is unreachable (timed out) 
-    */
-    let now = TIMES.getTimeStamp()
-    if(LOG_NETRUNNER) console.log(`sweep at ${now}`)
-    let levelsComplete = 0
-    let levelsTraversed = 0
-    let recursor = (root) => {
-      root.lastSweep = now 
-      levelsTraversed ++ 
-      let childrenComplete = 0
-      for (let c = 0; c < root.children.length; c++) {
-        if (root.children[c] == undefined) { //---------------------------------------------------- 0: child is undefined
-          if(LOG_NETRUNNER) console.log(`finding child ${c} at ${root.name}`)
-          root.children[c] = this.scope(PK.route(root.route, true).child(c).end(256, true))
-          root.children[c].then((vvt) => {
-            if(LOG_NETRUNNER) console.log(`found child ${c} at ${root.name}`)
-            root.children[c] = vvt
-            root.children[c].parent = root
-            this.requestUpdateGS()
-          }).catch((err) => {
-            if(LOG_NETRUNNER) console.warn(`unreachable child ${c} at ${root.name}:`, err)
-            root.children[c] = { type: "unreachable", parent: root }
-            this.requestUpdateGS()
-          })
-        } else if (root.children[c].then) { // ---------------------------------------------------- 1: child is currently a promise
-          // will wait for it... 
-          // console.log(`awaiting ${root.name} child ${c} definition`)
-        } else if (root.children[c].type == VT.VPORT && !root.children[c].reciprocal) { // -------- 2: is vport w/ undefined reciprocal 
-          // will first collect the reciprocal, then use that to bump up to its parent... 
-          if(LOG_NETRUNNER) console.log(`finding reciprocal of child ${c} at ${root.name}`)
-          root.children[c].reciprocal = this.scope(PK.route(root.route, true).child(c).pfwd().end(256, true))
-          root.children[c].reciprocal.then((vvtr) => {
-            if(LOG_NETRUNNER) console.log(`found reciprocal of child ${c} at ${root.name}... parent next`)
-            // pair them up:
-            root.children[c].reciprocal = vvtr
-            vvtr.reciprocal = root.children[c]
-            // now get the parent, 
-            this.scope(PK.route(root.route, true).child(c).pfwd().parent().end(256, true)).then((vvtp) => {
-              if(LOG_NETRUNNER) console.log(`found parent of reciprocal of child ${c} at ${root.name}`)
-              // parent's child (in proper index) is previously acquired reciprocal, 
-              vvtp.children[vvtr.indice] = vvtr
-              // this is it's parent, 
-              vvtr.parent = vvtp
-              // check graph again, will decide to traverse down... 
-              this.requestUpdateGS()
-            }).catch((err) => {
-              // parent unreachable... let's take this corner case and just presume link borked 
-              if(LOG_NETRUNNER) console.warn(`reciprocal parent for ${vtt.name} unreachable, scrapping reciprocal`)
-              root.children[c].reciprocal = { type: "unreachable" }
-              this.requestUpdateGS()
-            })
-          }).catch((err) => {
-            // reciprocal unreachable, 
-            if(LOG_NETRUNNER) console.warn(`unreachable reciprocal for vport ${c} at ${root.name} unreachable`)
-            root.children[c].reciprocal = { type: "unreachable" }
-            this.requestUpdateGS()
-          })
-        } else if (root.children[c].type == VT.VPORT && root.children[c].reciprocal.then) { // ---- 3: is vport w/ promise for reciprocal 
-          // awaiting return of reciprocal port 
-          //console.log(`awaiting ${c}: ${root.children[c].name} reciprocal...`)
-        } else if (root.children[c].reciprocal && root.children[c].reciprocal.parent) { // -------- 4: is vport w/ reciprocal & parent:
-          if(root.children[c].reciprocal.parent.lastSweep != now){
-            if(LOG_NETRUNNER) console.warn('recursing', root.children[c].reciprocal.parent.name)
-            recursor(root.children[c].reciprocal.parent)
-          }
-        } 
-        // count, separate of messy else-if train above:
-        if (root.children[c].type && root.children[c].type != VT.VPORT){
-          childrenComplete ++
-        } else if (root.children[c].type == VT.VPORT && root.children[c].reciprocal != null && !(root.children[c].reciprocal.then)){
-          childrenComplete ++
+  let checkCompletion = () => {
+    ccTimer = null
+    if (!gs) return
+    // we r going to walk the whole gd thing to see if anything is pending, 
+    if (LOG_COMPLETION_CHECKS) console.warn('hang on, we are checking...')
+    // we also have to use some timer action to ensure we don't check / recurse through twice 
+    let checkTime = TIMES.getTimeStamp()
+    let notDone = false
+    let recursor = (vport) => {
+      if (LOG_COMPLETION_CHECKS) console.warn('traverse across', vport.name)
+      // reciprocal is here (we've tapped it), isn't awaiting (then) and has parent, not awaiting either... 
+      if (vport.reciprocal && !vport.reciprocal.then && vport.reciprocal.parent && !vport.reciprocal.parent.then) {
+        if (vport.reciprocal.lastCheckTime == checkTime) {
+          if (LOG_COMPLETION_CHECKS) console.warn(`dident back up ${vport.name}`)
+          return
         }
-      } // end loop over children, 
-      if(childrenComplete == root.children.length){
-        if(LOG_NETRUNNER) console.log(`end state for ${root.name}`)
-        levelsComplete ++ 
-        if(levelsComplete == levelsTraversed){
-          if(onCompletedSweep) onCompletedSweep(gs)
+        let parent = vport.reciprocal.parent
+        for (let c of parent.children) {
+          if (c.then) {
+            if (LOG_COMPLETION_CHECKS) console.warn('not done, 0')
+            notDone = true
+            return
+          }
+        }
+        for (let c of parent.children) {
+          c.lastCheckTime = checkTime
+          if (c.type == VT.VPORT) {
+            if (c.reciprocal && !c.reciprocal.then && c.reciprocal.parent && !c.reciprocal.parent.then) {
+              recursor(c)
+            } else if (c.reciprocal && c.reciprocal.type == "unreachable") {
+              // ... unreachable, might be done ! 
+            } else {
+              if (LOG_COMPLETION_CHECKS) console.warn('not done, 1')
+              notDone = true
+              return
+            }
+          }
         }
       } else {
-        if(LOG_NETRUNNER) console.log(`esc ${root.name} ${childrenComplete}, rl ${root.children.length}`)
+        if (LOG_COMPLETION_CHECKS) console.warn('not done, 2')
+        notDone = true
+        return
       }
     }
-    // start parti 
-    recursor(gs)
+    // kick it 
+    for (let c of gs.children) {
+      c.lastCheckTime = checkTime
+      if (c.type == VT.VPORT) {
+        if (c.reciprocal && !c.reciprocal.then && c.reciprocal.parent && !c.reciprocal.parent.then) {
+          recursor(c)
+        }
+      }
+    }
+    // check 
+    if (!notDone && onCompletedSweep) onCompletedSweep(gs)
+  }
+
+  // block inspect one context:
+  this.inspectFrontier = async (vport) => {
+    if (LOG_NETRUNNER) console.log(`NR: now traversing vport ${vport.indice} ${vport.name} at ${vport.parent.name}`)
+    try {
+      let portScanTime = TIMES.getTimeStamp()
+      // collect vport on the other side of this one:
+      vport.reciprocal = await this.scope(PK.route(vport.route, true).pfwd().end(256, true), portScanTime)
+      let reciprocal = vport.reciprocal
+      // check it out, lol, the plumbing flushes both ways:
+      reciprocal.reciprocal = vport
+      // TODO: I think we would already have enough info to detect overlaps: w/ the reciprocal's 
+      // console.log(vport.reciprocal.previousTimeTag)
+      // it's parent: 
+      vport.reciprocal.parent = await this.scope(PK.route(reciprocal.route, true).parent().end(256, true), portScanTime)
+      let parent = vport.reciprocal.parent
+      // and plumb that:
+      parent.children[reciprocal.indice] = reciprocal
+      // now we want to fill in the rest of the children:
+      for (let c = 0; c < parent.children.length; c++) {
+        if (parent.children[c] == undefined) {
+          parent.children[c] = await this.scope(PK.route(reciprocal.route, true).sib(c).end(256, true), portScanTime)
+          parent.children[c].parent = parent
+        }
+      }
+      // check 4 completion 
+      requestCompletionCheck()
+      // and *finally* we can consider traaaaversing down: 
+      // if the thing is a vport & it's *not* the one we entered on:
+      for (let c = 0; c < parent.children.length; c++) {
+        if (parent.children[c].type == VT.VPORT && c != reciprocal.indice) {
+          this.inspectFrontier(parent.children[c])
+        }
+      }
+    } catch (err) {
+      if (LOG_NETRUNNER) console.error(err)
+      if (LOG_NETRUNNER) console.log(`NR: unreachable across vport ${vport.indice} ${vport.name} at ${vport.parent.name}`)
+      vport.reciprocal = { type: "unreachable" }
+      // check 4 
+      requestCompletionCheck()
+    }
   }
 
   // runs a sweep, starting at the osap root vertex 
   this.sweep = async () => {
     return new Promise(async (resolve, reject) => {
-      gs = await this.scope(PK.route().end(256, true))
-      this.requestUpdateGS()
-      onCompletedSweep = (gs) => {
-        resolve(gs)
+      try {
+        let rootScanTime = TIMES.getTimeStamp()
+        let root = await this.scope(PK.route().end(256, true), rootScanTime)
+        // now each child, 
+        for (let c = 0; c < root.children.length; c++) {
+          root.children[c] = await this.scope(PK.route(root.route, true).child(c).end(256, true), rootScanTime)
+          root.children[c].parent = root
+        }
+        // now launch query per virtual port,
+        for (let c = 0; c < root.children.length; c++) {
+          if (root.children[c].type == VT.VPORT) {
+            this.inspectFrontier(root.children[c])
+          }
+        }
+        // global, 
+        gs = root
+        // aaaand 
+        onCompletedSweep = resolve
+      } catch (err) {
+        console.error(err)
+        reject('sweep fails')
       }
     })
   }
@@ -147,6 +168,7 @@ export default function NetRunner(osap) {
   // info comes back: simple enough:
   this.scope = async (route, timeTag) => {
     try {
+      if (!timeTag) console.warn("scope called w/ no timeTag")
       // maybe a nice API in general is like 
       // (1) wait for outgoing space in the root's origin stack: 
       await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
@@ -173,7 +195,6 @@ export default function NetRunner(osap) {
             clearTimeout(this.timeout)
             // now we want to resolve this w/ a description of the ...
             // virtual vertex ? vvt ? 
-            console.log(item.data)
             let vvt = {}
             vvt.route = route
             vvt.timeTag = timeTag // what we just tagged it with 
