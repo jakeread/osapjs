@@ -24,7 +24,8 @@ export default function NetRunner(osap) {
   let gs;
   let ccTimer = null
   let onCompletedSweep = null
-  let latestScanTime = 0 
+  let scanStartTime = 0 
+  let allVPorts = []
 
   let requestCompletionCheck = () => {
     if (!ccTimer) ccTimer = setTimeout(checkCompletion, 50)
@@ -89,30 +90,43 @@ export default function NetRunner(osap) {
 
   // block inspect one context:
   this.inspectFrontier = async (vport) => {
+    // per-node scan time: 
+    let frontierScanTime = TIMES.getTimeStamp()
     if (LOG_NETRUNNER) console.log(`NR: now traversing vport ${vport.indice} ${vport.name} at ${vport.parent.name}`)
     try {
       // collect vport on the other side of this one:
-      vport.reciprocal = await this.scope(PK.route(vport.route, true).pfwd().end(256, true), latestScanTime)
-      if(vport.reciprocal.previousTimeTag == latestScanTime){ 
+      vport.reciprocal = await this.scope(PK.route(vport.route, true).pfwd().end(256, true), frontierScanTime)
+      if(vport.reciprocal.previousTimeTag > scanStartTime){ 
+        if (LOG_NETRUNNER) console.warn("lp here")
+        for(let p of allVPorts){
+          if (LOG_NETRUNNER) console.log(`${p.name}, ${p.timeTag}, ${vport.reciprocal.previousTimeTag}`)
+          if(p.timeTag == vport.reciprocal.previousTimeTag){
+            // we have it's parent, likely, let's see if we can hook:
+            if (LOG_NETRUNNER) console.warn(`hooking lp to ${vport.reciprocal.indice}`)
+            vport.reciprocal = p.parent.indice[vport.reciprocal.indice]
+            break
+          }
+        }
+        // let's check if we can find which one we pinged w/ this time... 
         throw new Error("loop detected")
-        // TODO: actually find the matched reciprocal (which should already be in the object) and hook 'em up 
-        // likely that we need to get more complex: if previousTagTime > latestScanStart, 
-        // then go match w/ the vport's actual scan time, right? 
       }
       let reciprocal = vport.reciprocal
+      // add to tl list;
+      allVPorts.push(reciprocal)
       // check it out, lol, the plumbing flushes both ways:
       reciprocal.reciprocal = vport
       // TODO: I think we would already have enough info to detect overlaps: w/ the reciprocal's 
       // console.log(vport.reciprocal.previousTimeTag)
       // it's parent: 
-      vport.reciprocal.parent = await this.scope(PK.route(reciprocal.route, true).parent().end(256, true), latestScanTime)
+      vport.reciprocal.parent = await this.scope(PK.route(reciprocal.route, true).parent().end(256, true), frontierScanTime)
       let parent = vport.reciprocal.parent
       // and plumb that:
       parent.children[reciprocal.indice] = reciprocal
       // now we want to fill in the rest of the children:
+      // could speed this up by transporting all child lookups before awaiting each, more packets flying 
       for (let c = 0; c < parent.children.length; c++) {
         if (parent.children[c] == undefined) {
-          parent.children[c] = await this.scope(PK.route(reciprocal.route, true).sib(c).end(256, true), latestScanTime)
+          parent.children[c] = await this.scope(PK.route(reciprocal.route, true).sib(c).end(256, true), frontierScanTime)
           parent.children[c].parent = parent
         }
       }
@@ -123,6 +137,7 @@ export default function NetRunner(osap) {
       for (let c = 0; c < parent.children.length; c++) {
         if (parent.children[c].type == VT.VPORT && c != reciprocal.indice) {
           //if(reciprocal.previousTimeTag == )
+          allVPorts.push(parent.children[c])
           this.inspectFrontier(parent.children[c])
         }
       }
@@ -137,18 +152,23 @@ export default function NetRunner(osap) {
 
   // runs a sweep, starting at the osap root vertex 
   this.sweep = async () => {
-    latestScanTime = TIMES.getTimeStamp()
+    scanStartTime = TIMES.getTimeStamp()
+    // this is lazy, but I keep a set list of nodes as well:
+    // we should only add to this list when a parent is complete / all children have been added 
+    allVPorts = [] 
     return new Promise(async (resolve, reject) => {
       try {
-        let root = await this.scope(PK.route().end(256, true), latestScanTime)
+        let root = await this.scope(PK.route().end(256, true), scanStartTime)
         // now each child, 
         for (let c = 0; c < root.children.length; c++) {
-          root.children[c] = await this.scope(PK.route(root.route, true).child(c).end(256, true), latestScanTime)
+          root.children[c] = await this.scope(PK.route(root.route, true).child(c).end(256, true), scanStartTime)
           root.children[c].parent = root
         }
         // now launch query per virtual port,
         for (let c = 0; c < root.children.length; c++) {
           if (root.children[c].type == VT.VPORT) {
+            // add to flat list 
+            allVPorts.push(root.children[c])
             this.inspectFrontier(root.children[c])
           }
         }
