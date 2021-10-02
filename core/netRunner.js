@@ -145,17 +145,18 @@ export default function NetRunner(osap) {
 
   // pings a particular route, for SCOPE info, resolving when 
   // info comes back: simple enough:
-  this.scope = async (route) => {
+  this.scope = async (route, timeTag) => {
     try {
       // maybe a nice API in general is like 
       // (1) wait for outgoing space in the root's origin stack: 
       await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
       //console.log('flying...', TIMES.getTimeStamp(), route)
       // (2) write a packet, just the scope request, to whatever route:
-      let datagram = new Uint8Array(route.length + 2)
+      let datagram = new Uint8Array(route.length + 6)
       datagram.set(route, 0)
       datagram[route.length] = PK.SCOPE_REQ.KEY
       datagram[route.length + 1] = getNewPingID()
+      TS.write('uint32', timeTag, datagram, route.length + 2)
       // what's next? an ID for us to demux? 
       // (3) send the packet !
       osap.handle(datagram, VT.STACK_ORIGIN)
@@ -172,13 +173,16 @@ export default function NetRunner(osap) {
             clearTimeout(this.timeout)
             // now we want to resolve this w/ a description of the ...
             // virtual vertex ? vvt ? 
+            console.log(item.data)
             let vvt = {}
             vvt.route = route
-            vvt.type = item.data[ptr + 2]
-            vvt.indice = TS.read('uint16', item.data, ptr + 3)
-            vvt.name = TS.read('string', item.data, ptr + 9).value
-            //vvt.siblings = TS.read('uint16', item.data, ptr + 5) // try ignoring siblings for now, 
-            vvt.children = new Array(TS.read('uint16', item.data, ptr + 7))
+            vvt.timeTag = timeTag // what we just tagged it with 
+            vvt.previousTimeTag = TS.read('uint32', item.data, ptr + 2) // what it replies w/ as previous tag 
+            vvt.type = item.data[ptr + 6]
+            vvt.indice = TS.read('uint16', item.data, ptr + 7)
+            //vvt.siblings = TS.read('uint16', item.data, ptr + 9) // try ignoring # siblings for now, 
+            vvt.children = new Array(TS.read('uint16', item.data, ptr + 11))
+            vvt.name = TS.read('string', item.data, ptr + 13).value
             resolve(vvt)
           }
         })

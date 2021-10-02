@@ -28,6 +28,7 @@ export default class Vertex {
 
   name = "unnamed vertex"
   children = [] // all have some children array, not all have children 
+  scopeTimeTag = 0 // this property is helpful when looking across graphs, 
 
   // return true when message flushes / is OK / handled, 
   // return false if we want this to bother again on next main loop 
@@ -44,16 +45,21 @@ export default class Vertex {
     // to note: reverse route assumes we have the DEST key & segsize at the tail...
     let rr = reverseRoute(item.data)
     // response is length of og route (where ptr is)
-    // +1 for the key, +1 for the id, +1 for type,
+    // +1 for the key, +1 for the id, +4 for the time tag, +1 for type, 
     // +2 for own indice, +2 for # siblings, +2 for # children
     // + string name length +4 counts for string's length
-    let resp = new Uint8Array(ptr + 9 + this.name.length + 4)
+    let resp = new Uint8Array(ptr + 13 + this.name.length + 4)
     resp.set(rr.subarray(0, ptr), 0)
     let wptr = ptr // make new write pointer, keep og ptr position 
     // ptr is at the end of the route, now we replace the REQ with a RES key,
     resp[wptr ++] = PK.SCOPE_RES.KEY 
     // the ID from the OG pckt,
     resp[wptr ++] = item.data[ptr + 1]
+    // the time we were last scoped:
+    wptr += TS.write('uint32', this.scopeTimeTag, resp, wptr)
+    // and read-in the new scope time data: 
+    this.scopeTimeTag = TS.read('uint32', item.data, ptr + 2)
+    console.warn('scope reads time', this.scopeTimeTag)
     // our type, 
     resp[wptr ++] = this.type
     // our own indice, # of siblings, # of children:
