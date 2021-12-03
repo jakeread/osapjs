@@ -101,16 +101,17 @@ function JogBox(xPlace, yPlace, vm, rate) {
   }
 
   let jogging = false
+  let jogLog = false 
 
   let jog = (key, rate) => {
     jogging = true
     jogBtn.yellow('...')
-    console.log('jog: await no motion')
+    if(jogLog) console.log('jog: await no motion')
     vm.motion.awaitMotionEnd().then(() => {
-      console.log('jog: set wait time')
+      if(jogLog) console.log('jog: set wait time')
       return vm.motion.setWaitTime(10)
     }).then(() => {
-      console.log('jog: get pos')
+      if(jogLog) console.log('jog: get pos')
       return vm.motion.getPos()
     }).then((pos) => {
       // aaaah, hotfix for extruder moves, 
@@ -150,13 +151,13 @@ function JogBox(xPlace, yPlace, vm, rate) {
           break;
       }
     }).then(() => {
-      console.log('jog: await no motion')
+      if(jogLog) console.log('jog: await no motion')
       return vm.motion.awaitMotionEnd()
     }).then(() => {
-      console.log('jog: set wait time')
+      if(jogLog) console.log('jog: set wait time')
       return vm.motion.setWaitTime(1000)
     }).then(() => {
-      console.log('jog: restart jog')
+      if(jogLog) console.log('jog: restart jog')
       jogging = false
       this.restart()
     }).catch((err) => {
@@ -186,7 +187,7 @@ function JogBox(xPlace, yPlace, vm, rate) {
         setSmall(true)
         break;
       case 38:
-        jog('up', rate)    // to max. 400mm/sec, 
+        jog('up', rate)   
         break;
       case 40:
         jog('down', rate)
