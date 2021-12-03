@@ -79,6 +79,14 @@ let PK = {
     KEY: 12,
     INC: 3
   },
+  SCOPE_REQ: {
+    KEY: 21,
+    INC: 1
+  },
+  SCOPE_RES: {
+    KEY: 22,
+    INC: 1
+  },
   LLESCAPE: {
     KEY: 44, 
     INC: 1
@@ -95,12 +103,12 @@ PK.logPacket = (buffer) => {
   console.log(pert)
 }
 
-PK.route = (existing) => {
+PK.route = (existing, scope = false) => {
   let path = [PK.PTR]
   if(existing != null && existing.length > 0){
     //console.log('existing', JSON.parse(JSON.stringify(existing)))
     path = JSON.parse(JSON.stringify(existing))
-    path.splice(-3, 3)
+    if(!scope) { path.splice(-3, 3) } // don't sleugh off dest if dealing w/ scope pckts 
     //console.log('fin start', JSON.parse(JSON.stringify(path)))
   }
   return {
@@ -124,9 +132,13 @@ PK.route = (existing) => {
       path = path.concat([PK.BFWD.KEY, indice & 255, (indice >> 8) & 255])
       return this 
     },
-    end: function(segsize = 512) {
-      path = path.concat([PK.DEST, segsize & 255, (segsize >> 8) & 255])
-      return path 
+    end: function(segsize = 512, scope = false) {
+      if(!scope){ // most packets go to 'dest' - and include the route segsize 
+        path = path.concat([PK.DEST, segsize & 255, (segsize >> 8) & 255])
+        return path   
+      } else {    // packets for 'scope' keys are outside of the dest switch 
+        return path
+      }
     }
   }
 }

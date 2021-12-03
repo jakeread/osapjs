@@ -48,7 +48,7 @@ export default class Endpoint extends Vertex {
   // can upd8 how long it takes to to 
   timeoutLength = TIMES.staleTimeout
   setTimeoutLength = (time) => {
-    this.timeoutLength = time 
+    this.timeoutLength = time
   }
 
   // software data delivery, define per endpoint, should return promise 
@@ -106,7 +106,8 @@ export default class Endpoint extends Vertex {
         }
         break;
       case EP.SS_ACKED:
-        if (this.token) {
+        if (this.token || !(this.stackAvailableSpace(VT.STACK_ORIGIN))) {
+          // are occupied or don't have space ready to ack it, so can't handle yet
           return false
         } else {
           //console.warn('data -> endpoint, ack required')
@@ -123,10 +124,10 @@ export default class Endpoint extends Vertex {
           }).catch((err) => {
             this.token = false
           })
+          return true
         }
-        return true
       case EP.QUERY:
-        if(this.stackAvailableSpace(VT.STACK_ORIGIN)){
+        if (this.stackAvailableSpace(VT.STACK_ORIGIN)) {
           // have query & space to reply, 
           let route = reverseRoute(data)
           let repl = new Uint8Array(route.length + 2 + this.data.length)
@@ -137,8 +138,9 @@ export default class Endpoint extends Vertex {
           repl.set(this.data, route.length + 2)
           this.handle(repl, 0)
           return true
-        } 
-        return false
+        } else {
+          return false
+        }
       case EP.QUERY_RESP:
         // query response, 
         console.error('query resp to endpoint, should go to root')
@@ -154,9 +156,7 @@ export default class Endpoint extends Vertex {
   runningAckId = 10
   getNewAckId = () => {
     this.runningAckId++
-    if (this.runningAckId > 255) {
-      this.runningAckId = 0
-    }
+    if (this.runningAckId > 255) { this.runningAckId = 0 }
     return this.runningAckId
   }
   acksAwaiting = []
@@ -218,7 +218,7 @@ export default class Endpoint extends Vertex {
           this.acksAwaiting.push({
             id: ackId,
             timeout: setTimeout(() => {
-              this.acksAwaiting.length = 0 
+              this.acksAwaiting.length = 0
               reject('write timeout')
             }, this.timeoutLength)
           });
