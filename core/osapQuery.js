@@ -15,7 +15,7 @@ no warranty is provided, and users accept all liability.
 import { PK, EP, TIMES } from './ts.js'
 
 export default class Query {
-  constructor(parent, route) {
+  constructor(parent, route, retries = 2) {
     this.parent = parent
     // so: queries don't originate from an endpoint, they originate from 
     // the osap root: so we just modify this route to traverse from root, to first child, 
@@ -25,6 +25,7 @@ export default class Query {
     // beside endpoints that are more like mirrors... 
     this.route = route
     this.route[1] = PK.CHILD.KEY
+    this.maxRetries = retries 
     //console.log(`query route`, route)
   }
 
@@ -33,7 +34,8 @@ export default class Query {
   pull = () => {
     return new Promise((resolve, reject) => {
       if (this.queryAwaiting) {
-        console.warn("already awaiting on this line, adding 2nd response")
+        //console.warn(`already awaiting on this line from '${this.parent.name}' adding 2nd response`)
+        //console.log(this.route)
         this.queryAwaiting.resolutions.push(resolve)
       } else {
         let queryId = this.parent.getNewQueryId()
@@ -44,11 +46,21 @@ export default class Query {
         this.queryAwaiting = {
           id: queryId,
           resolutions: [resolve],
-          timeout: setTimeout(() => {
-            this.queryAwaiting = null
-            reject('query timeout')
-          }, TIMES.staleTimeout)
-        }
+          retries: 0,
+          timeoutFn: () => {
+            if(this.queryAwaiting.retries >= this.maxRetries){
+              this.queryAwaiting = null
+              reject(`query timeout after ${this.maxRetries} retries`)  
+            } else {
+              console.warn(`query retry`)
+              this.queryAwaiting.retries ++ 
+              this.parent.handle(req, 0)
+              this.queryAwaiting.timeout = setTimeout(this.queryAwaiting.timeoutFn, TIMES.staleTimeout)
+            }
+          }
+        } // end query obj 
+        // set 1st timeout, 
+        this.queryAwaiting.timeout = setTimeout(this.queryAwaiting.timeoutFn,TIMES.staleTimeout)
         // parent handles,
         this.parent.handle(req, 0)
       }

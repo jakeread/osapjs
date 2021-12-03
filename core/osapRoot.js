@@ -95,8 +95,8 @@ export default class OSAP extends Vertex {
     return this.runningQueryId
   }
   queries = []
-  query = (route) => {
-    let qr = new Query(this, route)
+  query = (route, retries = 2) => {
+    let qr = new Query(this, route, retries)
     this.queries.push(qr)
     return qr
   }

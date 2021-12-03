@@ -93,10 +93,6 @@ function GCodePanel(xPlace, yPlace, width, machine, hotend) {
 
   // running, or not: some state:
   let running = false
-  let onFileEnd = () => {
-    console.warn('end of file')
-    this.pause()
-  }
 
   // we should have a basic API, like:
   this.pause = () => {
@@ -105,18 +101,27 @@ function GCodePanel(xPlace, yPlace, width, machine, hotend) {
     status.grey('paused')
   }
 
-  // begins the loop, 
-  this.start = () => {
+  // begins the loop, should resolve or throw error so long as thing is running ? 
+  this.start = async () => {
     running = true
     runBtn.green("||")
     status.green('starting')
-    run()
-  }
-
-  // promise resolves when all lines are thru 
-  this.runToCompletion = () => {
-    console.error('runToCompletion... is not complete')
-    // ... trigger start, check flag 'finished' ? 
+    while(running){
+      try {
+        let completedLine = await feedNext()
+        if(completedLine == "EOF"){
+          console.log("END, awaitin no motion...")
+          await machine.motion.awaitMotionEnd()
+          running = false 
+        } else {
+          //console.log(`done: ${completedLine}`)
+        }
+      } catch (err) {
+        console.error(err)
+        this.pause()
+        throw err
+      }
+    }
   }
 
   // feeds one line, resolves when line is complete: 
@@ -130,8 +135,7 @@ function GCodePanel(xPlace, yPlace, width, machine, hotend) {
       let line = gCodeIncoming.substring(0, eol)
       // should check if is end of file 
       if (gCodeIncoming.length == 0) {
-        onFileEnd()
-        resolve()
+        resolve("EOF")
         return
       }
       // otherwise parse 
@@ -140,7 +144,7 @@ function GCodePanel(xPlace, yPlace, width, machine, hotend) {
         //previously.value += line
         //previously.scrollTop = previously.scrollHeight
         //console.log('completed', line)
-        resolve()
+        resolve(line)
       }).catch((err) => {
         // failure, backup 
         console.error(`error feeding gcode '${line}'`, err)
@@ -151,19 +155,6 @@ function GCodePanel(xPlace, yPlace, width, machine, hotend) {
       })
       gCodeIncoming = gCodeIncoming.substring(eol)
     })
-  }
-
-  // the loop, 
-  let run = async () => {
-    if (running) {
-      try {
-        await feedNext()
-        setTimeout(run, 0)
-      } catch (err) {
-        // feedNext prints all errors - so we just quit here, 
-        this.pause()
-      }
-    }
   }
 
   // the actual gcode parsing, 
