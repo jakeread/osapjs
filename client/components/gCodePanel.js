@@ -44,6 +44,7 @@ function GCodePanel(xPlace, yPlace, width, machine, hotend) {
         let text = reader.result
         console.log(`loaded file with len ${text.length}`)
         gCodeIncoming = text
+        incoming.value = text 
       }
       reader.readAsText(evt.target.files[0])
       console.log('load', evt.target.files[0])

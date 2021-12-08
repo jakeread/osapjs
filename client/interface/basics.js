@@ -63,10 +63,13 @@ function Button(xPlace, yPlace, width, height, defaultText, justify) {
   DT.placeField(elem, width, height, xPlace, yPlace)
   let btn = {}
   btn.onClick = (fn) => {
-    $(elem).on('click', (evt) => { fn() })
+    $(elem).on('click', (evt) => { fn(evt) })
   }
   btn.setText = (text) => {
     $(elem).text(text)
+  }
+  btn.getText = () => {
+    return $(elem).text()
   }
   btn.setHTML = (html) => {
     $(elem).html(html)

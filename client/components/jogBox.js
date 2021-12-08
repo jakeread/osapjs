@@ -21,7 +21,7 @@ let BTN_ERRTIME = 2000
 function JogBox(xPlace, yPlace, vm, rate) {
   // jog 
   let jogBtn = Button(xPlace, yPlace, 84, 94, 'click-in to jog')
-  let jogBigInput = TextInput(xPlace, yPlace + 110, 87, 20, '50.0')
+  let jogBigInput = TextInput(xPlace, yPlace + 110, 87, 20, '100.0')
   let jogNormalInput = TextInput(xPlace, yPlace + 140, 87, 20, '1.0')
   let jogSmallInput = TextInput(xPlace, yPlace + 170, 87, 20, '0.1')
   let status = TextBlock(xPlace, yPlace + 200, 84, 14, '...')
