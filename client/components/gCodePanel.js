@@ -194,6 +194,15 @@ function GCodePanel(xPlace, yPlace, width, machine, hotend) {
     } // end lonely F     
     // do normal pickings 
     switch (words[0]) {
+      case 'T0':
+        await machine.getTool('no tool')
+        break;
+      case 'T1':
+        await machine.getTool('eraser')
+        break;
+      case 'T2':
+        await machine.getTool('pencil')
+        break;
       case 'G20':
         posConvert = 25.4
         feedConvert = 25.4 / 60   // mm/min to mm/sec 
