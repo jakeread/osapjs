@@ -26,13 +26,13 @@ import NetRunner from './netRunner.js'
 // root is also a vertex, yah 
 export default class OSAP extends Vertex {
   // yes, but !parent, indice == 0 
-  constructor() {
+  constructor(name = "unnamed root") {
     super(null, 0)
+    this.name = name 
   }
 
   // ... 
   type = VT.ROOT
-  name = "unnamed root"
 
   // children factories 
   vPort = (name) => {

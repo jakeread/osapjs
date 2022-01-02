@@ -251,7 +251,7 @@ export default function NetRunner(osap) {
         spliced = true
       }
     }
-    if (!spliced) { console.error("on ping response, no ID awaiting..."); PK.logPacket(item.data) }
+    if (!spliced) { console.error(`on ping response, no ID awaiting... ${pingId}`); PK.logPacket(item.data) }
     item.handled()
   }
 }
