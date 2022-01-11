@@ -155,6 +155,7 @@ let EP = {
 let TS = {}
 
 let decoder = new TextDecoder()
+let tempRead = {} 
 
 TS.read = (type, buffer, start) => {
   switch (type) {
@@ -168,7 +169,11 @@ TS.read = (type, buffer, start) => {
     case 'uint32':
       return (buffer[start] & 255) | (buffer[start + 1] << 8) | (buffer[start + 2] << 16) | (buffer[start + 3] << 24)
     case 'float32':
-      return new Float32Array(buffer.slice(start, start + 4).buffer)[0]
+      // embedded- and js- elements end up coming in as Uint8Array and Buffer objects respectively, 
+      // ... they should all just be Buffers, ffs, but here's a little non-performant convert to guard until we fix that 
+      // try this blind convert 
+      tempRead = new Uint8Array(buffer)
+      return new Float32Array(tempRead.slice(start, start + 4).buffer)[0]
     case 'boolean':
       if (buffer[start] > 0) {
         return true
