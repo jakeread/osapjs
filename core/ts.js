@@ -204,6 +204,11 @@ TS.write = (type, value, buffer, start) => {
       buffer[start] = value & 255
       buffer[start + 1] = (value >> 8) & 255
       return 2
+    case 'int32':
+      tempArr = Int32Array.from([value])
+      tempBytes = new Uint8Array(tempArr.buffer)
+      buffer.set(tempBytes, start)
+      return 4
     case 'uint32':
       buffer[start] = value & 255
       buffer[start + 1] = (value >> 8) & 255
