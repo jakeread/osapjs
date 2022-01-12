@@ -160,9 +160,15 @@ let tempRead = {}
 TS.read = (type, buffer, start) => {
   switch (type) {
     case 'int32':
-      return (buffer[start] & 255) | (buffer[start + 1] << 8) | (buffer[start + 2] << 16) | (buffer[start + 3] << 24)
+      tempRead = new Uint8Array(buffer)
+      return new Int32Array(tempRead.slice(start, start + 4).buffer)[0]
+      //return (buffer[start] & 255) | (buffer[start + 1] << 8) | (buffer[start + 2] << 16) | (buffer[start + 3] << 24)
     case 'uint8':
       return buffer[start]
+    case 'int16':
+      tempRead = new Uint8Array(buffer)
+      return new Int16Array(tempRead.slice(start, start + 2).buffer)[0]
+      //return (buffer[start] & 255) | (buffer[start + 1] << 8)
     case 'uint16':
       // little endian: lsb is at the lowest address
       return (buffer[start] & 255) | (buffer[start + 1] << 8)
