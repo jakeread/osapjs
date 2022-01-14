@@ -16,12 +16,7 @@ import { PK, TS, VT, EP, TIMES } from '../../osapjs/core/ts.js'
 import MotionVM from './motionVirtualMachine.js'
 import MotorVM from './motorVirtualMachine.js'
 
-export default function MinVM(osap) {
-
-  // ------------------------------------------------------ NET LOCATION OF BUS HEAD 
-
-  let headRoute = PK.route().sib(0).pfwd().sib(1).pfwd().end()
-
+export default function MinVM(osap, headRoute) {
   // position after-homing:
   // since we home to top-right, bottom-left is 0,0,0
   // and we have bounding box then... 
