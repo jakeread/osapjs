@@ -28,7 +28,7 @@ if (typeof process === 'object') {
 }
 
 let TIMES = {
-  staleTimeout: 5000,
+  staleTimeout: 1000,
   getTimeStamp: function() {return getTimeStamp()},
   delay: function(ms) {
     return new Promise((resolve, reject) => {

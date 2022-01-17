@@ -17,7 +17,7 @@ no warranty is provided, and users accept all liability.
 import DT from '../interface/domTools.js'
 import style from '../interface/style.js'
 
-function AutoPlot(xPlace, yPlace, xSize, ySize, title, margin = { top: 40, right: 20, bottom: 30, left: 90}) {
+export default function AutoPlot(xPlace, yPlace, xSize, ySize, title, margin = { top: 40, right: 20, bottom: 30, left: 90 }) {
   let chart = $(`<div>`).get(0)
   $(chart).css('background-color', style.grey)
   let uid = `lineChart_${Math.round(Math.random() * 1000)}_uid`
@@ -93,7 +93,7 @@ function AutoPlot(xPlace, yPlace, xSize, ySize, title, margin = { top: 40, right
     // the title 
     if (title) {
       let info = ""
-      if(datas.length > 0){
+      if (datas.length > 0) {
         info = (datas[datas.length - 1][1]).toFixed(3)
       }
       thesvg.append("text")
@@ -120,5 +120,3 @@ function AutoPlot(xPlace, yPlace, xSize, ySize, title, margin = { top: 40, right
     this.redraw()
   }
 }
-
-export { AutoPlot }

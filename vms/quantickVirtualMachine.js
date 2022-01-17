@@ -16,13 +16,16 @@ import { PK, TS, TIMES } from '../../osapjs/core/ts.js'
 
 export default function QuantickVM(osap, route){
   // stacked up states 
-  let pulseCountQuery = osap.query(PK.route(route).sib(2).end())
-  this.getPulseCount = () => {
+  let stateEP = osap.query(PK.route(route).sib(2).end())
+  this.getStates = () => {
     return new Promise((resolve, reject) => {
-      pulseCountQuery.pull().then((data) => {
-        let count = TS.read('int16', data, 0)
-        let pulseWidth = TS.read('float32', data, 2)
-        resolve([count, pulseWidth])
+      stateEP.pull().then((data) => {
+        let count = TS.read('int32', data, 0)
+        let rateEstimate = TS.read('float32', data, 4)
+        resolve({
+          pulseCount: count,
+          rateEstimate: rateEstimate
+        })
       })
     })
   }

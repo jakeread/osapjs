@@ -16,7 +16,7 @@ no warranty is provided, and users accept all liability.
 
 import DT from '../interface/domTools.js'
 import { Button, EZButton, TextInput, TextBlock } from '../interface/basics.js'
-import { AutoPlot } from '../../client/components/autoPlot.js'
+import AutoPlot from '../../client/components/autoPlot.js'
 
 export default function TempPanel(vm, xPlace, yPlace, init, name, pidDisplay = false, pcfPresent = false) {
   let title = new TextBlock(xPlace, yPlace, 84, 34, name)
