@@ -25,6 +25,7 @@ more intelligently, i.e. not rendering the whole file into the 'incoming' body.
 
 import DT from '../interface/domTools.js'
 import { Button, TextBlock, TextInput } from '../interface/basics.js'
+import { TIMES } from '../../core/ts.js'
 
 function GCodePanel(xPlace, yPlace, width, machine, hotend) {
   // some hack padding correction 
@@ -227,6 +228,11 @@ function GCodePanel(xPlace, yPlace, width, machine, hotend) {
         status.setText(line)
         if (g1move.rateOnly) return
         await machine.motion.addMoveToQueue(g1move)
+        break;
+      case 'G04':
+      case 'G4':
+        await machine.motion.awaitMotionEnd()
+        await TIMES.delay(parseInt(words[1].slice(1)))
         break;
       case 'G28':
         console.warn('ignoring G28 home')
