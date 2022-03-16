@@ -18,10 +18,8 @@ import Vertex from './osapVertex.js'
 export default class Query extends Vertex {
   constructor(parent, indice, route, retries) {
     super(parent, indice)
-    // beside endpoints that are more like mirrors... 
     this.route = route
     this.maxRetries = retries 
-    //console.log(`query route`, route)
   }
   
   // ---------------------------------- Some State, as a Treat 
