@@ -54,7 +54,7 @@ export default class Endpoint extends Vertex {
   // software data delivery, define per endpoint, should return promise 
   onData = function (data) {
     return new Promise((resolve, reject) => {
-      console.warn('default onData')
+      console.warn('default endpoint onData')
       resolve()
     })
   }

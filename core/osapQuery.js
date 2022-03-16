@@ -13,23 +13,58 @@ no warranty is provided, and users accept all liability.
 */
 
 import { PK, EP, TIMES } from './ts.js'
+import Vertex from './osapVertex.js'
 
-export default class Query {
-  constructor(parent, route, retries = 2) {
-    this.parent = parent
-    // so: queries don't originate from an endpoint, they originate from 
-    // the osap root: so we just modify this route to traverse from root, to first child, 
-    // route down is otherwise the same, assuming the 'original' route description 
-    // was from an endpoint at 1st level under the root... 
-    // this just makes defining query routes more straightforward, as we often use them 
+export default class Query extends Vertex {
+  constructor(parent, indice, route, retries) {
+    super(parent, indice)
     // beside endpoints that are more like mirrors... 
     this.route = route
-    this.route[1] = PK.CHILD.KEY
     this.maxRetries = retries 
     //console.log(`query route`, route)
   }
+  
+  // ---------------------------------- Some State, as a Treat 
 
-  queryAwaiting = null
+  queryAwaiting = null 
+
+  // ---------------------------------- Reply Catch Side 
+
+  destHandler = function (data, ptr) {
+    //console.log(data, ptr, data[ptr])
+    //                 data[ptr]
+    // [route:n][ptr:1][dest:1][segsize:2][application]
+    ptr += 3
+    switch (data[ptr]) {
+      case EP.QUERY_RESP:
+        // match & bail 
+        if(this.queryAwaiting.id == data[ptr + 1]){
+          clearTimeout(this.queryAwaiting.timeout)
+          for(let res of this.queryAwaiting.resolutions){
+            res(data.slice(ptr + 2))
+          }
+          this.queryAwaiting = null 
+        } else {
+          console.error('on query reply, no matching resolution')
+        }
+        // clear always anyways 
+        return true
+      default:
+        console.error('root recvs data / not query resp')
+        return true
+    }
+  }
+
+  // ---------------------------------- Issuing Side 
+
+  runningQueryId = 101
+  getNewQueryId = () => {
+    this.runningQueryId++
+    if (this.runningQueryId > 255) {
+      this.runningQueryId = 0
+    }
+    return this.runningQueryId
+  }
 
   pull = () => {
     return new Promise((resolve, reject) => {
@@ -38,7 +73,7 @@ export default class Query {
         //console.log(this.route)
         this.queryAwaiting.resolutions.push(resolve)
       } else {
-        let queryId = this.parent.getNewQueryId()
+        let queryId = this.getNewQueryId()
         let req = new Uint8Array(this.route.length + 2)
         req.set(this.route, 0)
         req[this.route.length] = EP.QUERY
@@ -54,7 +89,7 @@ export default class Query {
             } else {
               console.warn(`query retry`)
               this.queryAwaiting.retries ++ 
-              this.parent.handle(req, 0)
+              this.handle(req, 0)
               this.queryAwaiting.timeout = setTimeout(this.queryAwaiting.timeoutFn, TIMES.staleTimeout)
             }
           }
@@ -62,7 +97,7 @@ export default class Query {
         // set 1st timeout, 
         this.queryAwaiting.timeout = setTimeout(this.queryAwaiting.timeoutFn,TIMES.staleTimeout)
         // parent handles,
-        this.parent.handle(req, 0)
+        this.handle(req, 0)
       }
     })
   }
