@@ -58,30 +58,42 @@ export default function QuantickVM(osap, route) {
     })
   }
 
+  let encoderMapQ = osap.queryMSeg(PK.route(route).sib(3).end())
+  this.getEncoderMap = () => {
+    return new Promise((resolve, reject) => {
+      encoderMapQ.pull().then((data) => {
+        // data is in uint16_t pairs... try making views (?) 
+        let uint8 = new Uint8Array(data)
+        let uint16 = new Uint16Array(uint8.buffer)
+        resolve(uint16)
+      }).catch((err) => { reject (err) })
+    })
+  }
+
   this.runCalib = async () => {
     try {
       await this.setMode("calibrating")
       let startTime = TIMES.getTimeStamp()
       while (true) {
         let mode = await this.getMode()
-        if (mode != "calibrating") break;
-        if (startTime + 10000 < TIMES.getTimeStamp()) break;
-        console.log(mode)
+        if (mode != "calibrating"){
+          console.log(`calibrate on mode ${mode}`)
+          break;
+        }
+        if (startTime + 25000 < TIMES.getTimeStamp()){
+          console.log("calibration timeout!")
+          break;
+        } 
       }
+      let map = await this.getEncoderMap()
+      return map 
     } catch (err) {
       console.error(err)
     }
   }
   // mseg / calibration 
   /*
-  let msqTest = osap.queryMSeg(PK.route(route).sib(2).end())
-  this.pullTest = () => {
-    return new Promise((resolve, reject) => {
-      msqTest.pull().then((data) => {
-        resolve(data)
-      }).catch((err) => { reject (err) })
-    })
-  }
+  
   // stacked up states 
   let pulseCountQuery = osap.query(PK.route(route).sib(3).end())
   this.getPulseCount = () => {

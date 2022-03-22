@@ -44,6 +44,7 @@ export default class QueryMSeg extends Vertex {
         }
         if(!terminal){
           this.reqNewSeg(endByte)
+          clearTimeout(this.rejectTimeout)
           this.rejectTimeout = setTimeout(() => {this.pullReject('mseg timeout')}, 1000)
         } else {
           this.pullResolve(this.tempData)
