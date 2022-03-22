@@ -154,7 +154,8 @@ let EP = {
 
 let EPMSEG = {
   QUERY: 141,
-  QUERY_RESP: 142 
+  QUERY_RESP: 142,
+  QUERY_END_RESP: 143 
 }
 
 let TS = {}

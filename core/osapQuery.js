@@ -95,6 +95,7 @@ export default class Query extends Vertex {
         // set 1st timeout, 
         this.queryAwaiting.timeout = setTimeout(this.queryAwaiting.timeoutFn,TIMES.staleTimeout)
         // parent handles,
+        console.log('query', req)
         this.handle(req, 0)
       }
     })

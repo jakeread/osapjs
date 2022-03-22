@@ -12,7 +12,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, EPMSEG, TIMES } from './ts.js'
+import { PK, EPMSEG, TIMES, TS, EP } from './ts.js'
 import Vertex from './osapVertex.js'
 
 export default class QueryMSeg extends Vertex {
@@ -25,13 +25,58 @@ export default class QueryMSeg extends Vertex {
   // ---------------------------------- Catch Side 
 
   destHandler = function (data, ptr) {
-    console.log('mseg dest handler', data, ptr)
+    let startByte = 0
+    let endByte = 0 
+    let terminal = false 
+    ptr += 3 
+    switch(data[ptr]){
+      case EPMSEG.QUERY_END_RESP:
+        terminal = true 
+      case EPMSEG.QUERY_RESP:
+        // bytes -> bytes 
+        startByte = TS.read('uint16', data, ptr + 1)
+        endByte = TS.read('uint16', data, ptr + 3)
+        //console.log(startByte, endByte)
+        if(startByte == 0) this.tempData = [] 
+        let i = 0 
+        for(let b = startByte; b < endByte; b ++){
+          this.tempData[b] = data[ptr + 5 + (i ++)]
+        }
+        if(!terminal){
+          this.reqNewSeg(endByte)
+          this.rejectTimeout = setTimeout(() => {this.pullReject('mseg timeout')}, 1000)
+        } else {
+          this.pullResolve(this.tempData)
+          clearTimeout(this.rejectTimeout)
+        }
+    }
     return true 
   }
 
+  tempData = {}
+
+  reqNewSeg = (start) => {
+    //console.log(`req at ${start}`)
+    // len is [route][querykey][start:2][end:2]
+    let req = new Uint8Array(this.route.length + 5)
+    req.set(this.route, 0)
+    let wptr = this.route.length 
+    req[wptr ++] = EPMSEG.QUERY;
+    wptr += TS.write('uint16', start, req, wptr)
+    wptr += TS.write('uint16', start + 64, req, wptr)
+    this.handle(req, 0)
+  }
+
+  pullResolve = null 
+  pullReject = null 
+  rejectTimeout = null 
+
   pull = () => {
     return new Promise((resolve, reject) => {
-      resolve('msegq pull')
+      this.pullResolve = resolve 
+      this.pullReject = reject 
+      this.reqNewSeg(0)
+      this.rejectTimeout = setTimeout(() => {this.pullReject('mseg timeout')}, 1000)
     })
   }
 }
