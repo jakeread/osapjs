@@ -80,7 +80,7 @@ export default class Endpoint extends Vertex {
               this.acksAwaiting.splice(a, 1)
             }
           }
-          if (!spliced) { console.error("on ack, no ID awaiting..."); PK.logPacket(data); return true; }
+          if (!spliced) { console.error(`on ack, no ID ${ackId} awaiting...`); PK.logPacket(data); return true; }
           if (this.acksAwaiting.length == 0) {
             this.acksResolve()
             this.acksResolve = null
