@@ -25,11 +25,11 @@ export default function QuantickVM(osap, route) {
   this.setMode = (mode) => {
     return new Promise((resolve, reject) => {
       if (QTMODES[mode]) {
-        let datagram = new Uint8Array(4)
+        let datagram = new Uint8Array(1)
         datagram[0] = QTMODES[mode]
         modeEP.write(datagram, "acked").then(() => {
           resolve()
-        }).catch((err) => reject(err))
+        }).catch((err) => { reject(err) })
       } else {
         reject(`mode ${mode} doesn't exist`)
       }
@@ -58,15 +58,29 @@ export default function QuantickVM(osap, route) {
     })
   }
 
-  let encoderMapQ = osap.queryMSeg(PK.route(route).sib(3).end())
-  this.getEncoderMap = () => {
+  let calibDirEP = osap.endpoint()
+  calibDirEP.addRoute(PK.route(route).sib(3).end())
+  this.setCalibDir = (dir) => {
     return new Promise((resolve, reject) => {
-      encoderMapQ.pull().then((data) => {
-        // data is in uint16_t pairs... try making views (?) 
-        let uint8 = new Uint8Array(data)
-        let uint16 = new Uint16Array(uint8.buffer)
-        resolve(uint16)
-      }).catch((err) => { reject (err) })
+      let datagram = new Uint8Array(1)
+      datagram[0] = (dir ? 1 : 0);
+      calibDirEP.write(datagram, "acked").then(() => {
+        resolve()
+      }).catch((err) => { reject(err) })
+    })
+  }
+
+  let encoderMapQ = osap.queryMSeg(PK.route(route).sib(4).end())
+  this.getEncoderMap = async (dir) => {
+    return new Promise((resolve, reject) => {
+      this.setCalibDir(dir).then(() => {
+        encoderMapQ.pull().then((data) => {
+          // data is in uint16_t pairs... try making views (?) 
+          let uint8 = new Uint8Array(data)
+          let uint16 = new Uint16Array(uint8.buffer)
+          resolve(uint16)
+        }).catch((err) => { reject(err) })  
+      }).catch((err) => { reject(err) })
     })
   }
 
@@ -76,17 +90,18 @@ export default function QuantickVM(osap, route) {
       let startTime = TIMES.getTimeStamp()
       while (true) {
         let mode = await this.getMode()
-        if (mode != "calibrating"){
+        if (mode != "calibrating") {
           console.log(`calibrate on mode ${mode}`)
           break;
         }
-        if (startTime + 25000 < TIMES.getTimeStamp()){
-          console.log("calibration timeout!")
-          break;
-        } 
+        // if (startTime + 50000 < TIMES.getTimeStamp()) {
+        //   console.log("calibration timeout!")
+        //   break;
+        // }
+        await TIMES.delay(50)
       }
-      let map = await this.getEncoderMap()
-      return map 
+      let map = await this.getEncoderMap(true)
+      return map
     } catch (err) {
       console.error(err)
     }
