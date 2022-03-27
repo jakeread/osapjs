@@ -15,11 +15,23 @@ no warranty is provided, and users accept all liability.
 import { PK, TS, TIMES } from '../../osapjs/core/ts.js'
 
 export default function QuantickVM(osap, route) {
+  // one to get states, 
+  let stateQuery = osap.query(PK.route(route).sib(2).end())
+  this.getStates = () => {
+    return new Promise((resolve, reject) => {
+      stateQuery.pull().then((data) => {
+        let pos = TS.read('float32', data, 0)
+        resolve({
+          pos_est: pos
+        })
+      }).catch((err) => { reject (err) })
+    })
+  }
   // one to set modes & one to query modes, 
   // kick calib 
   let modeEP = osap.endpoint()
-  modeEP.addRoute(PK.route(route).sib(2).end())
-  let modeQuery = osap.query(PK.route(route).sib(2).end())
+  modeEP.addRoute(PK.route(route).sib(3).end())
+  let modeQuery = osap.query(PK.route(route).sib(3).end())
   // possible modes, 
   let QTMODES = { "disabled": 0, "calibrating": 1, "enabled": 2 }
   this.setMode = (mode) => {
@@ -58,29 +70,15 @@ export default function QuantickVM(osap, route) {
     })
   }
 
-  let calibDirEP = osap.endpoint()
-  calibDirEP.addRoute(PK.route(route).sib(3).end())
-  this.setCalibDir = (dir) => {
-    return new Promise((resolve, reject) => {
-      let datagram = new Uint8Array(1)
-      datagram[0] = (dir ? 1 : 0);
-      calibDirEP.write(datagram, "acked").then(() => {
-        resolve()
-      }).catch((err) => { reject(err) })
-    })
-  }
-
   let encoderMapQ = osap.queryMSeg(PK.route(route).sib(4).end())
-  this.getEncoderMap = async (dir) => {
+  this.getEncoderMap = async () => {
     return new Promise((resolve, reject) => {
-      this.setCalibDir(dir).then(() => {
-        encoderMapQ.pull().then((data) => {
-          // data is in uint16_t pairs... try making views (?) 
-          let uint8 = new Uint8Array(data)
-          let uint16 = new Uint16Array(uint8.buffer)
-          resolve(uint16)
-        }).catch((err) => { reject(err) })  
-      }).catch((err) => { reject(err) })
+      encoderMapQ.pull().then((data) => {
+        // data is in float... use view 
+        let uint8 = new Uint8Array(data)
+        let floats = new Float32Array(uint8.buffer)
+        resolve(floats)
+      }).catch((err) => { reject(err) })  
     })
   }
 
@@ -90,18 +88,19 @@ export default function QuantickVM(osap, route) {
       let startTime = TIMES.getTimeStamp()
       while (true) {
         let mode = await this.getMode()
+        ///console.log(`${mode}...`)
         if (mode != "calibrating") {
-          console.log(`calibrate on mode ${mode}`)
+          console.log(`calibrating done, mode: ${mode}`)
           break;
         }
         // if (startTime + 50000 < TIMES.getTimeStamp()) {
         //   console.log("calibration timeout!")
         //   break;
         // }
-        await TIMES.delay(50)
+        await TIMES.delay(100)
       }
-      let map = await this.getEncoderMap(true)
-      return map
+      //let map = await this.getEncoderMap()
+      //return map
     } catch (err) {
       console.error(err)
     }
