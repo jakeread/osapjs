@@ -47,4 +47,9 @@ export default class VPort extends Vertex {
     this.handle(buffer, 0)
   }
 
+  // rm self from osap instance, 
+  dissolve = function () {
+    this.parent.children.splice(this.parent.children.findIndex(elem => elem == this), 1)
+  }
+
 } // end vPort def

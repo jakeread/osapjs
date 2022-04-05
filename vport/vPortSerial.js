@@ -13,6 +13,7 @@ no warranty is provided, and users accept all liability.
 */
 
 import { SerialPort, DelimiterParser } from 'serialport'
+import { TS } from '../core/ts.js'
 import COBS from "../utes/cobs.js"
 
 // have some "protocol" at the link layer 
@@ -29,11 +30,13 @@ let SERLINK_RETRY_MACOUNT = 2
 let SERLINK_RETRY_TIME = 100  // milliseconds  
 
 export default function VPortSerial(osap, portName, debug = false) {
+  // track la, 
+  this.portName = portName
   // make the vport object (will auto attach to osap)
-  let vport = osap.vPort(`vport_${portName}`)
+  let vport = osap.vPort(`vport_${this.portName}`)
   vport.maxSegLength = 255 
   // open the port itself, 
-  if (debug) console.log(`SERPORT contact at ${portName}, opening`)
+  if (debug) console.log(`SERPORT contact at ${this.portName}, opening`)
   // we keep a little state, as a treat 
   let outAwaiting = null
   let outAwaitingId = 1
@@ -41,12 +44,12 @@ export default function VPortSerial(osap, portName, debug = false) {
   let numRetries = 0
   let lastIdRxd = 0
   // flowcontrol is based on this state, 
-  let status = "opening"
+  this.status = "opening"
   let flowCondition = () => {
     return (outAwaiting == null)
   }
   vport.cts = () => {
-    if (status == "open" && flowCondition()) {
+    if (this.status == "open" && flowCondition()) {
       return true
     } else {
       return false
@@ -54,14 +57,14 @@ export default function VPortSerial(osap, portName, debug = false) {
   }
   // we have a port... 
   let port = new SerialPort({
-    path: portName,
+    path: this.portName,
     baudRate: 9600
   })
   port.on('open', () => {
     // we track remote open spaces, this is stateful per link... 
-    console.log(`SERPORT at ${portName} OPEN`)
+    console.log(`SERPORT at ${this.portName} OPEN`)
     // is now open,
-    status = "open"
+    this.status = "open"
     // to get, use delimiter
     let parser = port.pipe(new DelimiterParser({ delimiter: [0] }))
     //let parser = port.pipe(new ByteLength({ length: 1 }))
@@ -122,7 +125,7 @@ export default function VPortSerial(osap, portName, debug = false) {
       port.write(outAwaiting)
       // retry timeout, in reality USB is robust enough, but codes sometimes bungle messages too 
       outAwaitingTimer = setTimeout(() => {
-        if (outAwaiting && numRetries < SERLINK_RETRY_MACOUNT) {
+        if (outAwaiting && numRetries < SERLINK_RETRY_MACOUNT && port.isOpen) {
           port.write(outAwaiting)
           numRetries++
         } else if (!outAwaiting) {
@@ -136,16 +139,13 @@ export default function VPortSerial(osap, portName, debug = false) {
   }) // end on-open
   // close on errors, 
   port.on('error', (err) => {
-    status = "closing"
-    console.log(`SERPORT #${pcount} ERR`, err)
-    port.close(() => { // await close callback, add 1s buffer
-      console.log(`SERPORT #${pcount} CLOSED`)
-      status = "closed"
-    })
+    this.status = "closing"
+    console.log(`SERPORT ${this.portName} ERR`, err)
+    if(port.isOpen) port.close()
   })
   port.on('close', (evt) => {
-    console.log('SERPORT closing')
-    status = "closing"
-    console.log(`SERPORT #${pcount} closed`)
+    vport.dissolve()
+    console.log(`SERPORT ${this.portName} closed`)
+    this.status = "closed"
   })
 }
