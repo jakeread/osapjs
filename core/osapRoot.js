@@ -20,6 +20,7 @@ import Vertex from './osapVertex.js'
 import Module from './osapModule.js'
 import Endpoint from './osapEndpoint.js'
 import Query from './osapQuery.js'
+import QueryMSeg from './osapQueryMSeg.js'
 import { osapLoop } from './osapLoop.js'
 import NetRunner from './netRunner.js'
 
@@ -53,54 +54,33 @@ export default class OSAP extends Vertex {
     this.children.push(ep)
     return ep
   }
-
-  // see osapEndpoint.js for notes on this fn 
-  destHandler = function (data, ptr) {
-    ptr += 3
-    switch (data[ptr]) {
-      case EP.QUERY_RESP:
-        // match on queries 
-        let id = data[ptr + 1]
-        let resolved = false
-        for (let q of this.queries) {
-          if (!q.queryAwaiting) continue;
-          if (q.queryAwaiting.id == id) {
-            resolved = true
-            clearTimeout(q.queryAwaiting.timeout)
-            for (let res of q.queryAwaiting.resolutions) {
-              res(data.slice(ptr + 2))
-            }
-            //q.queryAwaiting.resolve(data.slice(ptr + 2))
-            q.queryAwaiting = null
-          }
-        }
-        if (!resolved) {
-          console.error('on query reply, no matching resolution')
-        }
-        // clear always anyways 
-        return true
-      default:
-        console.error('root recvs data / not query resp')
-        return true
-    }
+  query = (route, retries = 2) => {
+    let qr = new Query(this, this.children.length, route, retries)
+    qr.name = `query_${this.children.length}`
+    this.children.push(qr)
+    return qr 
+  }
+  queryMSeg = (route, retries = 2) => {
+    let msqr = new QueryMSeg(this, this.children.length, route, retries)
+    msqr.name = `queryMSeg_${this.children.length}`
+    this.children.push(msqr)
+    return msqr 
   }
 
-  // query objects **are not children in the tree** they are little software handles 
-  // that tx / rx from here (the root)
-  runningQueryId = 101
-  getNewQueryId = () => {
-    this.runningQueryId++
-    if (this.runningQueryId > 255) {
-      this.runningQueryId = 0
-    }
-    return this.runningQueryId
-  }
+  /*
   queries = []
   query = (route, retries = 2) => {
     let qr = new Query(this, route, retries)
     this.queries.push(qr)
     return qr
   }
+  queryMSegs = []
+  queryMSeg = (route) => {
+    let msqr = new QueryMSeg(this, route)
+    this.queryMSegs.push(msqr)
+    return msqr 
+  }
+  */
 
   // root loop is unique, children's requestLoopCycle() all terminate here, 
   // only schedule once per turn, 

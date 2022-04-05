@@ -152,6 +152,12 @@ let EP = {
   QUERY_RESP: 132   // query response 
 }
 
+let EPMSEG = {
+  QUERY: 141,
+  QUERY_RESP: 142,
+  QUERY_END_RESP: 143 
+}
+
 let TS = {}
 
 let decoder = new TextDecoder()
@@ -263,5 +269,6 @@ export {
   TS,     // typeset 
   VT,     // object types 
   EP,     // endpoint keys 
+  EPMSEG, 
   TIMES   // time utilities 
 }
