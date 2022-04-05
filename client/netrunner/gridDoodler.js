@@ -1,7 +1,7 @@
 /*
 gridDoodler.js
 
-osap tool drawing set
+tool to draw *grids* explicitly (!) not meshes 
 
 Jake Read at the Center for Bits and Atoms
 (c) Massachusetts Institute of Technology 2021

@@ -170,6 +170,8 @@ export default function NetRunner(osap) {
             // add to flat list 
             allVPorts.push(root.children[c])
             this.inspectFrontier(root.children[c])
+          } else if (root.children[c].type == VT.VBUS) {
+            console.warn("graph includes vbus, no vbus sweeping code yet... ")
           }
         }
         // global, 
@@ -212,12 +214,12 @@ export default function NetRunner(osap) {
       // (4) setup to handle the request, associating it w/ this fn  
       return new Promise((resolve, reject) => {
         pingsAwaiting.push({
-          request: datagram.slice(),                   // the og request 
+          request: datagram.slice(),                    // the og request 
           id: datagram[route.length + 1],               // it's id 
           timeout: setTimeout(() => {                   // a timeout
             reject(`scope timeout`)
           }, PING_MAX_TIME),
-          onResponse: function (item, ptr) {              // callback / handler 
+          onResponse: function (item, ptr) {            // callback / handler 
             // clear timeout 
             clearTimeout(this.timeout)
             // now we want to resolve this w/ a description of the ...
@@ -228,7 +230,6 @@ export default function NetRunner(osap) {
             vvt.previousTimeTag = TS.read('uint32', item.data, ptr + 2) // what it replies w/ as previous tag 
             vvt.type = item.data[ptr + 6]
             vvt.indice = TS.read('uint16', item.data, ptr + 7)
-            //vvt.siblings = TS.read('uint16', item.data, ptr + 9) // try ignoring # siblings for now, 
             vvt.children = new Array(TS.read('uint16', item.data, ptr + 11))
             vvt.name = TS.read('string', item.data, ptr + 13).value
             resolve(vvt)

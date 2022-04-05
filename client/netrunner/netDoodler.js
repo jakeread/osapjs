@@ -16,6 +16,7 @@ no warranty is provided, and users accept all liability.
 
 import DT from '../interface/domTools.js'
 import { VT, TIMES } from '../../core/ts.js'
+import {html, render} from 'https://unpkg.com/lit-html?module';
 
 export default function NetDoodler(xPlace, yPlace) {
   // basically the D3 example, 
@@ -44,12 +45,12 @@ export default function NetDoodler(xPlace, yPlace) {
     let lastId = 1;
     let drawTime = TIMES.getTimeStamp()
     // graph starts at the root... we're not drawing explicitly... let's start w/ the 1st vport, 
-    let nodeRecursor = (parent, partner) => {
+    let nodeRecursor = (parent, partner = undefined) => {
       if(parent.lastDrawTime && parent.lastDrawTime == drawTime) { console.log("bailing"); return }
       // mark for no-backtracking:
       parent.lastDrawTime = drawTime
       // make a node: recursor should only tap each, once 
-      let node = { id: lastId ++, name: parent.name, index: nodes.length, gnode: parent }
+      let node = { id: lastId ++, name: parent.name, index: nodes.length, vvt: parent }
       nodes.push(node) 
       // that's linked to wherever we came from, so long as it exists 
       if(partner) links.push({source: partner, target: node})
@@ -66,8 +67,19 @@ export default function NetDoodler(xPlace, yPlace) {
     nodeRecursor(graph)
     // done,
     console.log('le done', nodes, links)
+    // let's demo this, 
+    this.nodeRender(nodes[nodes.length - 1].vvt)
     // draw,
     this.render({nodes: nodes, links: links})
+  }
+  // let's try a literal... 
+  const contextTemplate = (vvt) => html`
+    <div class="vcontext" style="position:absolute; border: none; width: 50px; height: 50px; transform: scale(1); left: ${vvt.x}px; top: ${vvt.y}px; background-color: black;">  
+  `
+  render(contextTemplate({x: 100, y: 100}), document.body)
+  // data here is the vvt straight from the sweep's mouth, is the parent node of a context... 
+  this.nodeRender = (vvt) => {
+    console.warn(vvt)
   }
   // data here is like: { nodes: [ { id: <num>, name: <string>, index: indx } ], links: [ {source: <obj in nodes list>, target: <obj in nodes list>, index: indx } ] }
   this.render = (data) => {
@@ -98,6 +110,8 @@ export default function NetDoodler(xPlace, yPlace) {
 
     // This function is run at each iteration of the force algorithm, updating the nodes position.
     function ticked() {
+      render(contextTemplate(data.nodes[0]), plane)
+      //console.log(data.nodes[1])
       
       link
         .attr("x1", function (d) { return d.source.x; })
