@@ -15,8 +15,10 @@ no warranty is provided, and users accept all liability.
 'use strict'
 
 import DT from '../interface/domTools.js'
-import { VT, TIMES } from '../../core/ts.js'
+import { VT, TIMES } from '../../core/ts.js'  
+
 import {html, render} from 'https://unpkg.com/lit-html?module';
+import VVT from '../lit/litVertex.js';
 
 export default function NetDoodler(xPlace, yPlace) {
   // basically the D3 example, 
@@ -39,14 +41,17 @@ export default function NetDoodler(xPlace, yPlace) {
 
   this.redraw = (graph) => {
     // we want to reformat the graph tree into the data layout below... 
-    console.log('redraw', graph)
+    // console.log('redraw', graph)
     // we'll populate these recursively... 
     let nodes = []; let links = []
     let lastId = 1;
     let drawTime = TIMES.getTimeStamp()
     // graph starts at the root... we're not drawing explicitly... let's start w/ the 1st vport, 
     let nodeRecursor = (parent, partner = undefined) => {
-      if(parent.lastDrawTime && parent.lastDrawTime == drawTime) { console.log("bailing"); return }
+      if(parent.lastDrawTime && parent.lastDrawTime == drawTime) { 
+        // console.log("bailing"); 
+        return 
+      }
       // mark for no-backtracking:
       parent.lastDrawTime = drawTime
       // make a node: recursor should only tap each, once 
@@ -58,31 +63,33 @@ export default function NetDoodler(xPlace, yPlace) {
       for(let c = 0; c < parent.children.length; c ++){
         if(parent.children[c].type == VT.VPORT){
           let vp = parent.children[c] 
-          console.log(vp)
           if(vp.reciprocal && vp.reciprocal.type != "unreachable" ) nodeRecursor(vp.reciprocal.parent, node)
         }
       }
     }
     // kick it, 
     nodeRecursor(graph)
-    // done,
-    console.log('le done', nodes, links)
-    // let's demo this, 
-    this.nodeRender(nodes[nodes.length - 1].vvt)
     // draw,
     this.render({nodes: nodes, links: links})
-  }
-  // let's try a literal... 
-  const contextTemplate = (vvt) => html`
-    <div class="vcontext" style="position:absolute; border: none; width: 50px; height: 50px; transform: scale(1); left: ${vvt.x}px; top: ${vvt.y}px; background-color: black;">  
-  `
-  render(contextTemplate({x: 100, y: 100}), document.body)
+  } // end this.redraw 
+  //render(contextTemplate({x: 100, y: 100}), document.body)
   // data here is the vvt straight from the sweep's mouth, is the parent node of a context... 
   this.nodeRender = (vvt) => {
     console.warn(vvt)
   }
+  // will have to wipe 'em 
+  let vvts = [] 
   // data here is like: { nodes: [ { id: <num>, name: <string>, index: indx } ], links: [ {source: <obj in nodes list>, target: <obj in nodes list>, index: indx } ] }
   this.render = (data) => {
+    // rm and delete old, 
+    for(let vvt of vvts){
+      vvt.delete()
+    }
+    vvts = [] 
+    // make elements, 
+    for(let node of data.nodes){
+      vvts.push(new VVT(null))
+    }
     // Initialize the links
     const link = svg
       .selectAll("line")
@@ -110,9 +117,13 @@ export default function NetDoodler(xPlace, yPlace) {
 
     // This function is run at each iteration of the force algorithm, updating the nodes position.
     function ticked() {
-      render(contextTemplate(data.nodes[0]), plane)
-      //console.log(data.nodes[1])
-      
+      for(let node in data.nodes){
+        if(!vvts[node]) continue;
+        vvts[node].state.x = data.nodes[node].x
+        vvts[node].state.y = data.nodes[node].y
+        vvts[node].render()
+      }
+
       link
         .attr("x1", function (d) { return d.source.x; })
         .attr("y1", function (d) { return d.source.y; })
