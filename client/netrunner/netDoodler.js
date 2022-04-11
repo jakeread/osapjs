@@ -52,6 +52,9 @@ export default function NetDoodler(xPlace, yPlace) {
   // previous graph, previous graphical vertices, 
   let oldGraph = {}
   let oldGvts = []
+  // there is a map between simulation posns and drawing posns, since 
+  // we can't move spawn origin for d3 sim, ffs, https://observablehq.com/@d3/force-layout-phyllotaxis 
+  let simOffset = 500 
 
   // first we want to diff the graph, and get a copy of it in node:links form, for D3 
   // we get a new graph every redraw call, but have an existing copy... 
@@ -81,9 +84,9 @@ export default function NetDoodler(xPlace, yPlace) {
       for (let gvt of oldGvts) {
         if (vvtMatch(vvt, gvt.vvt)) {
           console.log('found same!')
-          node.fx = gvt.state.x
-          node.fy = gvt.state.y
-        }
+          node.fx = gvt.state.x - simOffset
+          node.fy = gvt.state.y - simOffset
+        } 
       }
       // add link if it exists 
       if (partner) links.push({ source: partner, target: node })
@@ -150,26 +153,26 @@ export default function NetDoodler(xPlace, yPlace) {
         .on("end", completion);
 
       // fix node 0 to home... 
-      data.nodes[0].fx = 100; data.nodes[0].fy = 100;
+      data.nodes[0].fx = -simOffset + 100; data.nodes[0].fy = -simOffset + 100;
 
       // This function is run at each iteration of the force algorithm, updating the nodes position.
       function ticked() {
         try {
           for (let node of data.nodes) {
-            node.gvt.state.x = node.x
-            node.gvt.state.y = node.y
+            node.gvt.state.x = node.x + simOffset
+            node.gvt.state.y = node.y + simOffset 
             node.gvt.render()
           }
 
           link
-            .attr("x1", function (d) { return d.source.x; })
-            .attr("y1", function (d) { return d.source.y; })
-            .attr("x2", function (d) { return d.target.x; })
-            .attr("y2", function (d) { return d.target.y; });
+            .attr("x1", function (d) { return d.source.x + simOffset; })
+            .attr("y1", function (d) { return d.source.y + simOffset; })
+            .attr("x2", function (d) { return d.target.x + simOffset; })
+            .attr("y2", function (d) { return d.target.y + simOffset; });
 
           node
-            .attr("cx", function (d) { return d.x + 6; })
-            .attr("cy", function (d) { return d.y - 6; });
+            .attr("cx", function (d) { return d.x + simOffset; })
+            .attr("cy", function (d) { return d.y + simOffset; });
 
           // stop after one tick / update cycle if we don't need to sim... 
           if(!settle){ simulation.stop(); resolve() }

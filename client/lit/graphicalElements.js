@@ -1,4 +1,5 @@
 import { html, render } from 'https://unpkg.com/lit-html?module';
+import DT from '../interface/domTools.js'
 
 // everything here should have a constructor for some virtual element...
 // and a delete fn 

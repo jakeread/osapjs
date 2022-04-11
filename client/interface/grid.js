@@ -55,7 +55,7 @@ export default function Grid(){
 
   // pan on drag,
   wrapper.addEventListener('mousedown', (evt) => {
-    if ($(evt.target).is('input, textarea')) return
+    if ($(evt.target).is('input, textarea, .vcontext')) return
     evt.preventDefault()
     evt.stopPropagation()
     DT.dragTool((drag) => {
