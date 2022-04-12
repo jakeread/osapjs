@@ -15,10 +15,12 @@ no warranty is provided, and users accept all liability.
 'use strict'
 
 import DT from '../interface/domTools.js'
+import { Button, TextBlock } from '../interface/basics.js'
 import { VT, TIMES } from '../../core/ts.js'
+import GraphicalContext from './graphicalElements.js';
 
-import { html, render } from 'https://unpkg.com/lit-html?module';
-import GraphicalContext from '../lit/graphicalElements.js';
+// list of graphical vertices 
+let gvts = []
 
 let vvtMatch = (a, b) => {
   let ra = a.route
@@ -30,10 +32,127 @@ let vvtMatch = (a, b) => {
   return true
 }
 
-export default function NetDoodler(xPlace, yPlace) {
+// global mouse listener, w/ also one in ../interface/grid.js
+window.addEventListener('mousedown', (evt) => {
+  // it's us? 
+  if (!($(evt.target).is('.vcontext'))) return;
+  // see if we can't get the gvx... 
+  let id = $(evt.target).attr('id')
+  console.log('len', gvts.length)
+  // can we find it ?
+  let gvt = null 
+  for (let cand of gvts) {
+    if (cand.uuid == parseInt(id)) {
+      gvt = cand 
+      break;
+    } 
+  }
+  if(!gvt) return
+  // gottem 
+  console.log('drag gvt', gvt)
+  evt.preventDefault(); evt.stopPropagation();
+  let ogmx = evt.clientX; let ogmy = evt.clientY;
+  let oggx = gvt.state.x; let oggy = gvt.state.y;
+  // if state transition OK, set drag... 
+  if (window.nd.stateTransition('dragging')) {
+    // set drag handler, 
+    DT.dragTool((drag) => {
+      let delx = drag.clientX - ogmx; let dely = drag.clientY - ogmy;
+      gvt.state.x = oggx + delx; gvt.state.y = oggy + dely;
+      gvt.render()
+    }, (up) => { window.nd.stateTransition('idle') })
+  } else {
+    return
+  }
+})
+
+export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
+  // -------------------------------------------- ND STATE MANAGE 
+  // we have some basic controls here, 
+  let runState = _runState
+  let checkRunState = () => {
+    if (runState) {
+      runBtn.green(); this.stateTransition("scanning")
+    } else {
+      runBtn.red();
+    }
+  }
+  let runBtn = new Button(xPlace + 500, yPlace + 10, 84, 84, 'loop?')
+  runBtn.onClick((evt) => {
+    runState = !runState
+    checkRunState()
+  })
+  // and a display of our current state, 
+  let stateDisplay = new TextBlock(xPlace + 500, yPlace + 110, 84, 40, 'idle')
+  let writeState = (state) => {
+    this.state = state
+    stateDisplay.setText(state)
+  }
+  writeState('idle')
+  // tiny ute, 
+  this.awaitIdle = () => {
+    return new Promise((resolve, reject) => {
+      let check = () => { this.state == idle ? resolve() : setTimeout(check, 50) }
+      check()
+      setTimeout(() => { reject("awaitIdle timeout"), 5000 })
+    })
+  }
+  // state machine transitions... returns true if legal transit 
+  this.stateTransition = (state, arg) => {
+    console.log(`${this.state} -> ${state}`)
+    try {
+      if (this.state == "idle" && state == "scanning") {
+        writeState("scanning")
+        osap.netRunner.sweep().then((net) => {
+          this.stateTransition("drawing", net)
+        }).catch((err) => {
+          console.error(err)
+          this.stateTransition("error")
+        })
+        return true
+      } else if (this.state == "scanning" && state == "drawing") {
+        writeState("drawing")
+        this.redraw(arg).then(() => {
+          this.stateTransition("idle")
+        }).catch((err) => {
+          console.error(err)
+          this.stateTransition("error")
+        })
+        return true
+      } else if ((this.state == "drawing" || this.state == "dragging") && state == "idle") {
+        writeState("idle")
+        if (runState) setTimeout(() => { this.stateTransition("scanning") }, 1000)
+        return true
+      } else if (this.state == "drawing" && state == "dragging") {
+        return false
+      } else if ((this.state == "idle" || this.state == "scanning") && state == "dragging") {
+        writeState("dragging")
+        return true
+      } else if (this.state == "dragging" && (state == "scanning" || state == "drawing")) {
+        return false
+      } else if (state == "error") {
+        writeState("error");
+      } else {
+        console.error(`unknown state transition from ${this.state} to ${state}`)
+        this.stateTransition("error")
+        return false
+      }
+    } catch (err) {
+      writeState("error")
+      console.error(err)
+    }
+  }
+  checkRunState()
+  // -------------------------------------------- ND UTES 
+  let lastUUID = 0
+  this.getNewElementUUID = () => {
+    return lastUUID++
+  }
+
+  // -------------------------------------------- ND OP ? 
   // basically the D3 example, 
   let plane = $('<div>').attr('id', 'my_dataviz').get(0)//.css('background-color', 'ghostwhite').get(0)
-  DT.placeField(plane, 1000, 1000, xPlace, yPlace)
+  DT.placeField(plane, 1000, 1000, xPlace, yPlace + 500)
 
   // set the dimensions and margins of the graph
   const margin = { top: 10, right: 30, bottom: 30, left: 40 },
@@ -49,17 +168,13 @@ export default function NetDoodler(xPlace, yPlace) {
     .attr("transform",
       `translate(${margin.left}, ${margin.top})`);
 
-  // previous graph, previous graphical vertices, 
-  let oldGraph = {}
-  let oldGvts = []
   // there is a map between simulation posns and drawing posns, since 
   // we can't move spawn origin for d3 sim, ffs, https://observablehq.com/@d3/force-layout-phyllotaxis 
-  let simOffset = 500 
+  let simOffset = 500
 
   // first we want to diff the graph, and get a copy of it in node:links form, for D3 
   // we get a new graph every redraw call, but have an existing copy... 
   this.redraw = async (graph) => {
-    window.setState('drawing')
     // we'll populate these recursively... 
     let newGvts = []
     let nodes = []; let links = []
@@ -81,12 +196,12 @@ export default function NetDoodler(xPlace, yPlace) {
       vvt.gvt = gvt; vvt.node = node;
       // we have a new node, a new gvt, 
       // if there's an element in the old gvts for this node, set fixed posn 
-      for (let gvt of oldGvts) {
+      for (let gvt of gvts) {
         if (vvtMatch(vvt, gvt.vvt)) {
           console.log('found same!')
           node.fx = gvt.state.x - simOffset
           node.fy = gvt.state.y - simOffset
-        } 
+        }
       }
       // add link if it exists 
       if (partner) links.push({ source: partner, target: node })
@@ -101,25 +216,22 @@ export default function NetDoodler(xPlace, yPlace) {
     // kick it w/ root as root... 
     contextRecursor(graph)
     // delete all old gvts, and reset list, 
-    for (let gvt of oldGvts) {
+    for (let gvt of gvts) {
       gvt.delete()
     }
-    oldGvts = newGvts
+    gvts = newGvts
     // do we need to use d3 ?
-    let useSim = false 
-    for(let gvt of oldGvts){
-      if(gvt.node.fx == undefined){
+    let useSim = false
+    for (let gvt of gvts) {
+      if (gvt.node.fx == undefined) {
         useSim = true; break;
       }
     } // end check for newshit 
     try {
-      await this.settleNodes({nodes: nodes, links: links}, useSim)
-    } catch(err) {
+      await this.settleNodes({ nodes: nodes, links: links }, useSim)
+    } catch (err) {
       console.error(err)
     }
-    // and finally, 
-    window.setState('idle')
-    oldGraph = graph
   } // end this.redraw 
 
   // data here is like: { nodes: [ { id: <num>, name: <string>, index: indx } ], links: [ {source: <obj in nodes list>, target: <obj in nodes list>, index: indx } ] }
@@ -160,7 +272,7 @@ export default function NetDoodler(xPlace, yPlace) {
         try {
           for (let node of data.nodes) {
             node.gvt.state.x = node.x + simOffset
-            node.gvt.state.y = node.y + simOffset 
+            node.gvt.state.y = node.y + simOffset
             node.gvt.render()
           }
 
@@ -175,7 +287,7 @@ export default function NetDoodler(xPlace, yPlace) {
             .attr("cy", function (d) { return d.y + simOffset; });
 
           // stop after one tick / update cycle if we don't need to sim... 
-          if(!settle){ simulation.stop(); resolve() }
+          if (!settle) { simulation.stop(); resolve() }
         } catch (err) { simulation.stop(); reject(err) }
       }
 

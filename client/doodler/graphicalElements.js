@@ -13,7 +13,7 @@ export default function GraphicalContext(virtualVertex) {
   let cont = $(`<div>`).get(0)
   $($('.plane').get(0)).append(cont)
   // we have a global uuid (fn on muleClient.js) 
-  this.uuid = window.getNewElementUUID()
+  this.uuid = window.nd.getNewElementUUID()
   // we are a lit element 
   let template = (self) => html`
   <div class="vcontext" id="${self.uuid}" style="position:absolute; border: none; width: 50px; height: 50px; 
