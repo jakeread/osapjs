@@ -293,7 +293,6 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
             node.gvt.state.y = node.y + simOffset
             node.gvt.render()
           }
-
           if (first) {
             registerHandlers()
             first = false
