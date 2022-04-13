@@ -40,14 +40,14 @@ window.addEventListener('mousedown', (evt) => {
   let id = $(evt.target).attr('id')
   console.log('len', gvts.length)
   // can we find it ?
-  let gvt = null 
+  let gvt = null
   for (let cand of gvts) {
     if (cand.uuid == parseInt(id)) {
-      gvt = cand 
+      gvt = cand
       break;
-    } 
+    }
   }
-  if(!gvt) return
+  if (!gvt) return
   // gottem 
   console.log('drag gvt', gvt)
   evt.preventDefault(); evt.stopPropagation();
@@ -98,10 +98,11 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
     })
   }
   // state machine transitions... returns true if legal transit 
-  this.stateTransition = (state, arg) => {
-    console.log(`${this.state} -> ${state}`)
+  let scanTimer = null
+  this.stateTransition = (target, arg) => {
+    console.log(`${this.state} -> ${target}`)
     try {
-      if (this.state == "idle" && state == "scanning") {
+      if (this.state == "idle" && target == "scanning") {
         writeState("scanning")
         osap.netRunner.sweep().then((net) => {
           this.stateTransition("drawing", net)
@@ -110,7 +111,7 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
           this.stateTransition("error")
         })
         return true
-      } else if (this.state == "scanning" && state == "drawing") {
+      } else if (this.state == "scanning" && target == "drawing") {
         writeState("drawing")
         this.redraw(arg).then(() => {
           this.stateTransition("idle")
@@ -119,21 +120,25 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
           this.stateTransition("error")
         })
         return true
-      } else if ((this.state == "drawing" || this.state == "dragging") && state == "idle") {
+      } else if ((this.state == "drawing" || this.state == "dragging") && target == "idle") {
         writeState("idle")
-        if (runState) setTimeout(() => { this.stateTransition("scanning") }, 1000)
+        if (runState && !scanTimer) {
+          scanTimer = setTimeout(() => { scanTimer = null; this.stateTransition("scanning") }, 1000)
+        }
         return true
-      } else if (this.state == "drawing" && state == "dragging") {
-        return false
-      } else if ((this.state == "idle" || this.state == "scanning") && state == "dragging") {
+      } else if (this.state == "drawing" && target == "dragging") {
+        simulation.stop(); 
+        writeState("dragging");
+        return true;
+      } else if ((this.state == "idle" || this.state == "scanning") && target == "dragging") {
         writeState("dragging")
         return true
-      } else if (this.state == "dragging" && (state == "scanning" || state == "drawing")) {
+      } else if (this.state == "dragging" && (target == "scanning" || target == "drawing")) {
         return false
       } else if (state == "error") {
         writeState("error");
       } else {
-        console.error(`unknown state transition from ${this.state} to ${state}`)
+        console.error(`unknown state transition from ${this.state} to ${target}`)
         this.stateTransition("error")
         return false
       }
@@ -235,6 +240,7 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
   } // end this.redraw 
 
   // data here is like: { nodes: [ { id: <num>, name: <string>, index: indx } ], links: [ {source: <obj in nodes list>, target: <obj in nodes list>, index: indx } ] }
+  let simulation = null
   this.settleNodes = (data, settle) => {
     return new Promise((resolve, reject) => {
       // Initialize the links
@@ -253,7 +259,7 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
         .style("fill", "lightsalmon")
 
       // Let's list the force we wanna apply on the network
-      const simulation = d3.forceSimulation(data.nodes)                 // Force algorithm is applied to data.nodes
+      simulation = d3.forceSimulation(data.nodes)                 // Force algorithm is applied to data.nodes
         .force("link", d3.forceLink()                               // This force provides links between nodes
           .id(function (d) { return d.id; })                     // This provide  the id of a node
           .links(data.links)                                    // and this the list of links
@@ -287,11 +293,11 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
             .attr("cy", function (d) { return d.y + simOffset; });
 
           // stop after one tick / update cycle if we don't need to sim... 
-          if (!settle) { simulation.stop(); resolve() }
-        } catch (err) { simulation.stop(); reject(err) }
+          if (!settle) { simulation.stop(); simulation = null; resolve() }
+        } catch (err) { simulation.stop(); simulation = null; reject(err) }
       }
 
-      function completion() { resolve() }
+      function completion() { simulation = null; resolve() }
     })
   }
 }
