@@ -17,11 +17,9 @@ no warranty is provided, and users accept all liability.
 import DT from '../interface/domTools.js'
 import { Button, TextBlock } from '../interface/basics.js'
 import { VT, TIMES } from '../../core/ts.js'
-import GraphicalContext from './graphicalElements.js';
+import { GraphicalContext } from './graphicalElements.js';
 
-// list of graphical vertices 
-let gvts = []
-
+// get sameness based on route uniqueness 
 let vvtMatch = (a, b) => {
   let ra = a.route
   let rb = b.route
@@ -32,22 +30,28 @@ let vvtMatch = (a, b) => {
   return true
 }
 
+// get dom:gvt match
+let getGvtByUUID = (uuid) => {
+  for (let cand of window.nd.gvts){
+    if(cand.uuid == parseInt(uuid)){
+      return cand
+    }
+  }
+  return null
+}
+
 // global mouse listener, w/ also one in ../interface/grid.js
 window.addEventListener('mousedown', (evt) => {
   // it's us? 
-  if (!($(evt.target).is('.vcontext'))) return;
+  if (!($(evt.target).is('.gvtRoot'))) {
+    console.log(evt.target)
+    return;
+  }
   // see if we can't get the gvx... 
   let id = $(evt.target).attr('id')
-  console.log('len', gvts.length)
   // can we find it ?
-  let gvt = null
-  for (let cand of gvts) {
-    if (cand.uuid == parseInt(id)) {
-      gvt = cand
-      break;
-    }
-  }
-  if (!gvt) return
+  let gvt = getGvtByUUID(id)
+  if (!gvt) { console.warn('no gvt found on drag'); return }
   // gottem 
   console.log('drag gvt', gvt)
   evt.preventDefault(); evt.stopPropagation();
@@ -65,6 +69,28 @@ window.addEventListener('mousedown', (evt) => {
     return
   }
 })
+
+// try hover listeners, we have to re-register these after each render, wherp 
+let registerHandlers = () => {
+  // hover listener, 
+  $('.gvtChild').hover((enter) => {
+    console.warn('hov')
+    let gvt = getGvtByUUID($(enter.target).attr('id'))
+    if (!gvt) { console.error('no gvt on gvtChild hover entrance'); return }
+    if(gvt.vvt.reciprocal){
+      gvt.setBackgroundColor(`rgb(180, 180, 180)`)
+      gvt.vvt.reciprocal.gvt.setBackgroundColor(`rgb(180, 180, 180)`)
+    }
+  }, (exit) => {
+    let gvt = getGvtByUUID($(exit.target).attr('id'))
+    if (!gvt) { console.error('no gvt on gvtChild hover exit'); return }
+    if(gvt.vvt.reciprocal){
+      gvt.setBackgroundColor()
+      gvt.vvt.reciprocal.gvt.setBackgroundColor()
+    }
+  })
+}
+
 
 export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
   // -------------------------------------------- ND STATE MANAGE 
@@ -127,7 +153,7 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
         }
         return true
       } else if (this.state == "drawing" && target == "dragging") {
-        simulation.stop(); 
+        simulation.stop();
         writeState("dragging");
         return true;
       } else if ((this.state == "idle" || this.state == "scanning") && target == "dragging") {
@@ -135,7 +161,7 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
         return true
       } else if (this.state == "dragging" && (target == "scanning" || target == "drawing")) {
         return false
-      } else if (state == "error") {
+      } else if (target == "error") {
         writeState("error");
       } else {
         console.error(`unknown state transition from ${this.state} to ${target}`)
@@ -176,7 +202,7 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
   // there is a map between simulation posns and drawing posns, since 
   // we can't move spawn origin for d3 sim, ffs, https://observablehq.com/@d3/force-layout-phyllotaxis 
   let simOffset = 500
-
+  this.gvts = [] 
   // first we want to diff the graph, and get a copy of it in node:links form, for D3 
   // we get a new graph every redraw call, but have an existing copy... 
   this.redraw = async (graph) => {
@@ -193,6 +219,10 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
       // make a node for this thing, and an element for ourselves, 
       let gvt = new GraphicalContext(vvt) // won't exist until we render it 
       newGvts.push(gvt)
+      // gvts also have children... that we want in the top level list, 
+      for(let child of gvt.children){
+        newGvts.push(child)
+      }
       // make a simulation node, 
       let node = { id: lastId++, name: vvt.name, index: nodes.length, vvt: vvt, gvt: gvt }
       nodes.push(node)
@@ -201,7 +231,7 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
       vvt.gvt = gvt; vvt.node = node;
       // we have a new node, a new gvt, 
       // if there's an element in the old gvts for this node, set fixed posn 
-      for (let gvt of gvts) {
+      for (let gvt of this.gvts) {
         if (vvtMatch(vvt, gvt.vvt)) {
           console.log('found same!')
           node.fx = gvt.state.x - simOffset
@@ -219,16 +249,24 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
       }
     }
     // kick it w/ root as root... 
-    contextRecursor(graph)
+    try{
+      contextRecursor(graph)
+    } catch (err) {
+      console.error(err)
+    }
+    // stuff 1st node to 0,0 if it's new
+    if (nodes[0] && !nodes[0].fx) {
+      nodes[0].fx = - simOffset + 100; nodes[0].fy = - simOffset + 100;
+    }
     // delete all old gvts, and reset list, 
-    for (let gvt of gvts) {
+    for (let gvt of this.gvts) {
       gvt.delete()
     }
-    gvts = newGvts
+    this.gvts = newGvts
     // do we need to use d3 ?
     let useSim = false
-    for (let gvt of gvts) {
-      if (gvt.node.fx == undefined) {
+    for (let gvt of this.gvts) {
+      if (gvt.node && gvt.node.fx == undefined) {
         useSim = true; break;
       }
     } // end check for newshit 
@@ -263,16 +301,16 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
         .force("link", d3.forceLink()                               // This force provides links between nodes
           .id(function (d) { return d.id; })                     // This provide  the id of a node
           .links(data.links)                                    // and this the list of links
+          .distance(function (d) { return 100; })
         )
-        .force("charge", d3.forceManyBody().strength(-800))         // This adds repulsion between nodes. Play with the -400 for the repulsion strength
+        .force("charge", d3.forceManyBody().strength(-400))         // This adds repulsion between nodes. Play with the -400 for the repulsion strength
         //.force("center", d3.forceCenter(width / 2, height / 2))     // This force attracts nodes to the center of the svg area
         .alphaMin(0.1)
         .on("tick", ticked)
         .on("end", completion);
 
-      // fix node 0 to home... 
-      data.nodes[0].fx = -simOffset + 100; data.nodes[0].fy = -simOffset + 100;
-
+      // it's a mess, but after each 1st-cycle we want to register global handlers, so need:
+      let first = true
       // This function is run at each iteration of the force algorithm, updating the nodes position.
       function ticked() {
         try {
@@ -280,6 +318,11 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
             node.gvt.state.x = node.x + simOffset
             node.gvt.state.y = node.y + simOffset
             node.gvt.render()
+          }
+
+          if (first) {
+            registerHandlers()
+            first = false
           }
 
           link
