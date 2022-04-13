@@ -55,7 +55,8 @@ export default function Grid(){
 
   // pan on drag,
   wrapper.addEventListener('mousedown', (evt) => {
-    if (!($(evt.target).is('#wrapper'))) return
+    //console.log(evt.target, $(evt.target).is('svg'))
+    if (!($(evt.target).is('#wrapper'))) return; // && !($(evt.target).is('svg'))) return
     evt.preventDefault()
     evt.stopPropagation()
     DT.dragTool((drag) => {

@@ -1,4 +1,4 @@
-import { html, render } from 'https://unpkg.com/lit-html?module';
+import { html, svg, render } from 'https://unpkg.com/lit-html?module';
 import DT from '../interface/domTools.js'
 
 // everything here should have a constructor for some virtual element...
@@ -46,10 +46,10 @@ function GraphicalContext(virtualVertex) {
   // can rm thing 
   this.delete = () => {
     $(cont).remove()
-    for(let child of this.children){
-      child.delete()
-    }
+    for(let child of this.children){ child.delete() }
   }
+  // we get added to global list, 
+  window.nd.gvts.push(this)
 }
 
 function GraphicalChild(virtualVertex) {
@@ -72,6 +72,12 @@ function GraphicalChild(virtualVertex) {
     ${self.vvt.name}
   </div>
   `
+  // find our partners... 
+  this.pipes = [] 
+  if(this.vvt.reciprocal && this.vvt.reciprocal.type != "unreachable"){
+    //console.warn(this.vvt.name)
+    this.pipes.push(new GraphicalPipe())
+  }
   // utes,
   this.setBackgroundColor = (color) => {
     if(color){
@@ -82,14 +88,48 @@ function GraphicalChild(virtualVertex) {
     this.render()
   }
   // render call, 
-  this.render = () => { 
-    render(template(this), cont) 
+  this.render = () => {
+    render(template(this), cont)
+    for(let pipe of this.pipes){
+      pipe.state.head.x = this.state.x + width 
+      pipe.state.head.y = this.state.y 
+      pipe.render()
+    }
   }
   // can rm thing,
   this.delete = () => {
     $(cont).remove()
+    for(let pipe of this.pipes){ pipe.delete() }
   }
+  // we get added to global list,
+  window.nd.gvts.push(this)
+}
+
+function GraphicalPipe(){
+  // kinda hackney all-consuming SVG canvas, 
+  let cont = $('<div style="position:absolute; z-index:0; overflow:visible;"></div>').get(0)
+  $($('.plane').get(0)).append(cont)
+  this.state = {
+    head: { x: 200, y: 200 },
+    tail: { x: 400, y: 400 }
+  }
+  let template = (self) => svg`
+  <svg width="10" height="10"  style="position:absolute; z-index:0; overflow:visible;" xmlns:xlink="http://w3.org/1999/xlink">
+    <g>
+    <circle r="25" cx="${self.state.head.x}" cy="${self.state.head.y}" stroke-width="4" stroke="black"></circle>
+    <circle r="25" cx="${self.state.tail.x}" cy="${self.state.tail.y}" stroke-width="4" stroke="black"></circle>
+    </g>
+  </svg>
+  `
+  this.render = () => {
+    render(template(this), cont)
+  }
+  this.delete = () => {
+    $(cont).remove()
+  }
+  // we get added to global list, 
+  window.nd.gvts.push(this)
 }
 
 
-export { GraphicalContext, GraphicalChild }
+export { GraphicalContext, GraphicalChild, GraphicalPipe }

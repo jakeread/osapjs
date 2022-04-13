@@ -17,12 +17,10 @@ no warranty is provided, and users accept all liability.
 import DT from '../interface/domTools.js'
 import { Button, TextBlock } from '../interface/basics.js'
 import { VT, TIMES } from '../../core/ts.js'
-import { GraphicalContext } from './graphicalElements.js';
+import { GraphicalContext, GraphicalPipe } from './graphicalElements.js';
 
 // get sameness based on route uniqueness 
-let vvtMatch = (a, b) => {
-  let ra = a.route
-  let rb = b.route
+let routeMatch = (ra, rb) => {
   if (ra.length != rb.length) return false
   for (let i = 0; i < ra.length; i++) {
     if (ra[i] != rb[i]) return false
@@ -42,18 +40,17 @@ let getGvtByUUID = (uuid) => {
 
 // global mouse listener, w/ also one in ../interface/grid.js
 window.addEventListener('mousedown', (evt) => {
+  console.log(evt.target)
   // it's us? 
   if (!($(evt.target).is('.gvtRoot'))) {
-    console.log(evt.target)
     return;
-  }
+  } 
   // see if we can't get the gvx... 
   let id = $(evt.target).attr('id')
   // can we find it ?
   let gvt = getGvtByUUID(id)
   if (!gvt) { console.warn('no gvt found on drag'); return }
   // gottem 
-  console.log('drag gvt', gvt)
   evt.preventDefault(); evt.stopPropagation();
   let ogmx = evt.clientX; let ogmy = evt.clientY;
   let oggx = gvt.state.x; let oggy = gvt.state.y;
@@ -77,14 +74,14 @@ let registerHandlers = () => {
     console.warn('hov')
     let gvt = getGvtByUUID($(enter.target).attr('id'))
     if (!gvt) { console.error('no gvt on gvtChild hover entrance'); return }
-    if(gvt.vvt.reciprocal){
+    if(gvt.vvt.reciprocal && gvt.vvt.reciprocal.type != "unreachable"){
       gvt.setBackgroundColor(`rgb(180, 180, 180)`)
       gvt.vvt.reciprocal.gvt.setBackgroundColor(`rgb(180, 180, 180)`)
     }
   }, (exit) => {
     let gvt = getGvtByUUID($(exit.target).attr('id'))
     if (!gvt) { console.error('no gvt on gvtChild hover exit'); return }
-    if(gvt.vvt.reciprocal){
+    if(gvt.vvt.reciprocal && gvt.vvt.reciprocal.type != "unreachable"){
       gvt.setBackgroundColor()
       gvt.vvt.reciprocal.gvt.setBackgroundColor()
     }
@@ -126,7 +123,7 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
   // state machine transitions... returns true if legal transit 
   let scanTimer = null
   this.stateTransition = (target, arg) => {
-    console.log(`${this.state} -> ${target}`)
+    // console.log(`${this.state} -> ${target}`)
     try {
       if (this.state == "idle" && target == "scanning") {
         writeState("scanning")
@@ -162,6 +159,7 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
       } else if (this.state == "dragging" && (target == "scanning" || target == "drawing")) {
         return false
       } else if (target == "error") {
+        runState = false; checkRunState()
         writeState("error");
       } else {
         console.error(`unknown state transition from ${this.state} to ${target}`)
@@ -179,6 +177,10 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
   this.getNewElementUUID = () => {
     return lastUUID++
   }
+
+  // try here ? and render once 
+  //let pipe = new GraphicalPipe()
+  //pipe.render()
 
   // -------------------------------------------- ND OP ? 
   // basically the D3 example, 
@@ -206,8 +208,23 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
   // first we want to diff the graph, and get a copy of it in node:links form, for D3 
   // we get a new graph every redraw call, but have an existing copy... 
   this.redraw = async (graph) => {
+    // position state is the only thing to maintain, everything else gets wiped 
+    let posns = [] 
+    for(let gvt of this.gvts){
+      if(gvt.vvt && gvt.vvt.type == VT.ROOT){
+        posns.push({
+          route: gvt.vvt.route,
+          x: gvt.state.x,
+          y: gvt.state.y
+        })
+      }
+    }
+    // rm old gvts, 
+    for(let gvt of this.gvts){
+      gvt.delete()
+    }
+    this.gvts = []
     // we'll populate these recursively... 
-    let newGvts = []
     let nodes = []; let links = []
     let lastId = 1;
     let drawTime = TIMES.getTimeStamp()
@@ -218,11 +235,6 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
       vvt.lastDrawTime = drawTime
       // make a node for this thing, and an element for ourselves, 
       let gvt = new GraphicalContext(vvt) // won't exist until we render it 
-      newGvts.push(gvt)
-      // gvts also have children... that we want in the top level list, 
-      for(let child of gvt.children){
-        newGvts.push(child)
-      }
       // make a simulation node, 
       let node = { id: lastId++, name: vvt.name, index: nodes.length, vvt: vvt, gvt: gvt }
       nodes.push(node)
@@ -231,12 +243,13 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
       vvt.gvt = gvt; vvt.node = node;
       // we have a new node, a new gvt, 
       // if there's an element in the old gvts for this node, set fixed posn 
-      for (let gvt of this.gvts) {
-        if (vvtMatch(vvt, gvt.vvt)) {
-          console.log('found same!')
-          node.fx = gvt.state.x - simOffset
-          node.fy = gvt.state.y - simOffset
-        }
+      for (let pos of posns) {
+        if (routeMatch(pos.route, gvt.vvt.route)) {
+          // console.log('found same!')
+          node.fx = pos.x - simOffset
+          node.fy = pos.y - simOffset
+          break;
+        } 
       }
       // add link if it exists 
       if (partner) links.push({ source: partner, target: node })
@@ -258,11 +271,11 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
     if (nodes[0] && !nodes[0].fx) {
       nodes[0].fx = - simOffset + 100; nodes[0].fy = - simOffset + 100;
     }
-    // delete all old gvts, and reset list, 
-    for (let gvt of this.gvts) {
-      gvt.delete()
-    }
-    this.gvts = newGvts
+    // // delete all old gvts, and reset list, 
+    // for (let gvt of this.gvts) {
+    //   gvt.delete()
+    // }
+    // this.gvts = newGvts
     // do we need to use d3 ?
     let useSim = false
     for (let gvt of this.gvts) {
