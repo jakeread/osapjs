@@ -29,7 +29,7 @@ function GraphicalContext(virtualVertex) {
   `
   // make some children...
   this.children = []
-  for(let vvt of this.vvt.children){
+  for (let vvt of this.vvt.children) {
     let gvt = new GraphicalChild(vvt)
     vvt.gvt = gvt; gvt.vvt = vvt;
     this.children.push(gvt)
@@ -37,7 +37,7 @@ function GraphicalContext(virtualVertex) {
   // has render call, 
   this.render = () => {
     render(template(this), cont)
-    for(let c in this.children){
+    for (let c in this.children) {
       this.children[c].state.x = this.state.x + 10
       this.children[c].state.y = this.state.y + rootHeight + gap + padding * 2 + (childHeight + gap + padding * 2) * parseInt(c)
       this.children[c].render()
@@ -46,7 +46,7 @@ function GraphicalContext(virtualVertex) {
   // can rm thing 
   this.delete = () => {
     $(cont).remove()
-    for(let child of this.children){ child.delete() }
+    for (let child of this.children) { child.delete() }
   }
   // we get added to global list, 
   window.nd.gvts.push(this)
@@ -73,15 +73,27 @@ function GraphicalChild(virtualVertex) {
   </div>
   `
   // find our partners... 
-  this.pipes = [] 
-  if(this.vvt.reciprocal && this.vvt.reciprocal.type != "unreachable"){
-    //console.warn(this.vvt.name)
-    this.pipes.push(new GraphicalPipe())
+  this.pipes = []
+  this.linkSetup = () => {
+    if(this.vvt.reciprocal && this.vvt.reciprocal.type != "unreachable"){
+      // check if partner already has one-of-us hooked up, 
+      for(let pipe of this.vvt.reciprocal.gvt.pipes){
+        if(pipe.tail = this){
+          console.warn('yah')
+          return
+        } 
+      }
+      // if no existing hookup, we are the head... 
+      let pipe = new GraphicalPipe(this, this.vvt.reciprocal.gvt)
+      this.pipes.push(pipe)
+      // and put that pipe into the friend-pipes-list as well, so it will rerender on their move... 
+      this.vvt.reciprocal.gvt.pipes.push(pipe)
+    }
   }
   // utes,
   this.setBackgroundColor = (color) => {
-    if(color){
-      this.state.backgroundColor = color 
+    if (color) {
+      this.state.backgroundColor = color
     } else {
       this.state.backgroundColor = ogBackground
     }
@@ -90,34 +102,34 @@ function GraphicalChild(virtualVertex) {
   // render call, 
   this.render = () => {
     render(template(this), cont)
-    for(let pipe of this.pipes){
-      pipe.state.head.x = this.state.x + width 
-      pipe.state.head.y = this.state.y 
+    for (let pipe of this.pipes) {
       pipe.render()
     }
   }
   // can rm thing,
   this.delete = () => {
     $(cont).remove()
-    for(let pipe of this.pipes){ pipe.delete() }
+    for (let pipe of this.pipes) { pipe.delete() }
   }
   // we get added to global list,
   window.nd.gvts.push(this)
 }
 
-function GraphicalPipe(){
+// head and tail virtual vertices...
+// we shouldn't need to use their graphical vertex properties until we render, so 
+function GraphicalPipe(headGvt, tailGvt) {
   // kinda hackney all-consuming SVG canvas, 
   let cont = $('<div style="position:absolute; z-index:0; overflow:visible;"></div>').get(0)
   $($('.plane').get(0)).append(cont)
-  this.state = {
-    head: { x: 200, y: 200 },
-    tail: { x: 400, y: 400 }
-  }
+  // we track... head gvt and tail gt 
+  this.head = headGvt
+  this.tail = tailGvt 
+  this.state = {} // we don't really have any of our own state, do we 
   let template = (self) => svg`
   <svg width="10" height="10"  style="position:absolute; z-index:0; overflow:visible;" xmlns:xlink="http://w3.org/1999/xlink">
     <g>
-    <circle r="25" cx="${self.state.head.x}" cy="${self.state.head.y}" stroke-width="4" stroke="black"></circle>
-    <circle r="25" cx="${self.state.tail.x}" cy="${self.state.tail.y}" stroke-width="4" stroke="black"></circle>
+    <circle r="15" cx="${self.head.state.x}" cy="${self.head.state.y}" fill="rgb(150,200,150)"></circle>
+    <circle r="15" cx="${self.tail.state.x}" cy="${self.tail.state.y}" fill="rgb(150,150,200)"></circle>
     </g>
   </svg>
   `

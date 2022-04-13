@@ -40,7 +40,7 @@ let getGvtByUUID = (uuid) => {
 
 // global mouse listener, w/ also one in ../interface/grid.js
 window.addEventListener('mousedown', (evt) => {
-  console.log(evt.target)
+  //console.log(evt.target)
   // it's us? 
   if (!($(evt.target).is('.gvtRoot'))) {
     return;
@@ -178,29 +178,6 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
     return lastUUID++
   }
 
-  // try here ? and render once 
-  //let pipe = new GraphicalPipe()
-  //pipe.render()
-
-  // -------------------------------------------- ND OP ? 
-  // basically the D3 example, 
-  let plane = $('<div>').attr('id', 'my_dataviz').get(0)//.css('background-color', 'ghostwhite').get(0)
-  DT.placeField(plane, 1000, 1000, xPlace, yPlace + 500)
-
-  // set the dimensions and margins of the graph
-  const margin = { top: 10, right: 30, bottom: 30, left: 40 },
-    width = 400 - margin.left - margin.right,
-    height = 400 - margin.top - margin.bottom;
-
-  // append the svg object to the body of the page
-  const svg = d3.select("#my_dataviz")
-    .append("svg")
-    .attr("width", width + margin.left + margin.right)
-    .attr("height", height + margin.top + margin.bottom)
-    .append("g")
-    .attr("transform",
-      `translate(${margin.left}, ${margin.top})`);
-
   // there is a map between simulation posns and drawing posns, since 
   // we can't move spawn origin for d3 sim, ffs, https://observablehq.com/@d3/force-layout-phyllotaxis 
   let simOffset = 500
@@ -267,15 +244,14 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
     } catch (err) {
       console.error(err)
     }
+    // now we have a fresh set of gvts, for which we want to run, 
+    for(let gvt of this.gvts){
+      if(gvt.linkSetup) gvt.linkSetup()
+    }
     // stuff 1st node to 0,0 if it's new
     if (nodes[0] && !nodes[0].fx) {
       nodes[0].fx = - simOffset + 100; nodes[0].fy = - simOffset + 100;
     }
-    // // delete all old gvts, and reset list, 
-    // for (let gvt of this.gvts) {
-    //   gvt.delete()
-    // }
-    // this.gvts = newGvts
     // do we need to use d3 ?
     let useSim = false
     for (let gvt of this.gvts) {
@@ -294,21 +270,6 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
   let simulation = null
   this.settleNodes = (data, settle) => {
     return new Promise((resolve, reject) => {
-      // Initialize the links
-      const link = svg
-        .selectAll("line")
-        .data(data.links)
-        .join("line")
-        .style("stroke", "salmon")
-
-      // Initialize the nodes
-      const node = svg
-        .selectAll("circle")
-        .data(data.nodes)
-        .join("circle")
-        .attr("r", 20)
-        .style("fill", "lightsalmon")
-
       // Let's list the force we wanna apply on the network
       simulation = d3.forceSimulation(data.nodes)                 // Force algorithm is applied to data.nodes
         .force("link", d3.forceLink()                               // This force provides links between nodes
@@ -337,17 +298,6 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
             registerHandlers()
             first = false
           }
-
-          link
-            .attr("x1", function (d) { return d.source.x + simOffset; })
-            .attr("y1", function (d) { return d.source.y + simOffset; })
-            .attr("x2", function (d) { return d.target.x + simOffset; })
-            .attr("y2", function (d) { return d.target.y + simOffset; });
-
-          node
-            .attr("cx", function (d) { return d.x + simOffset; })
-            .attr("cy", function (d) { return d.y + simOffset; });
-
           // stop after one tick / update cycle if we don't need to sim... 
           if (!settle) { simulation.stop(); simulation = null; resolve() }
         } catch (err) { simulation.stop(); simulation = null; reject(err) }
