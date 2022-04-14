@@ -49,13 +49,18 @@ export default function NetRunner(osap) {
         }
         let parent = vport.reciprocal.parent
         for (let c of parent.children) {
-          if (c.then) {
+          if (c && c.then) {
             if (LOG_COMPLETION_CHECKS) console.warn('not done, 0')
             notDone = true
             return
           }
         }
         for (let c of parent.children) {
+          if(!c){
+            notDone = true 
+            console.warn(checkTime, parent.children)
+            return
+          }
           c.lastCheckTime = checkTime
           if (c.type == VT.VPORT) {
             if (c.reciprocal && !c.reciprocal.then && c.reciprocal.parent && !c.reciprocal.parent.then) {

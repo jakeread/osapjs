@@ -71,7 +71,7 @@ window.addEventListener('mousedown', (evt) => {
 let registerHandlers = () => {
   // hover listener, 
   $('.gvtChild').hover((enter) => {
-    console.warn('hov')
+    //console.warn('hov')
     let gvt = getGvtByUUID($(enter.target).attr('id'))
     if (!gvt) { console.error('no gvt on gvtChild hover entrance'); return }
     if(gvt.vvt.reciprocal && gvt.vvt.reciprocal.type != "unreachable"){
@@ -153,6 +153,9 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
         simulation.stop();
         writeState("dragging");
         return true;
+      } else if (this.state == "idle" && target == "drawing"){
+        // seems bad, 
+        return false; 
       } else if ((this.state == "idle" || this.state == "scanning") && target == "dragging") {
         writeState("dragging")
         return true
@@ -275,9 +278,9 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
         .force("link", d3.forceLink()                               // This force provides links between nodes
           .id(function (d) { return d.id; })                     // This provide  the id of a node
           .links(data.links)                                    // and this the list of links
-          .distance(function (d) { return 100; })
+          .distance(function (d) { return 300; })
         )
-        .force("charge", d3.forceManyBody().strength(-400))         // This adds repulsion between nodes. Play with the -400 for the repulsion strength
+        .force("charge", d3.forceManyBody().strength(-800))         // This adds repulsion between nodes. Play with the -400 for the repulsion strength
         //.force("center", d3.forceCenter(width / 2, height / 2))     // This force attracts nodes to the center of the svg area
         .alphaMin(0.1)
         .on("tick", ticked)
