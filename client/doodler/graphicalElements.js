@@ -128,6 +128,12 @@ function GraphicalPipe(headGvt, tailGvt) {
   let template = (self) => svg`
   <svg width="10" height="10"  style="position:absolute; z-index:0; overflow:visible;" xmlns:xlink="http://w3.org/1999/xlink">
     <g>
+    <path d="
+      M ${self.head.state.x} ${self.head.state.y} C 
+      ${self.head.state.x + 100} ${self.head.state.y} 
+      ${self.tail.state.x - 100} ${self.tail.state.y}
+      ${self.tail.state.x} ${self.tail.state.y}"
+      stroke="black" fill="none" stroke-width="5"></path>
     <circle r="15" cx="${self.head.state.x}" cy="${self.head.state.y}" fill="rgb(150,200,150)"></circle>
     <circle r="15" cx="${self.tail.state.x}" cy="${self.tail.state.y}" fill="rgb(150,150,200)"></circle>
     </g>
