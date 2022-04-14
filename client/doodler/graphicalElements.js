@@ -1,4 +1,5 @@
 import { html, svg, render } from 'https://unpkg.com/lit-html?module';
+import { VT } from '../../core/ts.js';
 import DT from '../interface/domTools.js'
 
 // everything here should have a constructor for some virtual element...
@@ -20,6 +21,19 @@ let getLeftEdge = (gvt) => {
 let getRightEdge = (gvt) => {
   let st = gvt.state
   return { x: st.x + st.width + 2 * padding, y: st.y + st.height / 2 + padding }
+}
+
+let checkGvtOverlap = (a, b) => {
+  a = a.state; b = b.state
+  // calc like
+  if( a.x < (b.x + b.width + 2 * padding) &&
+      (a.x + a.width + 2 * padding) > b.x &&
+      a.y < (b.y + b.height + 2 * padding) && 
+      (a.y + a.height + 2 * padding) > b.y){
+    return true 
+  } else {
+    return false 
+  }
 }
 
 // graph element for vertex element... 
@@ -45,7 +59,14 @@ function GraphicalContext(virtualVertex) {
   // make some children...
   this.children = []
   for (let vvt of this.vvt.children) {
-    let gvt = new GraphicalChild(vvt)
+    let gvt = {}
+    if(vvt.type == VT.VPORT){
+      gvt = new GraphicalVPort(vvt)
+    } else if (vvt.type == VT.ENDPOINT){
+      gvt = new GraphicalEndpoint(vvt)
+    } else {
+      gvt = new GraphicalVertex(vvt)
+    }
     vvt.gvt = gvt; gvt.vvt = vvt;
     this.children.push(gvt)
   }
@@ -67,7 +88,51 @@ function GraphicalContext(virtualVertex) {
   window.nd.gvts.push(this)
 }
 
-function GraphicalChild(virtualVertex) {
+function GraphicalVertex(virtualVertex) {
+  console.warn(`init generic gvertex ${virtualVertex.name}`)
+  this.vvt = virtualVertex
+  let ogBackground = "rgb(205, 205, 205)"
+  this.state = { x: 0, y: 0, width: 140, height: 20, text: this.vvt.name, backgroundColor: "rgb(205, 205, 205)" }
+  // render into... 
+  let cont = $('<div>').get(0)
+  $($('.plane').get(0)).append(cont)
+  // we also have uuid, 
+  this.uuid = window.nd.getNewElementUUID()
+  // have a template, 
+  let template = (self) => html`
+  <div class="ddlrElement gvtVertex" id="${self.uuid}"
+    style = "width: ${self.state.width}px; height: ${self.state.height}px; padding: ${padding}px;
+    transform: scale(1); left: ${self.state.x}px; top: ${self.state.y}px;
+    background-color:${self.state.backgroundColor}">
+    ${self.state.text}
+  </div>
+  `
+  // utes,
+  this.setBackgroundColor = (color) => {
+    if (color) {
+      this.state.backgroundColor = color
+    } else {
+      this.state.backgroundColor = ogBackground
+    }
+    this.render()
+  }
+  this.setText = (text) => {
+    this.state.text = text 
+    this.render() 
+  }
+  // render call, 
+  this.render = () => {
+    render(template(this), cont)
+  }
+  // can rm thing,
+  this.delete = () => {
+    $(cont).remove()
+  }
+  // we get added to global list,
+  window.nd.gvts.push(this)
+}
+
+function GraphicalVPort(virtualVertex) {
   // everything has its 
   this.vvt = virtualVertex
   // and some state,
@@ -80,7 +145,7 @@ function GraphicalChild(virtualVertex) {
   this.uuid = window.nd.getNewElementUUID()
   // have a template, 
   let template = (self) => html`
-  <div class="ddlrElement gvtChild" id="${self.uuid}"
+  <div class="ddlrElement gvtVPort" id="${self.uuid}"
     style = "width: ${self.state.width}px; height: ${self.state.height}px; padding: ${padding}px;
     transform: scale(1); left: ${self.state.x}px; top: ${self.state.y}px;
     background-color:${self.state.backgroundColor}">
@@ -103,6 +168,56 @@ function GraphicalChild(virtualVertex) {
       // and put that pipe into the friend-pipes-list as well, so it will rerender on their move... 
       this.vvt.reciprocal.gvt.pipes.push(pipe)
     }
+  }
+  // utes,
+  this.setBackgroundColor = (color) => {
+    if (color) {
+      this.state.backgroundColor = color
+    } else {
+      this.state.backgroundColor = ogBackground
+    }
+    this.render()
+  }
+  // render call, 
+  this.render = () => {
+    render(template(this), cont)
+    for (let pipe of this.pipes) {
+      pipe.render()
+    }
+  }
+  // can rm thing,
+  this.delete = () => {
+    $(cont).remove()
+    for (let pipe of this.pipes) { pipe.delete() }
+  }
+  // we get added to global list,
+  window.nd.gvts.push(this)
+}
+
+function GraphicalEndpoint(virtualVertex){
+  // everything has its 
+  this.vvt = virtualVertex
+  // and some state,
+  let ogBackground = "rgb(205, 205, 205)"
+  this.state = { x: 0, y: 0, width: 140, height: 20, backgroundColor: ogBackground }
+  // render into... 
+  let cont = $('<div>').get(0)
+  $($('.plane').get(0)).append(cont)
+  // we also have uuid, 
+  this.uuid = window.nd.getNewElementUUID()
+  // have a template, 
+  let template = (self) => html`
+  <div class="ddlrElement gvtEndpoint" id="${self.uuid}"
+    style = "width: ${self.state.width}px; height: ${self.state.height}px; padding: ${padding}px;
+    transform: scale(1); left: ${self.state.x}px; top: ${self.state.y}px;
+    background-color:${self.state.backgroundColor}">
+    ${self.vvt.name}
+  </div>
+  `
+  // find our partners... 
+  this.pipes = []
+  this.linkSetup = () => {
+    // would do routes check here... 
   }
   // utes,
   this.setBackgroundColor = (color) => {
@@ -174,4 +289,4 @@ function GraphicalPipe(headGvt, tailGvt) {
 }
 
 
-export { GraphicalContext, GraphicalChild, GraphicalPipe }
+export { GraphicalContext, GraphicalVertex, checkGvtOverlap }

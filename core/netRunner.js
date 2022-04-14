@@ -58,7 +58,7 @@ export default function NetRunner(osap) {
         for (let c of parent.children) {
           if(!c){
             notDone = true 
-            console.warn(checkTime, parent.children)
+            // console.warn(checkTime, parent.children)
             return
           }
           c.lastCheckTime = checkTime
@@ -259,5 +259,12 @@ export default function NetRunner(osap) {
     }
     if (!spliced) { console.error(`on ping response, no ID awaiting... ${pingId}`); PK.logPacket(item.data) }
     item.handled()
+  }
+
+  // tool to add routes... head & tail should be vvts in the same graph, we want to search betwixt, 
+  this.buildRoute = (head, tail) => {
+    return new Promise((resolve, reject) => {
+      reject('no such fn yet')
+    })
   }
 }

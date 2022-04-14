@@ -17,7 +17,7 @@ no warranty is provided, and users accept all liability.
 import DT from '../interface/domTools.js'
 import { Button, TextBlock } from '../interface/basics.js'
 import { VT, TIMES } from '../../core/ts.js'
-import { GraphicalContext, GraphicalPipe } from './graphicalElements.js';
+import { GraphicalContext, GraphicalVertex, checkGvtOverlap } from './graphicalElements.js';
 
 // get sameness based on route uniqueness 
 let routeMatch = (ra, rb) => {
@@ -30,8 +30,8 @@ let routeMatch = (ra, rb) => {
 
 // get dom:gvt match
 let getGvtByUUID = (uuid) => {
-  for (let cand of window.nd.gvts){
-    if(cand.uuid == parseInt(uuid)){
+  for (let cand of window.nd.gvts) {
+    if (cand.uuid == parseInt(uuid)) {
       return cand
     }
   }
@@ -42,9 +42,9 @@ let getGvtByUUID = (uuid) => {
 window.addEventListener('mousedown', (evt) => {
   //console.log(evt.target)
   // it's us? 
-  if (!($(evt.target).is('.gvtRoot'))) {
+  if (!($(evt.target).is('.gvtRoot') || $(evt.target).is('.gvtEndpoint'))) {
     return;
-  } 
+  }
   // see if we can't get the gvx... 
   let id = $(evt.target).attr('id')
   // can we find it ?
@@ -52,36 +52,114 @@ window.addEventListener('mousedown', (evt) => {
   if (!gvt) { console.warn('no gvt found on drag'); return }
   // gottem 
   evt.preventDefault(); evt.stopPropagation();
+  // want these in any case, 
   let ogmx = evt.clientX; let ogmy = evt.clientY;
   let oggx = gvt.state.x; let oggy = gvt.state.y;
-  // if state transition OK, set drag... 
-  if (window.nd.stateTransition('dragging')) {
-    // set drag handler, 
-    DT.dragTool((drag) => {
-      let delx = drag.clientX - ogmx; let dely = drag.clientY - ogmy;
-      gvt.state.x = oggx + delx; gvt.state.y = oggy + dely;
+  let scale = DT.readTransform($('.plane').get(0)).s
+  // do drag-or-endpoint, 
+  if (gvt.vvt.type == VT.ROOT) {
+    // if state transition OK, set drag... 
+    if (window.nd.stateTransition('dragging')) {
+      // set drag handler, 
+      DT.dragTool((drag) => {
+        let delx = (drag.clientX - ogmx) / scale; let dely = (drag.clientY - ogmy) / scale;
+        gvt.state.x = oggx + delx; gvt.state.y = oggy + dely;
+        gvt.render()
+      }, (up) => { window.nd.stateTransition('idle') })
+    } else {
+      return
+    }
+  } else if (gvt.vvt.type == VT.ENDPOINT) {
+    console.log('endpoint down')
+    if (window.nd.stateTransition('dragging')) {
+      // set og gvt to new color, 
+      gvt.setBackgroundColor("rgb(200, 200, 250)")
       gvt.render()
-    }, (up) => { window.nd.stateTransition('idle') })
-  } else {
-    return
+      // splash one new blerk, 
+      let tempGvt = new GraphicalVertex({ name: "<type>" })
+      tempGvt.state.x = oggx; tempGvt.state.y = oggy
+      tempGvt.state.backgroundColor = "rgb(150, 150, 200)"
+      tempGvt.state.width = 100; tempGvt.state.height = 15;
+      tempGvt.render()
+      let lastCand = null 
+      // setup for drags / overlap checks, 
+      let delx = 0, dely = 0 // xy move deltas,
+      DT.dragTool((drag) => {
+        // rerender floater, 
+        delx = (drag.clientX - ogmx) / scale; dely = (drag.clientY - ogmy) / scale;
+        tempGvt.state.x = oggx + delx; tempGvt.state.y = oggy + dely;
+        tempGvt.render()
+        // check if floater is within bounds of any other endpoints... is this overkill? it's unclear
+        let pos = { x: tempGvt.state.x, y: tempGvt.state.y }
+        // rerender old...
+        if(lastCand){
+          lastCand.setBackgroundColor(); 
+          lastCand.render()
+          lastCand = null 
+        }
+        for (let cand of window.nd.gvts) {
+          if (!cand.vvt) continue;
+          if (cand.vvt.type != VT.ENDPOINT) continue;
+          if (cand == gvt) continue;
+          if(checkGvtOverlap(tempGvt, cand)){
+            cand.setBackgroundColor("rgb(200, 200, 250")
+            cand.render()
+            lastCand = cand 
+            return
+          }
+        }
+      }, (up) => {
+        window.nd.stateTransition('idle')
+        if(lastCand){
+          console.log(lastCand) 
+          console.log('conn', gvt.vvt.route, lastCand.vvt.route)
+        }
+        // reset dom stuff, 
+        lastCand.setBackgroundColor()
+        gvt.setBackgroundColor()
+        // floater should go...
+        tempGvt.setText("req route...")
+        tempGvt.setBackgroundColor("rgb(250, 200, 200)")
+        let rmFloater = () => {
+          // rm floater, 
+          let indice = window.nd.gvts.findIndex((cand) => { return cand == tempGvt})
+          if(indice){
+            console.error(`couldn't find floater gvt to remove`)
+          } else {
+            tempGvt.remove()
+            window.nd.gvts.splice(indice, 1)
+          }
+        }
+        // now we would await the route setup... 
+        osap.netRunner.addRoute(head, tail).then(() => {
+          console.warn('gr8 success')
+          rmFloater()
+        }).catch((err) => {
+          console.error(err)
+          rmFloater()
+        })
+      })
+    } else {
+      return
+    }
   }
 })
 
 // try hover listeners, we have to re-register these after each render, wherp 
 let registerHandlers = () => {
   // hover listener, 
-  $('.gvtChild').hover((enter) => {
+  $('.gvtVPort').hover((enter) => {
     //console.warn('hov')
     let gvt = getGvtByUUID($(enter.target).attr('id'))
-    if (!gvt) { console.error('no gvt on gvtChild hover entrance'); return }
-    if(gvt.vvt.reciprocal && gvt.vvt.reciprocal.type != "unreachable"){
+    if (!gvt) { console.error('no gvt on gvtVPort hover entrance'); return }
+    if (gvt.vvt.reciprocal && gvt.vvt.reciprocal.type != "unreachable") {
       gvt.setBackgroundColor(`rgb(180, 180, 180)`)
       gvt.vvt.reciprocal.gvt.setBackgroundColor(`rgb(180, 180, 180)`)
     }
   }, (exit) => {
     let gvt = getGvtByUUID($(exit.target).attr('id'))
-    if (!gvt) { console.error('no gvt on gvtChild hover exit'); return }
-    if(gvt.vvt.reciprocal && gvt.vvt.reciprocal.type != "unreachable"){
+    if (!gvt) { console.error('no gvt on gvtVPort hover exit'); return }
+    if (gvt.vvt.reciprocal && gvt.vvt.reciprocal.type != "unreachable") {
       gvt.setBackgroundColor()
       gvt.vvt.reciprocal.gvt.setBackgroundColor()
     }
@@ -153,9 +231,9 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
         simulation.stop();
         writeState("dragging");
         return true;
-      } else if (this.state == "idle" && target == "drawing"){
+      } else if (this.state == "idle" && target == "drawing") {
         // seems bad, 
-        return false; 
+        return false;
       } else if ((this.state == "idle" || this.state == "scanning") && target == "dragging") {
         writeState("dragging")
         return true
@@ -184,14 +262,14 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
   // there is a map between simulation posns and drawing posns, since 
   // we can't move spawn origin for d3 sim, ffs, https://observablehq.com/@d3/force-layout-phyllotaxis 
   let simOffset = 500
-  this.gvts = [] 
+  this.gvts = []
   // first we want to diff the graph, and get a copy of it in node:links form, for D3 
   // we get a new graph every redraw call, but have an existing copy... 
   this.redraw = async (graph) => {
     // position state is the only thing to maintain, everything else gets wiped 
-    let posns = [] 
-    for(let gvt of this.gvts){
-      if(gvt.vvt && gvt.vvt.type == VT.ROOT){
+    let posns = []
+    for (let gvt of this.gvts) {
+      if (gvt.vvt && gvt.vvt.type == VT.ROOT) {
         posns.push({
           route: gvt.vvt.route,
           x: gvt.state.x,
@@ -200,7 +278,7 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
       }
     }
     // rm old gvts, 
-    for(let gvt of this.gvts){
+    for (let gvt of this.gvts) {
       gvt.delete()
     }
     this.gvts = []
@@ -229,7 +307,7 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
           node.fx = pos.x - simOffset
           node.fy = pos.y - simOffset
           break;
-        } 
+        }
       }
       // add link if it exists 
       if (partner) links.push({ source: partner, target: node })
@@ -242,14 +320,14 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
       }
     }
     // kick it w/ root as root... 
-    try{
+    try {
       contextRecursor(graph)
     } catch (err) {
       console.error(err)
     }
     // now we have a fresh set of gvts, for which we want to run, 
-    for(let gvt of this.gvts){
-      if(gvt.linkSetup) gvt.linkSetup()
+    for (let gvt of this.gvts) {
+      if (gvt.linkSetup) gvt.linkSetup()
     }
     // stuff 1st node to 0,0 if it's new
     if (nodes[0] && !nodes[0].fx) {
