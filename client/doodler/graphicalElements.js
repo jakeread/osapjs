@@ -218,7 +218,9 @@ function GraphicalEndpoint(virtualVertex){
   this.pipes = []
   this.linkSetup = () => {
     for(let route of this.vvt.routes){
-      console.log('drawing...', route)
+      let pathElements = window.osap.netRunner.routeWalk(route, this.vvt)
+      console.log('drawing thru...', pathElements)
+      // I guess we would want to see if we have 
     }
   }
   // utes,

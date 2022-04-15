@@ -24,7 +24,7 @@ export default function NetRunner(osap) {
   let gs;
   let ccTimer = null
   let onCompletedSweep = null
-  let scanStartTime = 0 
+  let scanStartTime = 0
   let allVPorts = []
 
   let requestCompletionCheck = () => {
@@ -56,8 +56,8 @@ export default function NetRunner(osap) {
           }
         }
         for (let c of parent.children) {
-          if(!c){
-            notDone = true 
+          if (!c) {
+            notDone = true
             // console.warn(checkTime, parent.children)
             return
           }
@@ -101,11 +101,11 @@ export default function NetRunner(osap) {
     try {
       // collect vport on the other side of this one:
       vport.reciprocal = await this.scope(PK.route(vport.route, true).pfwd().end(256, true), frontierScanTime)
-      if(vport.reciprocal.previousTimeTag > scanStartTime){ 
+      if (vport.reciprocal.previousTimeTag > scanStartTime) {
         if (LOG_NETRUNNER) console.warn("lp here")
-        for(let p of allVPorts){
+        for (let p of allVPorts) {
           if (LOG_NETRUNNER) console.log(`${p.name}, ${p.timeTag}, ${vport.reciprocal.previousTimeTag}`)
-          if(p.timeTag == vport.reciprocal.previousTimeTag){
+          if (p.timeTag == vport.reciprocal.previousTimeTag) {
             // we have it's parent, likely, let's see if we can hook:
             if (LOG_NETRUNNER) console.warn(`hooking lp to ${vport.reciprocal.indice}`)
             vport.reciprocal = p.parent.indice[vport.reciprocal.indice]
@@ -160,7 +160,7 @@ export default function NetRunner(osap) {
     scanStartTime = TIMES.getTimeStamp()
     // this is lazy, but I keep a set list of nodes as well:
     // we should only add to this list when a parent is complete / all children have been added 
-    allVPorts = [] 
+    allVPorts = []
     return new Promise(async (resolve, reject) => {
       try {
         let root = await this.scope(PK.route().end(256, true), scanStartTime)
@@ -259,6 +259,43 @@ export default function NetRunner(osap) {
     }
     if (!spliced) { console.error(`on ping response, no ID awaiting... ${pingId}`); PK.logPacket(item.data) }
     item.handled()
+  }
+
+  // walks routes along a virtual graph, returning a list of stops, 
+  this.routeWalk = (route, source) => {
+    console.log('walking', route, 'from', source)
+    if (route[0] != PK.PTR) {
+      console.error("currently assuming all routes to walk have ptr in head")
+      return
+    }
+    let ptr = 1, indice = 0, vvt = source, list = []
+    // append vvt to head of list, or no? no 
+    for (let s = 0; s < 16; s++) {
+      switch (route[ptr]) {
+        case PK.SIB.KEY:
+          indice = TS.read('uint16', route, ptr + 1)
+          // do we have it ? 
+          if (vvt.parent && vvt.parent.children[indice]) {
+            vvt = vvt.parent.children[indice]
+            list.push(vvt)
+            ptr += PK.SIB.INC
+            break
+          } else {
+            return { path: list, state: 'incomplete', reason: 'missing sib' }
+          }
+        case PK.PFWD.KEY:
+          if (vvt.reciprocal && vvt.reciprocal.type != "unreachable") {
+            vvt = vvt.reciprocal
+            list.push(vvt)
+            ptr += PK.PFWD.INC
+            break
+          } else {
+            return { path: list, state: 'incomplete', reason: 'nonconn vport' }
+          }
+        default:
+          return { path: list, state: 'incomplete', reason: 'default switch' }
+      }
+    }
   }
 
   // tool to add routes... head & tail should be vvts in the same graph, we want to search betwixt, 
