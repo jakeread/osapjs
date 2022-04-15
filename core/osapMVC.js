@@ -38,12 +38,13 @@ export default function OMVC(osap){
       }
     }// end context recursor, 
     contextRecursor(graph) 
-    console.warn(`found ${eps.length} endpoints`, eps)
     return new Promise(async (resolve, reject) => {
       try {
         for(let ep of eps){
           let routes = await this.getEndpointRoutes(ep.route)
-          console.log('got', routes)
+          console.warn(`for ${ep.name}, retrieved`, routes)
+          // attach those to the vvt, pretty simple, right ? 
+          ep.routes = routes 
         }
         resolve(graph)
       } catch (err) {
@@ -61,14 +62,33 @@ export default function OMVC(osap){
   }
   let routeReqsAwaiting = []
   // get route at x indice, 
-  this.getEndpointRoutes = (route) => {
-    return this.getEndpointRoute(route, 0)
+  this.getEndpointRoutes = async (route) => {
+    // alright, do it in a loop until they return an empty array, 
+    // also... endpoint route objects, should *not* return the trailing three digits (?) 
+    // or should ? the vvt .route object doesn't, 
+    try {
+      let indice = 0, routes = [] 
+      while(true){
+        let epRoute = await this.getEndpointRoute(route, indice)
+        if(epRoute.length > 0){
+          routes[indice] = epRoute 
+          indice ++ 
+        } else {
+          break
+        } 
+      } // end while 
+      return routes 
+    } catch (err) {
+      // pass it up... 
+      console.error(err)
+      throw(err) 
+    }
   }
   // gets route info for one endpoint,
   this.getEndpointRoute = async (route, indice) => {
     // wait for clear space, 
     await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
-    console.warn('querying to ep at route', route)
+    // console.warn('querying to ep at route', route)
     // write a message, here the route doesn't have any tail, so we add
     // + 3 for DEST:1, Segsize:2 
     // + 3 for ROUTEREQ:1, MSGID:1, <Indice> 

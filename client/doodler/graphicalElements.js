@@ -217,7 +217,9 @@ function GraphicalEndpoint(virtualVertex){
   // find our partners... 
   this.pipes = []
   this.linkSetup = () => {
-    // would do routes check here... 
+    for(let route of this.vvt.routes){
+      console.log('drawing...', route)
+    }
   }
   // utes,
   this.setBackgroundColor = (color) => {

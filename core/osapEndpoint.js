@@ -146,12 +146,20 @@ export default class Endpoint extends Vertex {
           // let's see about our route... it should be at 
           let rqid = data[ptr + 1]
           let indice = data[ptr + 2]
-          console.log(`retrieve route at indice ${indice} w/ qid ${rqid}`)
+          //console.log(`retrieve route at indice ${indice} w/ qid ${rqid}`)
           let respRoute = reverseRoute(data)
           if(this.routes[indice]){
             let route = this.routes[indice]
-            console.log('has route', route)
-            let repl = new Uint8Array(respRoute.length)
+            //console.log('has route', route)
+            // header len... + route len less 3 (no dest & segsize...), + 3 for 
+            // RQRESP, RQID, LEN
+            let repl = new Uint8Array(respRoute.length + route.length - 3 + 3)
+            repl.set(respRoute, 0)
+            repl[respRoute.length] = EP.ROUTE_RESP 
+            repl[respRoute.length + 1] = rqid 
+            repl[respRoute.length + 2] = route.length - 3 
+            repl.set(route.slice(0, -3), respRoute.length + 3)
+            this.handle(repl, VT.STACK_ORIGIN)
           } else {
             // + 3 RQRESP, RQID, LEN 
             let repl = new Uint8Array(respRoute.length + 3)
