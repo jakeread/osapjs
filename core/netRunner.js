@@ -269,7 +269,8 @@ export default function NetRunner(osap) {
       return
     }
     let ptr = 1, indice = 0, vvt = source, list = []
-    // append vvt to head of list, or no? no 
+    // append vvt to head of list, or no? yah, should do 
+    list.push(vvt)
     for (let s = 0; s < 16; s++) {
       switch (route[ptr]) {
         case PK.SIB.KEY:

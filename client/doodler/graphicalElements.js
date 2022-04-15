@@ -163,7 +163,7 @@ function GraphicalVPort(virtualVertex) {
         }
       }
       // if no existing hookup, we are the head... 
-      let pipe = new GraphicalPipe(this, this.vvt.reciprocal.gvt)
+      let pipe = new GraphicalPipe([this, this.vvt.reciprocal.gvt])
       this.pipes.push(pipe)
       // and put that pipe into the friend-pipes-list as well, so it will rerender on their move... 
       this.vvt.reciprocal.gvt.pipes.push(pipe)
@@ -218,9 +218,22 @@ function GraphicalEndpoint(virtualVertex){
   this.pipes = []
   this.linkSetup = () => {
     for(let route of this.vvt.routes){
-      let pathElements = window.osap.netRunner.routeWalk(route, this.vvt)
-      console.log('drawing thru...', pathElements)
-      // I guess we would want to see if we have 
+      let walk = window.osap.netRunner.routeWalk(route, this.vvt)
+      try {
+        walk.path = walk.path.map(x => x.gvt)
+      } catch (err){
+        console.error("bad map from vvt to gvts for path drawing")
+        console.error(err)
+      }
+      console.log('drawing thru...', walk)
+      // init new, 
+      let pipe = new GraphicalPipe(walk.path)
+      pipe.state.color = "rgb(200, 200, 250)"
+      // add to all elements, 
+      for(let gvt of walk.path){
+        gvt.pipes.push(pipe)
+      }
+      // then... should add to other elements as well, for the drag, 
     }
   }
   // utes,
@@ -248,16 +261,17 @@ function GraphicalEndpoint(virtualVertex){
   window.nd.gvts.push(this)
 }
 
-// head and tail virtual vertices...
-// we shouldn't need to use their graphical vertex properties until we render, so 
-function GraphicalPipe(headGvt, tailGvt) {
+// having a list of virtual vertices to pass through... each item in path should be a gvt, 
+function GraphicalPipe(path) {
   // kinda hackney all-consuming SVG canvas, 
   let cont = $('<div style="position:absolute; z-index:0; overflow:visible;"></div>').get(0)
   $($('.plane').get(0)).append(cont)
   // we track... head gvt and tail gt 
-  this.head = headGvt
-  this.tail = tailGvt
-  this.state = {} // we don't really have any of our own state, do we 
+  this.head = path[0]
+  this.tail = path[path.length - 1]
+  this.midpts = path.slice(1, -1)
+  console.log('midpts', this.midpts)
+  this.state = { color: "rgb(150,200,150)", strokeWidth: 5 } // color, etc 
   let template = (self) => {
     let headMid = getCenter(self.head); let tailMid = getCenter(self.tail)
     let head = {}, tail = {} 
@@ -273,11 +287,13 @@ function GraphicalPipe(headGvt, tailGvt) {
       <path d="
         M ${head.x} ${head.y} C 
         ${head.x + 100} ${head.y} 
+        ${self.midpts.map((mid, ind) => `${getRightEdge(mid).x} ${getRightEdge(mid).y}`)}
+        ${self.midpts.map((mid, ind) => `${getRightEdge(mid).x + 100} ${getRightEdge(mid).y} S`)}
         ${tail.x - 100} ${tail.y}
         ${tail.x} ${tail.y}"
-        stroke="rgb(150,200,150)" fill="none" stroke-width="5"></path>
-      <circle r="5" cx="${head.x}" cy="${head.y}" fill="rgb(150,200,150)"></circle>
-      <circle r="5" cx="${tail.x}" cy="${tail.y}" fill="rgb(150,200,150)"></circle>
+        stroke="${self.state.color}" fill="none" stroke-width="${self.state.strokeWidth}"></path>
+      <circle r="5" cx="${head.x}" cy="${head.y}" fill="${self.state.color}"></circle>
+      <circle r="5" cx="${tail.x}" cy="${tail.y}" fill="${self.state.color}"></circle>
       </g>
     </svg>
     `
