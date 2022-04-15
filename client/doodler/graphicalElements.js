@@ -228,12 +228,15 @@ function GraphicalEndpoint(virtualVertex){
       console.log('drawing thru...', walk)
       // init new, 
       let pipe = new GraphicalPipe(walk.path)
-      pipe.state.color = "rgb(200, 200, 250)"
-      // add to all elements, 
-      for(let gvt of walk.path){
-        gvt.pipes.push(pipe)
+      // add to us & them... 
+      this.pipes.push(pipe)
+      walk.path[walk.path.length - 1].pipes.push(pipe)
+      // color for errors... 
+      if(walk.state == "complete"){        
+        pipe.state.color = "rgb(200, 200, 250)"
+      } else {
+        pipe.state.color = "rgb(250, 200, 200)"
       }
-      // then... should add to other elements as well, for the drag, 
     }
   }
   // utes,
@@ -270,7 +273,6 @@ function GraphicalPipe(path) {
   this.head = path[0]
   this.tail = path[path.length - 1]
   this.midpts = path.slice(1, -1)
-  console.log('midpts', this.midpts)
   this.state = { color: "rgb(150,200,150)", strokeWidth: 5 } // color, etc 
   let template = (self) => {
     let headMid = getCenter(self.head); let tailMid = getCenter(self.tail)
@@ -287,8 +289,6 @@ function GraphicalPipe(path) {
       <path d="
         M ${head.x} ${head.y} C 
         ${head.x + 100} ${head.y} 
-        ${self.midpts.map((mid, ind) => `${getRightEdge(mid).x} ${getRightEdge(mid).y}`)}
-        ${self.midpts.map((mid, ind) => `${getRightEdge(mid).x + 100} ${getRightEdge(mid).y} S`)}
         ${tail.x - 100} ${tail.y}
         ${tail.x} ${tail.y}"
         stroke="${self.state.color}" fill="none" stroke-width="${self.state.strokeWidth}"></path>

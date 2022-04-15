@@ -272,6 +272,9 @@ export default function NetRunner(osap) {
     // append vvt to head of list, or no? yah, should do 
     list.push(vvt)
     for (let s = 0; s < 16; s++) {
+      if(ptr >= route.length){
+        return { path: list, state: 'complete' }
+      }
       switch (route[ptr]) {
         case PK.SIB.KEY:
           indice = TS.read('uint16', route, ptr + 1)
