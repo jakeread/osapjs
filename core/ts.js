@@ -149,7 +149,9 @@ let EP = {
   SS_ACKLESS: 121,  // ackless transmit 
   SS_ACKED: 122,    // transmit requests ack 
   QUERY: 131,       // query for current data 
-  QUERY_RESP: 132   // query response 
+  QUERY_RESP: 132,  // query response 
+  ROUTE_QUERY: 141, // request route list 
+  ROUTE_RESP: 142   // route list, 
 }
 
 let EPMSEG = {

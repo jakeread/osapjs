@@ -70,7 +70,6 @@ window.addEventListener('mousedown', (evt) => {
       return
     }
   } else if (gvt.vvt.type == VT.ENDPOINT) {
-    console.log('endpoint down')
     if (window.nd.stateTransition('dragging')) {
       // set og gvt to new color, 
       gvt.setBackgroundColor("rgb(200, 200, 250)")
@@ -81,7 +80,7 @@ window.addEventListener('mousedown', (evt) => {
       tempGvt.state.backgroundColor = "rgb(150, 150, 200)"
       tempGvt.state.width = 100; tempGvt.state.height = 15;
       tempGvt.render()
-      let lastCand = null 
+      let lastCand = null
       // setup for drags / overlap checks, 
       let delx = 0, dely = 0 // xy move deltas,
       DT.dragTool((drag) => {
@@ -92,27 +91,26 @@ window.addEventListener('mousedown', (evt) => {
         // check if floater is within bounds of any other endpoints... is this overkill? it's unclear
         let pos = { x: tempGvt.state.x, y: tempGvt.state.y }
         // rerender old...
-        if(lastCand){
-          lastCand.setBackgroundColor(); 
+        if (lastCand) {
+          lastCand.setBackgroundColor();
           lastCand.render()
-          lastCand = null 
+          lastCand = null
         }
         for (let cand of window.nd.gvts) {
           if (!cand.vvt) continue;
           if (cand.vvt.type != VT.ENDPOINT) continue;
           if (cand == gvt) continue;
-          if(checkGvtOverlap(tempGvt, cand)){
+          if (checkGvtOverlap(tempGvt, cand)) {
             cand.setBackgroundColor("rgb(200, 200, 250")
             cand.render()
-            lastCand = cand 
+            lastCand = cand
             return
           }
         }
       }, (up) => {
         window.nd.stateTransition('idle')
-        if(lastCand){
-          console.log(lastCand) 
-          console.log('conn', gvt.vvt.route, lastCand.vvt.route)
+        if (lastCand) {
+          console.warn('connect...', gvt.vvt.route, lastCand.vvt.route)
         }
         // reset dom stuff, 
         lastCand.setBackgroundColor()
@@ -122,15 +120,18 @@ window.addEventListener('mousedown', (evt) => {
         tempGvt.setBackgroundColor("rgb(250, 200, 200)")
         let rmFloater = () => {
           // rm floater, 
-          let indice = window.nd.gvts.findIndex((cand) => { return cand == tempGvt})
-          if(indice){
+          let indice = window.nd.gvts.findIndex((cand) => { return cand.uuid == tempGvt.uuid })
+          if (!indice) {
             console.error(`couldn't find floater gvt to remove`)
           } else {
-            tempGvt.remove()
+            tempGvt.delete()
             window.nd.gvts.splice(indice, 1)
           }
         }
-        // now we would await the route setup... 
+        // would do the below, instead we do do 
+        rmFloater()
+        return 
+        // now we would await the route setup...
         osap.netRunner.addRoute(head, tail).then(() => {
           console.warn('gr8 success')
           rmFloater()
@@ -206,6 +207,8 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
       if (this.state == "idle" && target == "scanning") {
         writeState("scanning")
         osap.netRunner.sweep().then((net) => {
+          return osap.mvc.fillRouteData(net)
+        }).then((net) => {
           this.stateTransition("drawing", net)
         }).catch((err) => {
           console.error(err)

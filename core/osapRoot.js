@@ -23,6 +23,7 @@ import Query from './osapQuery.js'
 import QueryMSeg from './osapQueryMSeg.js'
 import { osapLoop } from './osapLoop.js'
 import NetRunner from './netRunner.js'
+import OMVC from './osapMVC.js'
 
 // root is also a vertex, yah 
 export default class OSAP extends Vertex {
@@ -98,6 +99,10 @@ export default class OSAP extends Vertex {
 
   // graph search tool;
   netRunner = new NetRunner(this)
+  // mvc tool, 
+  mvc = new OMVC(this)
+  // we ship MVC msgs from the root node, so their responses arrive here... 
+  destHandler = this.mvc.destHandler
   // root will want responses to scope queries, so 
   scopeResponseHandler = this.netRunner.scopeResponseHandler
 

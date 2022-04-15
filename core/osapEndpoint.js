@@ -37,7 +37,7 @@ export default class Endpoint extends Vertex {
 
   // has outgoing routes, 
   addRoute = function (route) {
-    //console.log(`adding route to ep ${this.indice}`, route)
+    console.log(`adding route to ep ${this.indice}`, route)
     if (this.maxStackLength <= this.routes.length) {
       console.warn('increasing stack space to match count of routes')
       this.maxStackLength++
@@ -136,20 +136,44 @@ export default class Endpoint extends Vertex {
           repl[route.length] = EP.QUERY_RESP;
           repl[route.length + 1] = data[ptr + 1];
           repl.set(this.data, route.length + 2)
-          this.handle(repl, 0)
+          this.handle(repl, VT.STACK_ORIGIN)
           return true
         } else {
           return false
         }
+      case EP.ROUTE_QUERY:
+        if (this.stackAvailableSpace(VT.STACK_ORIGIN)) {
+          // let's see about our route... it should be at 
+          let rqid = data[ptr + 1]
+          let indice = data[ptr + 2]
+          console.log(`retrieve route at indice ${indice} w/ qid ${rqid}`)
+          let respRoute = reverseRoute(data)
+          if(this.routes[indice]){
+            let route = this.routes[indice]
+            console.log('has route', route)
+            let repl = new Uint8Array(respRoute.length)
+          } else {
+            // + 3 RQRESP, RQID, LEN 
+            let repl = new Uint8Array(respRoute.length + 3)
+            repl.set(respRoute, 0)
+            repl[respRoute.length] = EP.ROUTE_RESP 
+            repl[respRoute.length + 1] = rqid 
+            repl[respRoute.length + 2] = 0 // for len-of-route here... 
+            this.handle(repl, VT.STACK_ORIGIN)
+          }
+          return true 
+        } else {
+          return false // 'true' from dest handler clears msg, 'false' waits it one cycle 
+        }
       case EP.QUERY_RESP:
         // query response, 
         console.error('query resp to endpoint, should go to root')
-        resolve()
+        return true
         break;
       default:
         // not recognized: resolving here will cause pck to clear above 
         console.error(`nonrec endpoint key at ep ${this.indice}`)
-        resolve()
+        return true
     }
   }
 
