@@ -80,6 +80,17 @@ window.addEventListener('mousedown', (evt) => {
       tempGvt.state.backgroundColor = "rgb(150, 150, 200)"
       tempGvt.state.width = 100; tempGvt.state.height = 15;
       tempGvt.render()
+      // we'll want to rm this thing...
+      let rmFloater = () => {
+        // rm floater, 
+        let indice = window.nd.gvts.findIndex((cand) => { return cand.uuid == tempGvt.uuid })
+        if (!indice) {
+          console.error(`couldn't find floater gvt to remove`)
+        } else {
+          tempGvt.delete()
+          window.nd.gvts.splice(indice, 1)
+        }
+      }
       let lastCand = null
       // setup for drags / overlap checks, 
       let delx = 0, dely = 0 // xy move deltas,
@@ -110,35 +121,35 @@ window.addEventListener('mousedown', (evt) => {
       }, (up) => {
         window.nd.stateTransition('idle')
         if (lastCand) {
-          console.warn('connect...', gvt.vvt.route, lastCand.vvt.route)
+          let route = window.osap.netRunner.findRoute(gvt.vvt, lastCand.vvt)
+          if(!route){
+            console.error(`bad route traversal ${gvt.vvt.name} -> ${lastCand.vvt.name}`)
+          } else {
+            tempGvt.setText('req route...')
+            window.osap.mvc.setEndpointRoute(gvt.vvt.route, route).then(() => {
+              tempGvt.setText('success...')
+              // trigger a scan now, if we can, 
+              window.nd.stateTransition("scanning")
+              tempGvt.setBackgroundColor("rgb(200, 250, 200)")
+              setTimeout(() => {
+                rmFloater()
+              }, 250)
+            }).catch((err) => {
+              tempGvt.setText('err...')
+              tempGvt.setBackgroundColor("rgb(250, 200, 200)")
+              console.error(err)
+              setTimeout(() => {
+                rmFloater()
+              }, 250)
+            })
+          } // end lift-with-route, 
         }
         // reset dom stuff, 
         lastCand.setBackgroundColor()
         gvt.setBackgroundColor()
         // floater should go...
-        tempGvt.setText("req route...")
         tempGvt.setBackgroundColor("rgb(250, 200, 200)")
-        let rmFloater = () => {
-          // rm floater, 
-          let indice = window.nd.gvts.findIndex((cand) => { return cand.uuid == tempGvt.uuid })
-          if (!indice) {
-            console.error(`couldn't find floater gvt to remove`)
-          } else {
-            tempGvt.delete()
-            window.nd.gvts.splice(indice, 1)
-          }
-        }
-        // would do the below, instead we do do 
-        rmFloater()
         return 
-        // now we would await the route setup...
-        osap.netRunner.addRoute(head, tail).then(() => {
-          console.warn('gr8 success')
-          rmFloater()
-        }).catch((err) => {
-          console.error(err)
-          rmFloater()
-        })
       })
     } else {
       return

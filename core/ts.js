@@ -113,6 +113,7 @@ PK.route = (existing, scope = false) => {
   }
   return {
     sib: function(indice) {
+      indice = parseInt(indice)
       path = path.concat([PK.SIB.KEY, indice & 255, (indice >> 8) & 255])
       return this 
     },
@@ -121,6 +122,7 @@ PK.route = (existing, scope = false) => {
       return this 
     },
     child: function(indice) {
+      indice = parseInt(indice)
       path = path.concat([PK.CHILD.KEY, indice & 255, (indice >> 8) & 255])
       return this
     },
@@ -129,10 +131,12 @@ PK.route = (existing, scope = false) => {
       return this 
     },
     bfwd: function(indice){
+      indice = parseInt(indice)
       path = path.concat([PK.BFWD.KEY, indice & 255, (indice >> 8) & 255])
       return this 
     },
     end: function(segsize = 512, scope = false) {
+      segsize = parseInt(segsize)
       if(!scope){ // most packets go to 'dest' - and include the route segsize 
         path = path.concat([PK.DEST, segsize & 255, (segsize >> 8) & 255])
         return path   
@@ -151,7 +155,9 @@ let EP = {
   QUERY: 131,       // query for current data 
   QUERY_RESP: 132,  // query response 
   ROUTE_QUERY: 141, // request route list 
-  ROUTE_RESP: 142   // route list, 
+  ROUTE_RESP: 142,  // route list, 
+  ROUTE_SET: 143,    // req-to-add-route 
+  ROUTE_SET_RESP: 144,
 }
 
 let EPMSEG = {

@@ -263,7 +263,7 @@ export default function NetRunner(osap) {
 
   // walks routes along a virtual graph, returning a list of stops, 
   this.routeWalk = (route, source) => {
-    console.log('walking', route, 'from', source)
+    //console.log('walking', route, 'from', source)
     if (route[0] != PK.PTR) {
       console.error("currently assuming all routes to walk have ptr in head")
       return
@@ -272,7 +272,7 @@ export default function NetRunner(osap) {
     // append vvt to head of list, or no? yah, should do 
     list.push(vvt)
     for (let s = 0; s < 16; s++) {
-      if(ptr >= route.length){
+      if (ptr >= route.length) {
         return { path: list, state: 'complete' }
       }
       switch (route[ptr]) {
@@ -303,9 +303,30 @@ export default function NetRunner(osap) {
   }
 
   // tool to add routes... head & tail should be vvts in the same graph, we want to search betwixt, 
-  this.buildRoute = (head, tail) => {
-    return new Promise((resolve, reject) => {
-      reject('no such fn yet')
-    })
+  this.findRoute = (head, tail) => {
+    console.warn('searching between...', head.route, tail.route)
+    // we... recursively poke around? this is maybe le-difficult, 
+    let recursor = (route, from) => {
+      // console.log('recurse', route)
+      // copy...
+      route = route.slice()
+      // check each... assuming everything is sib-sib-sib here, 
+      for (let s in from.parent.children) {
+        s = parseInt(s)
+        let sib = from.parent.children[s]
+        if (sib == tail) {
+          route = route.concat([PK.SIB.KEY, s & 255, (s >> 8) & 255])
+          return route 
+        } else if (sib.type == VT.VPORT && sib != from){
+          if(sib.reciprocal && sib.reciprocal.type != "unreachable"){
+            route = route.concat([PK.SIB.KEY, s & 255, (s >> 8) & 255, PK.PFWD.KEY])
+            let opt = recursor(route, sib.reciprocal)
+            if(opt) return opt 
+          }
+        }
+      }
+      return null 
+    } // end recursor 
+    return recursor([PK.PTR], head)
   }
 }

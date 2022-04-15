@@ -225,7 +225,7 @@ function GraphicalEndpoint(virtualVertex){
         console.error("bad map from vvt to gvts for path drawing")
         console.error(err)
       }
-      console.log('drawing thru...', walk)
+      //console.log('drawing thru...', walk)
       // init new, 
       let pipe = new GraphicalPipe(walk.path)
       // add to us & them... 

@@ -42,7 +42,7 @@ export default function OMVC(osap){
       try {
         for(let ep of eps){
           let routes = await this.getEndpointRoutes(ep.route)
-          console.warn(`for ${ep.name}, retrieved`, routes)
+          // console.warn(`for ${ep.name}, retrieved`, routes)
           // attach those to the vvt, pretty simple, right ? 
           ep.routes = routes 
         }
@@ -111,10 +111,10 @@ export default function OMVC(osap){
           reject(`route req timeout`)
         }, ROUTEREQ_MAX_TIME),
         onResponse: function (data, ptr) {
-          // len is... 
-          let routeLen = data[ptr + 1]
           // clear timer, 
           clearTimeout(this.timeout)
+          // len is... 
+          let routeLen = data[ptr + 1]          
           // resolve w/ the route, which should be ptr + 2 -> end of pckt, 
           // which should match the len char... 
           resolve(data.slice(ptr + 2, ptr + 2 + routeLen))
@@ -123,13 +123,50 @@ export default function OMVC(osap){
     })
   }// end getEndpoint Route
 
+  // request to add a new route to an endpoint... 
+  this.setEndpointRoute = async (routeToEndpoint, routeFromEndpoint) => {
+    // ok we dooooo
+    await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
+    // hit the gram: route + dest:1 + segsize:2 + ROUTESET:1 + RSID:1 : LEN:1 + routeToSet
+    let datagram = new Uint8Array(routeToEndpoint.length + 6 + routeFromEndpoint.length)
+    datagram.set(routeToEndpoint, 0)
+    let rteLen = routeToEndpoint.length 
+    datagram[rteLen] = PK.DEST 
+    datagram[rteLen + 1] = 0; datagram[rteLen + 2] = 2;
+    datagram[rteLen + 3] = EP.ROUTE_SET 
+    datagram[rteLen + 4] = getNewRouteReqID()
+    datagram[rteLen + 5] = routeFromEndpoint.length 
+    datagram.set(routeFromEndpoint, rteLen + 6)
+    // ship it 
+    osap.handle(datagram, VT.STACK_ORIGIN)
+    // setup handler 
+    return new Promise((resolve, reject) => {
+      routeReqsAwaiting.push({
+        request: datagram.slice(),
+        id: datagram[rteLen + 4],
+        timeout: setTimeout(() => {
+          reject(`route set req timeout`)
+        }, ROUTEREQ_MAX_TIME),
+        onResponse: function(data, ptr) {
+          if(data[ptr + 1]){
+            resolve()
+          } else {
+            reject(`badness error code ${data[ptr + 1]} from endpoint, on try-to-set-new-route`)
+          }
+        }
+      })
+    })
+  }
+
   this.destHandler = (data, ptr) => {
     // here data[pr] == PK_PTR == 99, so our key is at 
     ptr += 3
+    let rqid = 0 // really, we are using the same list... means we could do most-all 
+    // mvc things w/ one attach-and-release reponse handlers and root-unique request IDs, non?
     switch(data[ptr]){
       case EP.ROUTE_RESP:
         // match to id, send to handler, carry on... 
-        let rqid = data[ptr + 1]
+        rqid = data[ptr + 1]
         for(let rqa of routeReqsAwaiting){
           if(rqa.id == rqid){
             rqa.onResponse(data, ptr + 1)
@@ -137,6 +174,17 @@ export default function OMVC(osap){
           }
         }
         console.error('recvd route_resp, but no matching req awaiting...')
+        return true 
+      case EP.ROUTE_SET_RESP:
+        // same matchy matchy:
+        rqid = data[ptr + 1]
+        for(let rqa of routeReqsAwaiting){
+          if(rqa.id == rqid){
+            rqa.onResponse(data, ptr + 1)
+            return true 
+          }
+        }
+        console.error(`recvd route_set_resp, but no matching req awaiting...`)
         return true 
       default:
         console.error(`unrecognized key in osap root / mvc dest handler, ${data[ptr]}`)

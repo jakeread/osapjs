@@ -173,6 +173,30 @@ export default class Endpoint extends Vertex {
         } else {
           return false // 'true' from dest handler clears msg, 'false' waits it one cycle 
         }
+      case EP.ROUTE_SET:
+        if(this.stackAvailableSpace(VT.STACK_ORIGIN)){
+          // uuuuh 
+          let rqid = data[ptr + 1]
+          let respRoute = reverseRoute(data) 
+          // just do it blind, eh?
+          let newRoute = data.slice(ptr + 3)
+          // stick the tail elements in, big bad, this whole subsystem ignores segsizes...
+          let route = new Uint8Array(newRoute.length + 3)
+          route.set(newRoute, 0)
+          route[newRoute.length] = PK.DEST 
+          route[newRoute.length + 1] = 0; route[newRoute.length + 2] = 2; // 512 segsize... 
+          this.addRoute(route)
+          // a reply is kind, 
+          let repl = new Uint8Array(respRoute.length + 3)
+          repl.set(respRoute, 0)
+          repl[respRoute.length] = EP.ROUTE_SET_RESP
+          repl[respRoute.length + 1] = rqid 
+          repl[respRoute.length + 2] = 1 // 1: ok, 0: badness 
+          this.handle(repl, VT.STACK_ORIGIN)
+          return true 
+        } else {
+          return false 
+        }
       case EP.QUERY_RESP:
         // query response, 
         console.error('query resp to endpoint, should go to root')
