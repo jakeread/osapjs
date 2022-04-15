@@ -125,6 +125,7 @@ window.addEventListener('mousedown', (evt) => {
           if(!route){
             console.error(`bad route traversal ${gvt.vvt.name} -> ${lastCand.vvt.name}`)
           } else {
+            console.warn('found route', route)
             tempGvt.setText('req route...')
             window.osap.mvc.setEndpointRoute(gvt.vvt.route, route).then(() => {
               tempGvt.setText('success...')
@@ -226,6 +227,8 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
           this.stateTransition("error")
         })
         return true
+      } else if (this.state == "scanning" && target == "scanning"){
+        return false;
       } else if (this.state == "scanning" && target == "drawing") {
         writeState("drawing")
         this.redraw(arg).then(() => {

@@ -266,6 +266,7 @@ export default function NetRunner(osap) {
     //console.log('walking', route, 'from', source)
     if (route[0] != PK.PTR) {
       console.error("currently assuming all routes to walk have ptr in head")
+      console.error(route)
       return
     }
     let ptr = 1, indice = 0, vvt = source, list = []
@@ -307,25 +308,35 @@ export default function NetRunner(osap) {
     console.warn('searching between...', head.route, tail.route)
     // we... recursively poke around? this is maybe le-difficult, 
     let recursor = (route, from) => {
-      // console.log('recurse', route)
+      console.log('recurse', route)
       // copy...
       route = route.slice()
-      // check each... assuming everything is sib-sib-sib here, 
+      // first... find the thing, 
       for (let s in from.parent.children) {
         s = parseInt(s)
         let sib = from.parent.children[s]
         if (sib == tail) {
-          route = route.concat([PK.SIB.KEY, s & 255, (s >> 8) & 255])
-          return route 
-        } else if (sib.type == VT.VPORT && sib != from){
-          if(sib.reciprocal && sib.reciprocal.type != "unreachable"){
-            route = route.concat([PK.SIB.KEY, s & 255, (s >> 8) & 255, PK.PFWD.KEY])
-            let opt = recursor(route, sib.reciprocal)
-            if(opt) return opt 
+          return route.concat([PK.SIB.KEY, s & 255, (s >> 8) & 255])
+        }
+      }
+      // if not, find ports, 
+      let results = []
+      for (let s in from.parent.children) {
+        s = parseInt(s)
+        let sib = from.parent.children[s]
+        if (sib.type == VT.VPORT && sib != from) {
+          if (sib.reciprocal && sib.reciprocal.type != "unreachable") {
+            // sweep, then pick first... 
+            // as a warning... this is not loop safe ! 
+            results.push(recursor(route.concat([PK.SIB.KEY, s & 255, (s >> 8) & 255, PK.PFWD.KEY]), sib.reciprocal))
+            for(let res of results){
+              if(res != null) return res 
+            }
           }
         }
       }
-      return null 
+      console.log('returning null...')
+      return null
     } // end recursor 
     return recursor([PK.PTR], head)
   }

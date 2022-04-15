@@ -108,35 +108,41 @@ export default function OMVC(osap){
         request: datagram.slice(), 
         id: datagram[route.length + 4],
         timeout: setTimeout(() => {
-          reject(`route req timeout`)
+          reject(`route req timeout to ${route}`)
         }, ROUTEREQ_MAX_TIME),
         onResponse: function (data, ptr) {
           // clear timer, 
           clearTimeout(this.timeout)
-          // len is... 
-          let routeLen = data[ptr + 1]          
+          // mode, len, 
+          let routeMode = data[ptr + 1]
+          let routeLen = data[ptr + 2]
           // resolve w/ the route, which should be ptr + 2 -> end of pckt, 
           // which should match the len char... 
-          resolve(data.slice(ptr + 2, ptr + 2 + routeLen))
+          resolve(data.slice(ptr + 3, ptr + 3 + routeLen))
         }
       })
     })
   }// end getEndpoint Route
 
   // request to add a new route to an endpoint... 
-  this.setEndpointRoute = async (routeToEndpoint, routeFromEndpoint) => {
+  this.setEndpointRoute = async (routeToEndpoint, routeFromEndpoint, routeMode) => {
     // ok we dooooo
     await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
-    // hit the gram: route + dest:1 + segsize:2 + ROUTESET:1 + RSID:1 : LEN:1 + routeToSet
-    let datagram = new Uint8Array(routeToEndpoint.length + 6 + routeFromEndpoint.length)
+    // hit the gram: route + dest:1 + segsize:2 + ROUTESET:1 + RSID:1 + MODE:1 + LEN:1 + routeToSet
+    let datagram = new Uint8Array(routeToEndpoint.length + 7 + routeFromEndpoint.length)
     datagram.set(routeToEndpoint, 0)
     let rteLen = routeToEndpoint.length 
     datagram[rteLen] = PK.DEST 
     datagram[rteLen + 1] = 0; datagram[rteLen + 2] = 2;
     datagram[rteLen + 3] = EP.ROUTE_SET 
     datagram[rteLen + 4] = getNewRouteReqID()
-    datagram[rteLen + 5] = routeFromEndpoint.length 
-    datagram.set(routeFromEndpoint, rteLen + 6)
+    if(routeMode == "ackless"){ // so we'll default to acks... 
+      datagram[rteLen + 5] = EP.ROUTEMODE_ACKLESS
+    } else {
+      datagram[rteLen + 5] = EP.ROUTEMODE_ACKED
+    }
+    datagram[rteLen + 6] = routeFromEndpoint.length 
+    datagram.set(routeFromEndpoint, rteLen + 7)
     // ship it 
     osap.handle(datagram, VT.STACK_ORIGIN)
     // setup handler 

@@ -152,13 +152,15 @@ export default class Endpoint extends Vertex {
             let route = this.routes[indice]
             //console.log('has route', route)
             // header len... + route len less 3 (no dest & segsize...), + 3 for 
-            // RQRESP, RQID, LEN
-            let repl = new Uint8Array(respRoute.length + route.length - 3 + 3)
+            // RQRESP, RQID, MODE, LEN
+            let repl = new Uint8Array(respRoute.length + route.length - 3 + 4)
             repl.set(respRoute, 0)
             repl[respRoute.length] = EP.ROUTE_RESP 
-            repl[respRoute.length + 1] = rqid 
-            repl[respRoute.length + 2] = route.length - 3 
-            repl.set(route.slice(0, -3), respRoute.length + 3)
+            repl[respRoute.length + 1] = rqid
+            // yeah, this is also a dummy: endpoints in JS don't store modes... 
+            repl[respRoute.length + 2] = EP.ROUTEMODE_ACKLESS 
+            repl[respRoute.length + 3] = route.length - 3 
+            repl.set(route.slice(0, -3), respRoute.length + 4)
             this.handle(repl, VT.STACK_ORIGIN)
           } else {
             // + 3 RQRESP, RQID, LEN 
@@ -166,7 +168,7 @@ export default class Endpoint extends Vertex {
             repl.set(respRoute, 0)
             repl[respRoute.length] = EP.ROUTE_RESP 
             repl[respRoute.length + 1] = rqid 
-            repl[respRoute.length + 2] = 0 // for len-of-route here... 
+            repl[respRoute.length + 2] = 0 // for does-not-exist here, 
             this.handle(repl, VT.STACK_ORIGIN)
           }
           return true 

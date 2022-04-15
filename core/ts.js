@@ -158,6 +158,8 @@ let EP = {
   ROUTE_RESP: 142,  // route list, 
   ROUTE_SET: 143,    // req-to-add-route 
   ROUTE_SET_RESP: 144,
+  ROUTEMODE_ACKED: 167,
+  ROUTEMODE_ACKLESS: 168, 
 }
 
 let EPMSEG = {
