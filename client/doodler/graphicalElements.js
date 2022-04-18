@@ -163,7 +163,7 @@ function GraphicalVPort(virtualVertex) {
         }
       }
       // if no existing hookup, we are the head... 
-      let pipe = new GraphicalPipe([this, this.vvt.reciprocal.gvt])
+      let pipe = new GraphicalLink([this, this.vvt.reciprocal.gvt])
       this.pipes.push(pipe)
       // and put that pipe into the friend-pipes-list as well, so it will rerender on their move... 
       this.vvt.reciprocal.gvt.pipes.push(pipe)
@@ -227,16 +227,11 @@ function GraphicalEndpoint(virtualVertex){
       }
       //console.log('drawing thru...', walk)
       // init new, 
-      let pipe = new GraphicalPipe(walk.path)
+      let pipe = new GraphicalRoute(walk.path, walk.state == "complete")
       // add to us & them... 
+      console.warn(walk.state)
       this.pipes.push(pipe)
       walk.path[walk.path.length - 1].pipes.push(pipe)
-      // color for errors... 
-      if(walk.state == "complete"){        
-        pipe.state.color = "rgb(200, 200, 250)"
-      } else {
-        pipe.state.color = "rgb(250, 200, 200)"
-      }
     }
   }
   // utes,
@@ -265,7 +260,7 @@ function GraphicalEndpoint(virtualVertex){
 }
 
 // having a list of virtual vertices to pass through... each item in path should be a gvt, 
-function GraphicalPipe(path) {
+function GraphicalRoute(path, completeness) {
   // kinda hackney all-consuming SVG canvas, 
   let cont = $('<div style="position:absolute; z-index:0; overflow:visible;"></div>').get(0)
   $($('.plane').get(0)).append(cont)
@@ -274,6 +269,50 @@ function GraphicalPipe(path) {
   this.tail = path[path.length - 1]
   this.midpts = path.slice(1, -1)
   this.state = { color: "rgb(150,200,150)", strokeWidth: 5 } // color, etc 
+  if(completeness) {
+    this.state.color = "rgb(150, 150, 200)"
+  } else {
+    this.state.color = "rgb(230, 180, 180)"
+  }
+  let template = (self) => {
+    let head = getRightEdge(self.head); 
+    let tail = completeness ? getLeftEdge(self.tail) : {x : head.x + 25, y: head.y }; 
+    // we'd like to make the shortest path, 
+    return svg`
+    <svg width="10" height="10"  style="position:absolute; z-index:0; overflow:visible;" xmlns:xlink="http://w3.org/1999/xlink">
+      <g>
+      <path d="
+        M ${head.x} ${head.y} C 
+        ${completeness ? head.x + 100 : head.x + 10} ${head.y} 
+        ${completeness ? tail.x - 100 : tail.x - 10} ${tail.y}
+        ${tail.x} ${tail.y}"
+        stroke="${self.state.color}" fill="none" stroke-width="${self.state.strokeWidth}"></path>
+      <polygon points="${head.x - 4},${head.y + 12} ${head.x + 17},${head.y} ${head.x - 4}, ${head.y - 12}" fill="${self.state.color}"></polygon>
+      <rect x="${tail.x - 8}" y="${tail.y - 8}" width="16" height="16" rx="3" ry="3" fill="${self.state.color}"></rect>
+      </g>
+    </svg>
+    `
+  }
+  this.render = () => {
+    render(template(this), cont)
+  }
+  this.delete = () => {
+    $(cont).remove()
+  }
+  // we get added to global list, 
+  window.nd.gvts.push(this)
+}
+
+// having a list of virtual vertices to pass through... each item in path should be a gvt, 
+function GraphicalLink(path) {
+  // kinda hackney all-consuming SVG canvas, 
+  let cont = $('<div style="position:absolute; z-index:0; overflow:visible;"></div>').get(0)
+  $($('.plane').get(0)).append(cont)
+  // we track... head gvt and tail gt 
+  this.head = path[0]
+  this.tail = path[path.length - 1]
+  this.midpts = path.slice(1, -1)
+  this.state = { color: "rgb(180,180,180)", strokeWidth: 5 } // color, etc 
   let template = (self) => {
     let headMid = getCenter(self.head); let tailMid = getCenter(self.tail)
     let head = {}, tail = {} 
@@ -291,9 +330,9 @@ function GraphicalPipe(path) {
         ${head.x + 100} ${head.y} 
         ${tail.x - 100} ${tail.y}
         ${tail.x} ${tail.y}"
-        stroke="${self.state.color}" fill="none" stroke-width="${self.state.strokeWidth}"></path>
-      <circle r="5" cx="${head.x}" cy="${head.y}" fill="${self.state.color}"></circle>
-      <circle r="5" cx="${tail.x}" cy="${tail.y}" fill="${self.state.color}"></circle>
+        stroke="${self.state.color}" fill="none" stroke-width="${self.state.strokeWidth}" stroke-dasharray="8 4"></path>
+      <circle r="7" cx="${head.x}" cy="${head.y}" fill="${self.state.color}"></circle>
+      <circle r="7" cx="${tail.x}" cy="${tail.y}" fill="${self.state.color}"></circle>
       </g>
     </svg>
     `

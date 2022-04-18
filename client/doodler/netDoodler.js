@@ -224,7 +224,14 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
           this.stateTransition("drawing", net)
         }).catch((err) => {
           console.error(err)
-          this.stateTransition("error")
+          // try scan again... 
+          writeState('error')
+          setTimeout(() => {
+            writeState('idle')
+            //this.stateTransition("scanning")
+          }, 100)
+          // this.stateTransition("scanning")
+          //this.stateTransition("error")
         })
         return true
       } else if (this.state == "scanning" && target == "scanning"){
