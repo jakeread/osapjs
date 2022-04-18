@@ -217,7 +217,8 @@ function GraphicalEndpoint(virtualVertex){
   // find our partners... 
   this.pipes = []
   this.linkSetup = () => {
-    for(let route of this.vvt.routes){
+    for(let r in this.vvt.routes){
+      let route = this.vvt.routes[r]
       let walk = window.osap.netRunner.routeWalk(route, this.vvt)
       try {
         walk.path = walk.path.map(x => x.gvt)
@@ -227,9 +228,9 @@ function GraphicalEndpoint(virtualVertex){
       }
       //console.log('drawing thru...', walk)
       // init new, 
-      let pipe = new GraphicalRoute(walk.path, walk.state == "complete")
+      let pipe = new GraphicalRoute(walk.path, r, walk.state == "complete")
       // add to us & them... 
-      console.warn(walk.state)
+      // console.warn(walk.state)
       this.pipes.push(pipe)
       walk.path[walk.path.length - 1].pipes.push(pipe)
     }
@@ -260,10 +261,15 @@ function GraphicalEndpoint(virtualVertex){
 }
 
 // having a list of virtual vertices to pass through... each item in path should be a gvt, 
-function GraphicalRoute(path, completeness) {
+function GraphicalRoute(path, indice, completeness) {
+  // aye,
+  this.isRoute = true
+  this.indice = parseInt(indice)
   // kinda hackney all-consuming SVG canvas, 
   let cont = $('<div style="position:absolute; z-index:0; overflow:visible;"></div>').get(0)
   $($('.plane').get(0)).append(cont)
+  // we also have uuid, 
+  this.uuid = window.nd.getNewElementUUID()
   // we track... head gvt and tail gt 
   this.head = path[0]
   this.tail = path[path.length - 1]
@@ -279,9 +285,9 @@ function GraphicalRoute(path, completeness) {
     let tail = completeness ? getLeftEdge(self.tail) : {x : head.x + 25, y: head.y }; 
     // we'd like to make the shortest path, 
     return svg`
-    <svg width="10" height="10"  style="position:absolute; z-index:0; overflow:visible;" xmlns:xlink="http://w3.org/1999/xlink">
+    <svg width="10" height="10" style="position:absolute; z-index:0; overflow:visible;" xmlns:xlink="http://w3.org/1999/xlink">
       <g>
-      <path d="
+      <path class="svgRoute" id="${self.uuid}" d="
         M ${head.x} ${head.y} C 
         ${completeness ? head.x + 100 : head.x + 10} ${head.y} 
         ${completeness ? tail.x - 100 : tail.x - 10} ${tail.y}

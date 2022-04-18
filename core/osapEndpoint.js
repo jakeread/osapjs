@@ -181,12 +181,13 @@ export default class Endpoint extends Vertex {
           let rqid = data[ptr + 1]
           let respRoute = reverseRoute(data) 
           // just do it blind, eh?
-          let newRoute = data.slice(ptr + 3)
+          let newRoute = data.slice(ptr + 4)
           // stick the tail elements in, big bad, this whole subsystem ignores segsizes...
           let route = new Uint8Array(newRoute.length + 3)
           route.set(newRoute, 0)
           route[newRoute.length] = PK.DEST 
           route[newRoute.length + 1] = 0; route[newRoute.length + 2] = 2; // 512 segsize... 
+          console.log('new route...', route)
           this.addRoute(route)
           // a reply is kind, 
           let repl = new Uint8Array(respRoute.length + 3)
@@ -194,6 +195,29 @@ export default class Endpoint extends Vertex {
           repl[respRoute.length] = EP.ROUTE_SET_RESP
           repl[respRoute.length + 1] = rqid 
           repl[respRoute.length + 2] = 1 // 1: ok, 0: badness 
+          this.handle(repl, VT.STACK_ORIGIN)
+          return true 
+        } else {
+          return false 
+        }
+      case EP.ROUTE_RM:
+        if(this.stackAvailableSpace(VT.STACK_ORIGIN)){
+          // uuuuh 
+          let rqid = data[ptr + 1]
+          let respRoute = reverseRoute(data) 
+          let indice = data[ptr + 2]
+          // a reply is kind, 
+          let repl = new Uint8Array(respRoute.length + 3)
+          repl.set(respRoute, 0)
+          repl[respRoute.length] = EP.ROUTE_RM_RESP
+          repl[respRoute.length + 1] = rqid 
+          // now, if we can rm, do:
+          if(this.routes[indice]){
+            this.routes.splice(indice, 1)
+            repl[respRoute.length + 2] = 1 // 1: ok, 0: badness   
+          } else {
+            repl[respRoute.length + 2] = 0
+          }
           this.handle(repl, VT.STACK_ORIGIN)
           return true 
         } else {

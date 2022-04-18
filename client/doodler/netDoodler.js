@@ -42,11 +42,12 @@ let getGvtByUUID = (uuid) => {
 window.addEventListener('mousedown', (evt) => {
   //console.log(evt.target)
   // it's us? 
-  if (!($(evt.target).is('.gvtRoot') || $(evt.target).is('.gvtEndpoint'))) {
+  if (!($(evt.target).is('.gvtRoot') || $(evt.target).is('.gvtEndpoint') || $(evt.target).is('.svgRoute') )) {
     return;
   }
   // see if we can't get the gvx... 
   let id = $(evt.target).attr('id')
+  //console.warn('out for...', id)
   // can we find it ?
   let gvt = getGvtByUUID(id)
   if (!gvt) { console.warn('no gvt found on drag'); return }
@@ -57,7 +58,18 @@ window.addEventListener('mousedown', (evt) => {
   let oggx = gvt.state.x; let oggy = gvt.state.y;
   let scale = DT.readTransform($('.plane').get(0)).s
   // do drag-or-endpoint, 
-  if (gvt.vvt.type == VT.ROOT) {
+  if(gvt.isRoute){
+    // ayl-wroight then, we need to figure which indice of which route this is... 
+    let head = gvt.head
+    let indice = gvt.indice 
+    // then we shooould be able to...
+    window.osap.mvc.removeEndpointRoute(head.vvt.route, indice).then((res) => {
+      console.warn('route delete completes', res)
+      window.nd.stateTransition('scanning')
+    }).catch((err) => {
+      console.error(err)
+    })
+  } else if (gvt.vvt.type == VT.ROOT) { // or drag on endpoint... 
     // if state transition OK, set drag... 
     if (window.nd.stateTransition('dragging')) {
       // set drag handler, 
@@ -122,7 +134,7 @@ window.addEventListener('mousedown', (evt) => {
         window.nd.stateTransition('idle')
         if (lastCand) {
           let route = window.osap.netRunner.findRoute(gvt.vvt, lastCand.vvt)
-          if(!route){
+          if (!route) {
             console.error(`bad route traversal ${gvt.vvt.name} -> ${lastCand.vvt.name}`)
           } else {
             console.warn('found route', route)
@@ -144,13 +156,15 @@ window.addEventListener('mousedown', (evt) => {
               }, 250)
             })
           } // end lift-with-route, 
+          // reset dom stuff, 
+          lastCand.setBackgroundColor()
+          gvt.setBackgroundColor()
+          // floater should go...
+          tempGvt.setBackgroundColor("rgb(250, 200, 200)")
+          return
+        } else {
+          rmFloater()
         }
-        // reset dom stuff, 
-        lastCand.setBackgroundColor()
-        gvt.setBackgroundColor()
-        // floater should go...
-        tempGvt.setBackgroundColor("rgb(250, 200, 200)")
-        return 
       })
     } else {
       return
@@ -176,6 +190,16 @@ let registerHandlers = () => {
       gvt.setBackgroundColor()
       gvt.vvt.reciprocal.gvt.setBackgroundColor()
     }
+  })
+  // hover routes, 
+  $('.svgRoute').hover((enter) => {
+    let gvt = getGvtByUUID($(enter.target).attr('id'))
+    gvt.state.color = "rgb(200, 150, 200)"
+    gvt.render()
+  }, (exit) => {
+    let gvt = getGvtByUUID($(exit.target).attr('id'))
+    gvt.state.color = "rgb(150, 150, 200)"
+    gvt.render()
   })
 }
 
@@ -224,17 +248,10 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
           this.stateTransition("drawing", net)
         }).catch((err) => {
           console.error(err)
-          // try scan again... 
           writeState('error')
-          setTimeout(() => {
-            writeState('idle')
-            //this.stateTransition("scanning")
-          }, 100)
-          // this.stateTransition("scanning")
-          //this.stateTransition("error")
         })
         return true
-      } else if (this.state == "scanning" && target == "scanning"){
+      } else if (this.state == "scanning" && target == "scanning") {
         return false;
       } else if (this.state == "scanning" && target == "drawing") {
         writeState("drawing")
