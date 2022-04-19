@@ -215,13 +215,13 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
       runBtn.red();
     }
   }
-  let runBtn = new Button(xPlace + 500, yPlace + 10, 84, 84, 'loop?')
+  let runBtn = new Button(xPlace, yPlace, 84, 84, 'loop?')
   runBtn.onClick((evt) => {
     runState = !runState
     checkRunState()
   })
   // and a display of our current state, 
-  let stateDisplay = new TextBlock(xPlace + 500, yPlace + 110, 84, 40, 'idle')
+  let stateDisplay = new TextBlock(xPlace, yPlace + 100, 84, 40, 'idle')
   let writeState = (state) => {
     this.state = state
     stateDisplay.setText(state)
@@ -243,10 +243,16 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
       if (this.state == "idle" && target == "scanning") {
         writeState("scanning")
         osap.netRunner.sweep().then((net) => {
-          return osap.mvc.fillRouteData(net)
-        }).then((net) => {
-          this.stateTransition("drawing", net)
-        }).catch((err) => {
+          osap.mvc.fillRouteData(net).then((net) => {
+            this.stateTransition("drawing", net)
+          }).catch((err) => { // route collect error, more common 
+            console.error(err)
+            writeState('idle')
+            runState = false 
+            checkRunState()
+            //this.stateTransition("scanning")
+          })
+        }).catch((err) => { // sweep error 
           console.error(err)
           writeState('error')
         })
@@ -329,6 +335,10 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
     let drawTime = TIMES.getTimeStamp()
     // let's just walk the graph and try our new rendering tech, 
     let contextRecursor = (vvt, partner = undefined) => {
+      // guard against whatever tf this is ?
+      if(!vvt){
+        console.warn('no vvt here on redraw recurse ??'); return;
+      }
       // don't recurse back up, 
       if (vvt.lastDrawTime && vvt.lastDrawTime == drawTime) return;
       vvt.lastDrawTime = drawTime
@@ -372,7 +382,7 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
     }
     // stuff 1st node to 0,0 if it's new
     if (nodes[0] && !nodes[0].fx) {
-      nodes[0].fx = - simOffset + 100; nodes[0].fy = - simOffset + 100;
+      nodes[0].fx = - simOffset + 200; nodes[0].fy = - simOffset + 50;
     }
     // do we need to use d3 ?
     let useSim = false

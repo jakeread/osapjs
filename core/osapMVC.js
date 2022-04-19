@@ -23,6 +23,10 @@ export default function OMVC(osap) {
     let eps = []
     let listGenTime = TIMES.getTimeStamp()
     let contextRecursor = (vvt) => {
+      if(!vvt){
+        console.warn('no vvt here on recurse... ?')
+        return
+      }
       // no upwards recurse, 
       if (vvt.lastListGenTime && vvt.lastListGenTime == listGenTime) return;
       vvt.lastListGenTime = listGenTime
