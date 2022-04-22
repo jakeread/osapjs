@@ -1,5 +1,5 @@
-## JavaScript OSAP
+## OSAP JavaScript
 
-wip js dataflow systems / client tools 
+This is a submodule for the [OSAP](http://osap.tools) project. 
 
-onion revision 
+Does JavaScript stuff, should be an `npm` package. 
