@@ -15,7 +15,7 @@ no warranty is provided, and users accept all liability.
 'use strict'
 
 import { Button } from '../interface/basics.js'
-import { AutoPlot } from '../../client/components/autoPlot.js'
+import AutoPlot from './autoPlot.js'
 
 export default function LoadPanel(vm, xPlace, yPlace, name) {
   let title = new Button(xPlace, yPlace, 104, 34, name)
