@@ -93,9 +93,34 @@ function Button(xPlace, yPlace, width, height, defaultText, justify) {
   return btn
 }
 
+// for ahn slider, 
+function Slider(settings){
+  if(!settings.min) settings.min = -1;
+  if(!settings.max) settings.max = 1;
+  if(!settings.step) settings.step = 0.01;
+  if(!settings.dflt) settings.dflt = 0;
+  if(!settings.title) settings.title = "slider"
+  let elem = $(`<input type="range" min=${settings.min} max=${settings.max} step=${settings.step} value=${settings.dflt}>`).addClass('inputwrap')
+    .text(settings.title)
+    .get(0)
+  DT.placeField(elem, settings.width - 100, settings.height, settings.xPlace, settings.yPlace)
+  let btn = new Button(settings.xPlace + settings.width - 80, settings.yPlace, 80, settings.height, elem.value)
+  btn.setHTML(`${settings.title}<br>${elem.value}`)
+  btn.onClick(() => {
+    elem.value = settings.dflt;
+    elem.oninput()
+  })
+  let slider = { elem: elem }
+  elem.oninput = () => { 
+    btn.setHTML(`${settings.title}<br>${elem.value}`)
+    if(slider.onChange) slider.onChange(elem.value) 
+  }
+  return slider 
+}
+
 // text blocks 
 function TextBlock(xPlace, yPlace, width, height, text, justify) {
-  let elem = $('<div>').addClass('textBlock')
+  let elem = $('<div>').addClass('inputwrap')
     .text(text)
     .get(0)
   if (justify) {
@@ -154,4 +179,4 @@ function TextInput(xPlace, yPlace, width, height, text) {
   return input
 }
 
-export { Button, EZButton, TextInput, TextBlock }
+export { Button, EZButton, Slider, TextInput, TextBlock }
