@@ -126,6 +126,7 @@ export default function VPortSerial(osap, portName, debug = false) {
         newAwaiting.set(outAwaiting)
         newAwaiting[63] = 1
         newAwaiting[64] = 0
+        newAwaiting[0] = 65
         outAwaiting = newAwaiting
       }
       // reset retry states 
