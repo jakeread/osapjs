@@ -117,6 +117,17 @@ export default function VPortSerial(osap, portName, debug = false) {
       outAwaitingId++; if (outAwaitingId > 255) outAwaitingId = 1;
       outAwaiting[2] = outAwaitingId
       outAwaiting.set(COBS.encode(buffer), 3)
+      // this is for the 64-byte long bug, i.e. when a packet is exactly 64 bytes 
+      // there is (I think) an arduino cdc implementation error that prevents the 
+      // 64th byte from reading in, so we append...
+      if(outAwaiting.length == 64){
+        console.warn("64 bytes message, potential bugfarm, injecting +1 0")
+        let newAwaiting = new Uint8Array(65)
+        newAwaiting.set(outAwaiting)
+        newAwaiting[63] = 1
+        newAwaiting[64] = 0
+        outAwaiting = newAwaiting
+      }
       // reset retry states 
       clearTimeout(outAwaitingTimer)
       numRetries = 0
