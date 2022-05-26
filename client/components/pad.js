@@ -45,6 +45,10 @@ export default function Pad(xPlace, yPlace, width, height, machineX = 100, machi
     console.warn('bind this')
   }
 
+  // also bind-able 
+  this.onDragTarget = (pos) => {}
+  this.onUp = (pos) => {}
+
   this.addPoint = (pt) => {
     //console.log('draw', pt)
     pts.push(pt)
@@ -53,11 +57,29 @@ export default function Pad(xPlace, yPlace, width, height, machineX = 100, machi
   }
 
   // handle clicks 
-  pad.addEventListener('click', (evt) => {
+  pad.addEventListener('mousedown', (evt) => {
     if (evt.target != pad) return
     // scaled to machine spec, and invert y pixels -? logical 
     let pos = [evt.layerX * scale[0], machineY - evt.layerY * scale[1]]
     //console.warn(`X: ${pos[0].toFixed(2)}, Y: ${pos[1].toFixed(2)}`)
     this.onNewTarget(pos)
+    // also do
+
+    document.addEventListener('mousemove', moveListener)
+    document.addEventListener('mouseup', upListener)
   })
+
+  let moveListener = (evt) => {
+    if(evt.target != pad) return
+    let pos = [evt.layerX * scale[0], machineY - evt.layerY * scale[1]]
+    this.onDragTarget(pos)
+  }
+
+  let upListener = (evt) => {
+    if(evt.target != pad) return
+    let pos = [evt.layerX * scale[0], machineY - evt.layerY * scale[1]]
+    this.onUp(pos)
+    document.removeEventListener('mousemove', moveListener)
+    document.removeEventListener('mouseup', upListener)
+  }
 }
