@@ -17,6 +17,13 @@ no warranty is provided, and users accept all liability.
 import DT from './domTools.js'
 import style from './style.js'
 
+// (svg)esus
+function svgRenderer(xPlace, yPlace, width, height, svg){
+  let elem = $('<div>').css('position', 'absolute').get(0)
+  $(elem).append(svg) 
+  DT.placeField(elem, width, height, xPlace, yPlace)
+}
+
 // single action buttons, 
 function EZButton(xPlace, yPlace, width, height, text) {
   let elem = $('<div>').addClass('button')
@@ -179,4 +186,4 @@ function TextInput(xPlace, yPlace, width, height, text) {
   return input
 }
 
-export { Button, EZButton, Slider, TextInput, TextBlock }
+export { Button, EZButton, Slider, TextInput, TextBlock, svgRenderer }

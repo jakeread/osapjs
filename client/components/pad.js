@@ -52,7 +52,7 @@ export default function Pad(xPlace, yPlace, width, height, machineX = 100, machi
   this.addPoint = (pt) => {
     //console.log('draw', pt)
     pts.push(pt)
-    if (pts.length > 100) pts.shift()
+    if (pts.length > 2500) pts.shift()
     drawPts()
   }
 
