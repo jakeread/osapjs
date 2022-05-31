@@ -12,7 +12,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, TS, VT, EP, TIMES } from '../osapjs/core/ts.js'
+import { PK, TS, VT, EP, TIMES } from '../core/ts.js'
 
 let HMC_MODE_ACCEL = 1
 let HMC_MODE_VELOCITY = 2
@@ -26,7 +26,7 @@ export default function AXLMotionVM(osap, route, numDof) {
   setStatesEP.addRoute(PK.route(route).sib(2).end())
   this.setPosition = (posns) => {
     return new Promise((resolve, reject) => {
-      // guard bad accels... 
+      // guard bad lenghts...
       if (posns.length != numDof) {
         reject(`need array of len ${numDof} dofs, was given ${posns.length}`);
         return;
@@ -45,6 +45,34 @@ export default function AXLMotionVM(osap, route, numDof) {
       // positions, 
       for (let a = 0; a < numDof; a++) {
         TS.write("float32", posns[a], datagram, a * 4 + numDof * 4 * 2 + 1)
+      }
+      // ship it, 
+      setStatesEP.write(datagram, "acked").then(() => {
+        resolve()
+      }).catch((err) => { reject(err) })
+    })
+  }
+
+  this.setVelocity = (rates) => {
+    return new Promise((resolve, reject) => {
+      if(rates.length != numDof){
+        reject(`need array of len ${numDof} dofs, was given ${rates.length}`);
+        return
+      }
+      // pack 'em up, 
+      let datagram = new Uint8Array(numDof * 4 * 3 + 1)
+      datagram[0] = HMC_MODE_VELOCITY
+      // write accels, 
+      for (let a = 0; a < numDof; a++) {
+        TS.write("float32", 0, datagram, a * 4 + numDof * 4 * 0 + 1)
+      }
+      // velocities,
+      for (let a = 0; a < numDof; a++) {
+        TS.write("float32", rates[a], datagram, a * 4 + numDof * 4 * 1 + 1)
+      }
+      // positions, 
+      for (let a = 0; a < numDof; a++) {
+        TS.write("float32", 0, datagram, a * 4 + numDof * 4 * 2 + 1)
       }
       // ship it, 
       setStatesEP.write(datagram, "acked").then(() => {

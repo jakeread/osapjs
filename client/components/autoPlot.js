@@ -26,7 +26,7 @@ export default function AutoPlot(xPlace, yPlace, xSize, ySize, title, margin = {
 
   // the data 
   var datas = []
-  var numToHold = 100
+  var numToHold = 500
   this.setHoldCount = (count) => {
     numToHold = count
   }

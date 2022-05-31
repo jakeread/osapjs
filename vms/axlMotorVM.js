@@ -12,7 +12,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, TS, VT, EP, TIMES } from '../osapjs/core/ts.js'
+import { PK, TS, VT, EP, TIMES } from '../core/ts.js'
 import AXLMotionVM from './axlMotionVM.js'
 
 let HMC_MODE_ACCEL = 1
