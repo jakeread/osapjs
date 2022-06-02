@@ -105,6 +105,24 @@ export default function AXLMotionVM(osap, route, numDof) {
     })
   }
 
+  // -------------------------------------------- Delta 
+
+  this.delta = async (deltas) => {
+    if(deltas.length != numDof){
+      throw new Error(`need array of len ${numDof} dofs, was given ${deltas.length}`);
+    }
+    try {
+      let state = await this.getStates() 
+      let newPosns = JSON.parse(JSON.stringify(state.positions))
+      for(let a = 0; a < numDof; a ++){
+        newPosns[a] += deltas[a]
+      }
+      await this.setPosition(newPosns)
+    } catch (err) {
+      throw err 
+    }
+  }
+
   // -------------------------------------------- Add Move
 
   let addMoveEP = osap.endpoint()
@@ -144,7 +162,7 @@ export default function AXLMotionVM(osap, route, numDof) {
   let settingsEP = osap.endpoint()
   settingsEP.addRoute(PK.route(route).sib(4).end())
   this.setup = async () => {
-    console.log(this.settings.accelLimits)
+    //console.log(this.settings.accelLimits)
     let datagram = new Uint8Array(4 + numDof * 4 * 2)
     TS.write("float32", this.settings.junctionDeviation, datagram, 0);
     for (let a = 0; a < numDof; a++) {

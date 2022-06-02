@@ -46,9 +46,9 @@ export default function TempVM(osap, route) {
       while(true){
         await TIMES.delay(250)
         let ct = await this.getExtruderTemp()
-        console.log(`temp: ${ct}`)
+        //console.log(`temp: ${ct}`)
         if(temp + 1 > ct && temp - 1 < ct){
-          console.log('temp OK')
+          //console.log('temp OK')
           break 
         }
       }

@@ -29,7 +29,7 @@ export default function FilamentSensorVM(osap, route) {
         // which is 2^14 bits and 19mm * PI OD, 
         // so each 16k counts is 19*PI mm of travel, 
         let convert = (19*Math.PI) / (2**14-1)
-        console.log(convert)
+        //console.log(convert)
         bundle.posEstimate *= convert
         bundle.rateEstimate *= convert 
         resolve(bundle) 
