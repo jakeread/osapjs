@@ -52,6 +52,7 @@ let VT = {
 // 10: \n
 // these should be clearly delimited as L1 / L2 possible keys...
 
+// diff like... 
 // packet keys, for l0 of packets,
 // PKEYS all need to be on the same byte order, since they're
 // walked
