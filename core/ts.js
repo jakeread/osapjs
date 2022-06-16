@@ -54,96 +54,144 @@ let VT = {
 
 // diff like... 
 // packet keys, for l0 of packets,
-// PKEYS all need to be on the same byte order, since they're
+// PKEYS all need to be on the same byte order, since they're 
 // walked
 // TRANSPORT LAYER
 let PK = {
-  PTR: 88,    // packet pointer (next byte is instruction)
-  DEST: 99,   // have arrived, (next bytes are for recipient)
-  SIB: {
-    KEY: 15,
-    INC: 3
-  },
-  PARENT: {
-    KEY: 16,
-    INC: 3
-  },
-  CHILD: {
-    KEY: 14,
-    INC: 3
-  },
-  PFWD: {
-    KEY: 11, 
-    INC: 1
-  },
-  BFWD: {
-    KEY: 12,
-    INC: 3
-  },
-  SCOPE_REQ: {
-    KEY: 21,
-    INC: 1
-  },
-  SCOPE_RES: {
-    KEY: 22,
-    INC: 1
-  },
-  LLESCAPE: {
-    KEY: 44, 
-    INC: 1
-  }
+  PTR: 240,         // packet pointer (next byte is instruction)
+  DEST: 224,        // have arrived, (next bytes are for recipient)
+  PINGREQ: 192,    // hit me back 
+  PINGRES: 176,    // here's ur ping 
+  SCOPEREQ: 160,   // requesting scope info @ this location 
+  SCOPERES: 144,   // replying to your scope request, 
+  SIB: 16,          // sibling fwds,
+  PARENT: 32,       // parent fwds, 
+  CHILD: 48,        // child fwds, 
+  PFWD: 64,         // forward at this port, to port's partner 
+  BFWD: 80,         // fwd at this bus, to <arg> indice 
+  BBRD: 96,         // broadcast here, to <arg> channel 
+  LLESCAPE: 0,      // pls escape this string-formatted message... 
 }
 
-PK.logPacket = (buffer) => {
-  // log a pretty buffer
-  // buffers should all be Uint8Array views,
-  let pert = []
-  for (let i = 0; i < buffer.length; i++) {
-    pert.push(buffer[i])
+PK.logPacket = (buffer, routeOnly = false) => {
+  // buffers-only club, 
+  if(!(buffer instanceof Uint8Array)){
+    console.warn(`attempt to log non-uint8array packet, bailing`)
+    console.warn(buffer)
+    return
   }
-  console.log(pert)
+  // write an output msg, 
+  let msg = ``
+  msg += `PKT: \n`
+  let startByte = 4 
+  if(routeOnly){
+    startByte = 0
+  } else {
+    // alright 1st 4 bytes are TTL and segSize 
+    msg += `timeToLive: ${TS.read16(buffer, 0)}\n`
+    msg += `segSize: ${TS.read16(buffer, 2)}\n`    
+  }
+  // now we have sets of instructions, 
+  msgLoop: for(let i = startByte; i < buffer.length; i += 2){
+    switch(TS.readKey(buffer, i)){
+      case PK.PTR:
+        msg += `[${buffer[i]}] PTR ---------------- v\n`
+        i --;
+        break;
+      case PK.DEST:
+        msg += `[${buffer[i]}] DEST, DATA LEN: ${buffer.length - i}`
+        break msgLoop;
+      case PK.PINGREQ:
+        msg += `[${buffer[i]}], [${buffer[i + 1]}] PING REQUEST: ID: ${TS.readArg(buffer, i)}`;
+        break msgLoop;
+      case PK.PINGRES: 
+        msg += `[${buffer[i]}], [${buffer[i + 1]}] PING RESPONSE: ID: ${TS.readArg(buffer, i)}`
+        break msgLoop;
+      case PK.SCOPEREQ:
+        msg += `[${buffer[i]}], [${buffer[i + 1]}] SCOPE REQUEST: ID: ${TS.readArg(buffer, i)}`
+        break msgLoop;
+      case PK.SCOPERES:
+        msg += `[${buffer[i]}], [${buffer[i + 1]}] SCOPE RESPONSE: ID: ${TS.readArg(buffer, i)}`
+        break msgLoop;
+      case PK.SIB:
+        msg += `[${buffer[i]}], [${buffer[i + 1]}] SIB FWD: IND: ${TS.readArg(buffer, i)}\n`
+        break;
+      case PK.PARENT:
+        msg += `[${buffer[i]}], [${buffer[i + 1]}] PARENT FWD: IND: ${TS.readArg(buffer, i)}\n`
+        break;
+      case PK.CHILD:
+        msg += `[${buffer[i]}], [${buffer[i + 1]}] CHILD FWD: IND: ${TS.readArg(buffer, i)}\n`
+        break;
+      case PK.PFWD:
+        msg += `[${buffer[i]}], [${buffer[i + 1]}] PORT FWD\n`
+        break;
+      case PK.BFWD:
+        msg += `[${buffer[i]}], [${buffer[i + 1]}] BUS FWD: RXADDR: ${TS.readArg(buffer, i)}\n`
+        break;
+      case PK.BBRD:
+        msg += `[${buffer[i]}], [${buffer[i + 1]}] BUS BROADCAST: CHANNEL: ${TS.readArg(buffer, i)}\n`
+        break;
+      case PK.LLESCAPE:
+        msg += `[${buffer[i]}] LL ESCAPE, STRING LEN: ${buffer.length - i}`
+        break msgLoop;
+      default:
+        msg += "BROKEN"
+        break msgLoop;
+    }
+  } // end of loop-thru, 
+  console.log(msg)
 }
 
 PK.route = (existing, scope = false) => {
-  let path = [PK.PTR]
+  // start w/ a temp uint8 array, 
+  let path = new Uint8Array(256) 
+  let wptr = 0
+  // copy-in existing path, if starting from some root, 
   if(existing != null && existing.length > 0){
-    //console.log('existing', JSON.parse(JSON.stringify(existing)))
-    path = JSON.parse(JSON.stringify(existing))
-    if(!scope) { path.splice(-3, 3) } // don't sleugh off dest if dealing w/ scope pckts 
-    //console.log('fin start', JSON.parse(JSON.stringify(path)))
+    path.set(existing, 0)
+    wptr = existing.length 
+  } else {
+    path[wptr ++] = PK.PTR
   }
+  // add & return this, to chain... 
   return {
     sib: function(indice) {
       indice = parseInt(indice)
-      path = path.concat([PK.SIB.KEY, indice & 255, (indice >> 8) & 255])
+      TS.writeKeyArgPair(path, wptr, PK.SIB, indice)
+      wptr += 2
       return this 
     },
     parent: function() {
-      path = path.concat([PK.PARENT.KEY, 0, 0]) // trailing zeros for packet space to write back
+      TS.writeKeyArgPair(path, wptr, PK.PARENT, 0)
+      wptr += 2 
       return this 
     },
     child: function(indice) {
       indice = parseInt(indice)
-      path = path.concat([PK.CHILD.KEY, indice & 255, (indice >> 8) & 255])
-      return this
+      TS.writeKeyArgPair(path, wptr, PK.CHILD, indice)
+      wptr += 2
+      return this 
     },
     pfwd: function() {
-      path = path.concat([PK.PFWD.KEY])
+      TS.writeKeyArgPair(path, wptr, PK.PFWD, 0)
+      wptr += 2
       return this 
     },
     bfwd: function(indice){
       indice = parseInt(indice)
-      path = path.concat([PK.BFWD.KEY, indice & 255, (indice >> 8) & 255])
+      TS.writeKeyArgPair(path, wptr, PK.BFWD, indice)
+      wptr += 2
       return this 
     },
-    end: function(segsize = 512, scope = false) {
-      segsize = parseInt(segsize)
-      if(!scope){ // most packets go to 'dest' - and include the route segsize 
-        path = path.concat([PK.DEST, segsize & 255, (segsize >> 8) & 255])
-        return path   
-      } else {    // packets for 'scope' keys are outside of the dest switch 
-        return path
-      }
+    bbrd: function(channel){
+      channel = parseInt(channel)
+      TS.writeKeyArgPair(path, wptr, PK.BBRD, channel)
+      wptr += 2
+      return this 
+    },
+    end: function() {
+      console.log(path, wptr)
+      return path.slice(0, wptr)
     }
   }
 }
@@ -173,20 +221,46 @@ let EPMSEG = {
 
 let TS = {}
 
+// just shorthands, 
+TS.read16 = (buffer, start) => {
+  return TS.read('int16', buffer, start)
+}
+
+TS.readKey = (buffer, start) => {
+  return buffer[start] & 0b11110000
+}
+
+// we use strange-endianness for arguments, 
+TS.readArg = (buffer, start) => {
+  return ((buffer[start] & 0b00001111) << 8) | buffer[start + 1]
+}
+
+TS.writeKeyArgPair = (buffer, start, key, arg) => {
+  buffer[start] = key | (0b00001111 & (arg >> 8))
+  buffer[start + 1] = arg & 0b11111111  
+}
+
 let decoder = new TextDecoder()
-let tempRead = {} 
+// let tempRead = {} 
 
 TS.read = (type, buffer, start) => {
+  // buffers-only club, 
+  if(!(buffer instanceof Uint8Array)){
+    console.warn(`attempt to read from non-uint8array buffer, bailing`)
+    console.warn(buffer)
+    return
+  }
+  // read it... 
   switch (type) {
     case 'int32':
-      tempRead = new Uint8Array(buffer)
-      return new Int32Array(tempRead.slice(start, start + 4).buffer)[0]
+      //tempRead = new Uint8Array(buffer)
+      return new Int32Array(buffer.slice(start, start + 4).buffer)[0]
       //return (buffer[start] & 255) | (buffer[start + 1] << 8) | (buffer[start + 2] << 16) | (buffer[start + 3] << 24)
     case 'uint8':
       return buffer[start]
     case 'int16':
-      tempRead = new Uint8Array(buffer)
-      return new Int16Array(tempRead.slice(start, start + 2).buffer)[0]
+      //tempRead = new Uint8Array(buffer)
+      return new Int16Array(buffer.slice(start, start + 2).buffer)[0]
       //return (buffer[start] & 255) | (buffer[start + 1] << 8)
     case 'uint16':
       // little endian: lsb is at the lowest address
@@ -197,8 +271,8 @@ TS.read = (type, buffer, start) => {
       // embedded- and js- elements end up coming in as Uint8Array and Buffer objects respectively, 
       // ... they should all just be Buffers, ffs, but here's a little non-performant convert to guard until we fix that 
       // try this blind convert 
-      tempRead = new Uint8Array(buffer)
-      return new Float32Array(tempRead.slice(start, start + 4).buffer)[0]
+      // tempRead = new Uint8Array(buffer)
+      return new Float32Array(buffer.slice(start, start + 4).buffer)[0]
     case 'boolean':
       if (buffer[start] > 0) {
         return true
@@ -225,6 +299,13 @@ let tempArr = {}
 let tempBytes = {}
 
 TS.write = (type, value, buffer, start) => {
+  // buffers-only club, 
+  if(!(buffer instanceof Uint8Array)){
+    console.warn(`attempt to write into non-uint8array packet, bailing`)
+    console.warn(buffer)
+    return
+  }
+  // write types... 
   switch (type) {
     case 'uint8':
       buffer[start] = value & 255
