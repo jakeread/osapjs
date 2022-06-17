@@ -68,21 +68,6 @@ export default class OSAP extends Vertex {
     return msqr 
   }
 
-  /*
-  queries = []
-  query = (route, retries = 2) => {
-    let qr = new Query(this, route, retries)
-    this.queries.push(qr)
-    return qr
-  }
-  queryMSegs = []
-  queryMSeg = (route) => {
-    let msqr = new QueryMSeg(this, route)
-    this.queryMSegs.push(msqr)
-    return msqr 
-  }
-  */
-
   // root loop is unique, children's requestLoopCycle() all terminate here, 
   // only schedule once per turn, 
   loopTimer = null

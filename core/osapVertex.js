@@ -12,21 +12,16 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, TIMES, TS } from './ts.js'
+import { PK, VT, TIMES, TS } from './ts.js'
 import { reverseRoute } from './osapLoop.js'
 
 export default class Vertex {
-  /* to implement */
-  // write this.onData(), returning promise when data is cleared out 
-  // use this.transmit(bytes), 
-  // use this.addRoute(route) to add routes 
-
   constructor(parent, indice) {
     this.parent = parent
     this.indice = indice
   }
 
-  name = "unnamed vertex"
+  name = "vt_unnamed"
   children = [] // all have some children array, not all have children 
   scopeTimeTag = 0 // this property is helpful when looking across graphs, 
 
@@ -114,9 +109,55 @@ export default class Vertex {
     })
   }
 
+  // ---------------------------------- PING 
+  // any vertex can issue a ping to a route...
+  runningPingID = 0
+  getNewPingID = () => {
+    this.runningPingID ++ 
+    if(this.runningPingID > 255) this.runningPingID = 0;
+    return this.runningPingID
+  }
+  pingsAwaiting = [] 
+
+  ping = async (route, ttl = 1000, segSize = 128) => {
+    try {
+      // record ping start time, 
+      let startTime = TIMES.getTimeStamp()
+      await this.awaitStackAvailableSpace(VT.STACK_ORIGIN)
+      // track an id & increment / wrap tracker,
+      let id = this.runningPingID
+      this.runningPingID ++; this.runningPingID = this.runningPingID & 0b11111111;
+      // payload is just the request & its id, 
+      let payload = new Uint8Array([PK.PINGREQ, id])
+      // write a 'gram from that, then have vertex ingest it, 
+      let datagram = PK.writeDatagram(route, payload, ttl, segSize)
+      this.handle(datagram, VT.STACK_ORIGIN) 
+      // resolve when the ping comes back, 
+      return new Promise((resolve, reject) => {
+        this.pingsAwaiting.push({
+          res: resolve,
+          id: id,
+        })
+        setTimeout(() => {
+          reject(`ping timed out after 5s`, 5000)
+        })
+      })
+    } catch (err) {
+      throw err 
+    }
+  }
+
+  // ---------------------------------- Data Ingest 
   // this is the data uptake, 
   handle = (data, od) => {
-    if(od == null || od > 2) console.error(`bad od argument ${od} at handle`)
+    // no-not-buffers club, 
+    if(!(data instanceof Uint8Array)){
+      console.error(`non-uint8_t ingest at handle, rejecting`)
+      return
+    } else if(od == null || od > 2){
+      console.error(`bad od argument ${od} at handle`)
+      return
+    }
     let item = {}
     item.data = data.slice() // copy in, old will be gc 
     item.arrivalTime = TIMES.getTimeStamp()
@@ -137,7 +178,6 @@ export default class Vertex {
   }
 
   // handle to kick loops, passes up parent chain to root 
-  loopTimer = null 
   requestLoopCycle = () => {
     this.parent.requestLoopCycle()
   }

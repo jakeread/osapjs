@@ -140,6 +140,7 @@ PK.logPacket = (buffer, routeOnly = false) => {
     }
   } // end of loop-thru, 
   console.log(msg)
+  console.trace()
 }
 
 PK.route = (existing, scope = false) => {
@@ -194,6 +195,15 @@ PK.route = (existing, scope = false) => {
       return path.slice(0, wptr)
     }
   }
+}
+
+PK.writeDatagram = (route, payload, ttl = 1000, segSize = 128) => {
+  let datagram = new Uint8Array(route.length + payload.length + 4)
+  TS.write('uint16', ttl, datagram, 0)
+  TS.write('uint16', segSize, datagram, 2)
+  datagram.set(route, 4)
+  datagram.set(payload, 4 + route.length)
+  return datagram 
 }
 
 // endpoint layer 
