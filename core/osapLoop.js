@@ -16,7 +16,11 @@ import { VT, PK, TIMES, TS } from "./ts.js"
 
 let LOGHANDLER = false 
 let LOGSWITCH = false 
-let LOGLOOP = true 
+// sed default arg to log-or-not, or override at specific call... 
+let LOGLOOP = (msg, pck = null, log = true) => {
+  if(log) console.warn('LP: ' + msg)
+  if(log && pck) PK.logPacket(pck)
+}
 
 let loopItems = [] 
 
@@ -63,27 +67,172 @@ let collectRecursor = (vt) => {
 }
 
 let osapItemHandler = (item) => {
+  LOGLOOP(`handling at ${item.vt.name}`, item.data)
   // kill deadies 
   if(item.timeToDeath < 0){
-    if(LOGLOOP) console.log(`LP: item at ${item.vt.name} times out`)
+    LOGLOOP(`LP: item at ${item.vt.name} times out`)
     item.handled(); return  
   }
   // find ptrs, 
   let ptr = PK.findPtr(item.data)
   if(ptr == undefined) {
-    if(LOGLOOP) console.warn(`LP: item at ${item.vt.name} is ptr-less`)
+    LOGLOOP(`item at ${item.vt.name} is ptr-less`)
     item.handled(); return  
   }
-  console.log(`handling...`)
-  PK.logPacket(item.data)
-  // now we can try to transport it, 
-  // increment ptr so that we are looking at the instruction,
-  ptr ++
-  // now switch on that, 
-  switch(item.data[ptr]){
-    
+  // now we can try to transport it, switching on the instruction (which is ahead)
+  switch(TS.readKey(item.data, ptr + 1)){
+    // packet is at destination, send to vertex to handle, 
+    // if handler returns true, OK to destroy packet, else wait on it 
+    case PK.DEST:       
+      if(item.vt.destHandler(item, ptr)){
+        item.handled()
+      }
+      break;
+    // reply to pings
+    case PK.PINGREQ:
+      vt.pingRequestHandler(item, ptr)
+      break; 
+    // handle replies *from* pings, 
+    case PK.PINGRES:
+      vt.pingResponseHandler(item, ptr)
+      break;
+    // reply to scopes
+    case PK.SCOPEREQ:
+      vt.scopeRequestHandler(item, ptr) 
+      break;
+    // handle replies *from* scopes 
+    case PK.SCOPERES:
+      vt.scopeResponseHandler(item, ptr) 
+      break; 
+    // do internal transport, 
+    case PK.SIB:
+    case PK.PARENT:
+    case PK.CHILD:
+      osapInternalTransport(item, ptr)
+      break;
+    // do port-forwarding transport, 
+    case PK.PFWD:
+      // only possible if vertex is a vport, 
+      if(item.vt.type == VT.VPORT){
+        // and if it's clear to send, 
+        if(item.vt.cts()){
+          LOGLOOP(`pfwd OK at ${item.vt.name}`)
+          // walk the ptr 
+          PK.walkPtr(item.data, ptr, item.vt, 1)
+          // send it... if we were to operate total-packet-ttl, we would also  
+          // decriment the packet's ttl counter, but at the time of writing (2022-06-17) 
+          // we are operating on per-hop ttl, 
+          item.vt.send(item.data) 
+          item.handled() 
+        } else { 
+          LOGLOOP(`pfwd hold, not CTS at ${item.vt.name}`); 
+          item.vt.requestLoopCycle() 
+        }
+      } else {
+        LOGLOOP(`pfwd at non-vport`, item.data)
+        item.handled()
+      }
+      break;
+    case PK.BFWD:
+    case PK.BBRD:
+      LOGLOOP(`bus transport request in JS, at ${item.vt.name}`, item.data)
+      break; 
+    case PK.LLESCAPE:
+      LOGLOOP(`low level escape msg from ${item.vt.name}`, null, true)
+      break;
+    default:
+      LOGLOOP(`LP: item at ${item.vt.name} has unknown packet key after ptr, bailing`, item.data)
+      item.handled()
+      break;
+  } // end item switch, 
+}
+
+// here we want to look thru potentially multi-hop internal moves & operate that transport... 
+// i.e. we want to tunnel straight thru multiple steps, using the DAG as an addressing space 
+// but not necessarily transport space 
+let osapInternalTransport = (item, ptr) => {
+  // starting at the items' vertice... 
+  let vt = item.vt 
+  // new ptr to walk fwds, 
+  let fwdPtr = ptr + 1
+  // count # of ops, 
+  let opCount = 0 
+  // loop thru internal ops until we hit a destination of a forwarding step, 
+  fwdSweep: for(let h = 0; h < 16; h ++){
+    LOGLOOP(`fwd look from ${vt.name}, ptr ${fwdPtr} key ${item.data[fwdPtr]}`)
+    switch(TS.readKey(item.data, fwdPtr)){
+      // these are the internal transport cases: across, up, or down the tree 
+      case PK.SIB:
+        LOGLOOP(`instruction is sib, ${TS.readArg(item.data, fwdPtr)}`)
+        if(!vt.parent){
+          LOGLOOP(`at sib instruction, missing parent along internal route, bailing`)
+          item.handled()
+          return 
+        }
+        let sib = vt.parent.children[TS.readArg(item.data, fwdPtr)]
+        if(!sib){
+          LOGLOOP(`at sib instruction, missing sib along internal route, bailing`)
+          item.handled()
+          return 
+        }
+        // keep going onwards,
+        vt = sib 
+        break;
+      case PK.PARENT:
+        LOGLOOP(`instruction is parent, ${TS.readArg(item.data, fwdPtr)}`)
+        if(!vt.parent){
+          LOGLOOP(`at parent instruction, missing parent along internal route, bailing`)
+          item.handled()
+          return 
+        }
+        // keep going, 
+        vt = parent
+        break;
+      case PK.CHILD:
+        LOGLOOP(`instruction is child, ${TS.readArg(item.data, fwdPtr)}`)
+        let child = vt.children[TS.readArg(item.data, fwdPtr)]
+        if(!child) {
+          LOGLOOP(`at child instruction, missing child along route, bailing`)
+          item.handled()
+          return 
+        }
+        // keep on, 
+        vt = child 
+        break; 
+      // these are all cases where i.e. the vt itself will handle, or networking will happen, 
+      case PK.PFWD:
+      case PK.BFWD:
+      case PK.BBRD:
+      case PK.DEST:
+      case PK.PINREQ:
+      case PK.PINGRES:
+      case PK.SCOPEREQ:
+      case PK.SCOPERES:
+      case PK.LLESCAPE:
+        LOGLOOP(`context exit at ${vt.name}, counts ${opCount} ops`)
+        // this is the end stop, we should see if we can transport in, 
+        if(vt.stackAvailableSpace(VT.STACK_DEST)){
+          LOGLOOP(`clear to shift in to ${vt.name} from ${item.vt.name}`)
+          // we shift ptrs up, 
+          PK.walkPtr(item.data, ptr, item.vt, opCount)
+          PK.logPacket(item.data) 
+          // and ingest it at the new place, clearing the source, 
+          vt.handle(item.data, VT.STACK_DEST)
+          item.handled() 
+        } else {
+          LOGLOOP(`flow-controlled from ${item.vt.name} to ${item.vt.name}, awaiting...`)
+          item.vt.requestLoopCycle() 
+        }
+        // fwd-look is terminal here in all cases, 
+        break fwdSweep;
+      default:
+        LOGLOOP(`internal transport failure, bad key ${item.data[fwdPtr]}`)
+        item.handled()
+        return 
+    } // end switch 
+    fwdPtr += 2;
+    opCount ++;
   }
-  // osapItemHandler(item, ptr)
 }
 
 let osapHandler = (vt) => {

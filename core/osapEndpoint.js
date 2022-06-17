@@ -59,10 +59,9 @@ export default class Endpoint extends Vertex {
     })
   }
 
-  // here data->item[ptr] == PK_DEST,
-  // [ptr + 1, ptr + 2] = segsize, 
-  // here, resolve() or reject() both pass up, thru vt.dest to clear for new input 
-  destHandler = function (data, ptr) {
+  // yar, this'll need a redux w/ new transport layers, 
+  destHandler = function (item, ptr) {
+    let data = item.data 
     // console.log('endpoint dest handler')
     // PK.logPacket(data)
     // console.log(ptr, data[ptr])

@@ -28,7 +28,8 @@ export default class Query extends Vertex {
 
   // ---------------------------------- Reply Catch Side 
 
-  destHandler = function (data, ptr) {
+  destHandler = function (item, ptr) {
+    let data = item.data 
     //console.log(data, ptr, data[ptr])
     //                 data[ptr]
     // [route:n][ptr:1][dest:1][segsize:2][application]

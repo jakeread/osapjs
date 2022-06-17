@@ -24,7 +24,8 @@ export default class QueryMSeg extends Vertex {
 
   // ---------------------------------- Catch Side 
 
-  destHandler = function (data, ptr) {
+  destHandler = function (item, ptr) {
+    let data = item.data 
     let startByte = 0
     let endByte = 0 
     let terminal = false 

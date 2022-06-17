@@ -200,7 +200,8 @@ export default function OMVC(osap) {
     })
   }
 
-  this.destHandler = (data, ptr) => {
+  this.destHandler = (item, ptr) => {
+    let data = item.data 
     // here data[pr] == PK_PTR == 99, so our key is at 
     ptr += 3
     let rqid = 0 // really, we are using the same list... means we could do most-all 

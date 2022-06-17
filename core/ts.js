@@ -123,7 +123,7 @@ PK.logPacket = (buffer, routeOnly = false) => {
         msg += `[${buffer[i]}], [${buffer[i + 1]}] CHILD FWD: IND: ${TS.readArg(buffer, i)}\n`
         break;
       case PK.PFWD:
-        msg += `[${buffer[i]}], [${buffer[i + 1]}] PORT FWD\n`
+        msg += `[${buffer[i]}], [${buffer[i + 1]}] PORT FWD: IND: ${TS.readArg(buffer, i)}\n`
         break;
       case PK.BFWD:
         msg += `[${buffer[i]}], [${buffer[i + 1]}] BUS FWD: RXADDR: ${TS.readArg(buffer, i)}\n`
@@ -221,13 +221,70 @@ PK.findPtr = (pck) => {
       case PK.PFWD:
       case PK.BFWD:
       case PK.BBRD:
-        h += 2
+        ptr += 2
         break;
       default:        // anything else means a broken packet, 
         return undefined 
     }
   }
 }
+
+// walks the ptr ahead by n steps, putting reversed instructions behind, 
+PK.walkPtr = (pck, ptr, source, steps) => { 
+  // check check... 
+  if(pck[ptr] != PK.PTR){ throw new Error(`bad ptr walk, pck[ptr] == ${pck[ptr]} not PK.PTR`) }
+  // walk along, switching on instructions... 
+  for(let h = 0; h < steps; h ++){
+    switch(TS.readKey(pck, ptr + 1)){
+      case PK.SIB:
+        // track for this loop's next step, before we modify the packet data
+        source = source.parent.children[TS.readArg(pck, ptr + 1)]
+        // so, where ptr is currently goes the new key / arg pair for a reversal, 
+        // for a sibling pass, that's the sibling to pass back to, 
+        TS.writeKeyArgPair(pck, ptr, PK.SIB, source.indice)
+        // then the position +2 from current ptr becomes the ptr, now it's just behind the next instruction, 
+        pck[ptr + 2] = PK.PTR 
+        ptr += 2 
+        break;
+      case PK.PARENT:
+        // next source... 
+        source = source.parent 
+        // reversal for a 'parent' instruction is to go back to the child, 
+        TS.writeKeyArgPair(pck, ptr, PK.CHILD, source.indice)
+        pck[ptr + 2] = PK.PTR 
+        ptr += 2
+        break;
+      case PK.CHILD:
+        // next src will be 
+        source = source.children[TS.readArg(pck, ptr + 1)]
+        // reversal for a 'child' instruction is to go back to the parent, 
+        TS.writeKeyArgPair(pck, ptr, PK.PARENT, 0)
+        pck[ptr + 2] = PK.PTR 
+        ptr += 2 
+        break;
+      case PK.PFWD:
+        // reversal for a pfwd is just a pointer hop, 
+        TS.writeKeyArgPair(pck, ptr, PK.PFWD, 0)
+        pck[ptr + 2] = PK.PTR 
+        // PFWD is a network instruction, we should only ever be ptr-walking once in this case, 
+        if(steps != 1) throw new Error(`likely bad call to walkPtr, we have port-fwd here w/ more than 1 step`)
+        return; 
+      case PK.BFWD:
+      case PK.BBRD:
+        throw new Error(`bus instructions in JS, badness`)
+        break;
+      case PK.PTR:    // this doesn't make any sense, we had pck[ptr] = PK.PTR, and are here at pck[ptr + 1]
+      default:        // anything else means a broken instruction, 
+        throw new Error(`out of place keys during a pointer increment`)
+    }
+  }
+}
+
+// we walk the ptr fwds, & stuff the pfwd instruction in reverse, 
+// item.data[ptr] = PK.PFWD 
+// item.data[ptr + 1] = 0 
+// item.data[ptr + 2] = PK.PTR 
+
 
 // endpoint layer 
 let EP = {

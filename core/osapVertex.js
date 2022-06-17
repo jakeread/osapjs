@@ -28,7 +28,7 @@ export default class Vertex {
   // return true when message flushes / is OK / handled, 
   // return false if we want this to bother again on next main loop 
   // i.e. endpoint types extend this to disambiguate acks / messages etc, 
-  destHandler = function (data, ptr) {
+  destHandler = function (item, ptr) {
     console.log(`default vertex type ${this.type} indice ${this.indice} destHandler`)
     return true 
   }
