@@ -159,8 +159,11 @@ export default class Vertex {
       return
     }
     let item = {}
-    item.data = data.slice() // copy in, old will be gc 
-    item.arrivalTime = TIMES.getTimeStamp()
+    item.data = data.slice()                          // copy in, old will be gc 
+    item.arrivalTime = TIMES.getTimeStamp()           // track arrival time 
+    item.timeToLive = TS.read('uint16', item.data, 0) // track TTL, 
+    item.vt = this                                    // handle to us, 
+    item.od = od                                      // which stack... 
     item.handled = () => {
       //console.warn(`handled from ${od} stack at ${this.indice}`)
       let ok = false 

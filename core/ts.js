@@ -206,6 +206,29 @@ PK.writeDatagram = (route, payload, ttl = 1000, segSize = 128) => {
   return datagram 
 }
 
+// returns the position of the ptr key such that pck[ptr] == PK.PTR, or undefined 
+PK.findPtr = (pck) => {
+  // 1st position the ptr can be in is 4, 
+  let ptr = 4 
+  // search fwd for a max of 16 steps, 
+  for(let h = 0; h < 16; h ++){
+    switch(TS.readKey(pck, ptr)){
+      case PK.PTR:    // it's the ptr, return it
+        return ptr
+      case PK.SIB:    // keys which could be between start of pckt and terminal, 
+      case PK.PARENT:
+      case PK.CHILD:
+      case PK.PFWD:
+      case PK.BFWD:
+      case PK.BBRD:
+        h += 2
+        break;
+      default:        // anything else means a broken packet, 
+        return undefined 
+    }
+  }
+}
+
 // endpoint layer 
 let EP = {
   SS_ACK: 101,      // the ack, 

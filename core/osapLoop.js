@@ -16,12 +16,74 @@ import { VT, PK, TIMES, TS } from "./ts.js"
 
 let LOGHANDLER = false 
 let LOGSWITCH = false 
+let LOGLOOP = true 
 
-let osapLoop = (vt) => {
-  osapHandler(vt)
-  for (let child of vt.children) {
-    osapLoop(child)
+let loopItems = [] 
+
+// this should be called just once per cycle, from the root vertex, 
+let osapLoop = (root) => {
+  // time is now, 
+  let now = TIMES.getTimeStamp()
+  // reset our list of items-to-handle, 
+  loopItems = []
+  // collect 'em recursively, 
+  collectRecursor(root)
+  // we want to pre-compute each items' time until death, this is handy in two places, 
+  for(let item of loopItems){
+    item.timeToDeath = item.timeToLive - (now - item.arrivalTime)
   }
+  // sort items by their time-to-live,
+  loopItems.sort((a, b) => {
+    // for the compare function, we return `> 0` if we want to sort a after b,
+    // so we just want a's ttd - b's ttd, items which have more time until failure will 
+    // be serviced *after* items whose life is on the line etc 
+    return a.timeToDeath - b.timeToDeath
+  })
+  // now we just go through each item, in order, and try to handle it...   
+  for(let i = 0; i < loopItems.length; i ++){
+    // handle 'em ! 
+    osapItemHandler(loopItems[i])
+  }
+  // that's the end of the loop, folks 
+  // items which have gone unhandled will have issued requests for new loops, 
+  // this will fire again on those cycles, 
+}
+
+let collectRecursor = (vt) => {
+  // we want to collect items from input & output stacks alike, 
+  for(let od = 0; od < 2; od ++){
+    for(let i = 0; i < vt.stack[od].length; i ++){
+      loopItems.push(vt.stack[od][i])
+    }
+  }
+  // then collect our children's items...
+  for (let child of vt.children) {
+    collectRecursor(child)
+  }
+}
+
+let osapItemHandler = (item) => {
+  // kill deadies 
+  if(item.timeToDeath < 0){
+    if(LOGLOOP) console.log(`LP: item at ${item.vt.name} times out`)
+    item.handled(); return  
+  }
+  // find ptrs, 
+  let ptr = PK.findPtr(item.data)
+  if(ptr == undefined) {
+    if(LOGLOOP) console.warn(`LP: item at ${item.vt.name} is ptr-less`)
+    item.handled(); return  
+  }
+  console.log(`handling...`)
+  PK.logPacket(item.data)
+  // now we can try to transport it, 
+  // increment ptr so that we are looking at the instruction,
+  ptr ++
+  // now switch on that, 
+  switch(item.data[ptr]){
+    
+  }
+  // osapItemHandler(item, ptr)
 }
 
 let osapHandler = (vt) => {
@@ -190,9 +252,10 @@ let osapSwitch = (vt, od, item, ptr, now) => {
   }
 }
 
+// will move to pk... 
 let ptrLoop = (pck, ptr) => {
+  console.error(`aye, ya shouldn't be using this one, m8, do PK.findPtr`)
   if (!ptr) ptr = 0
-
   for (let h = 0; h < 16; h++) {
     switch (pck[ptr]) {
       case PK.PTR:
