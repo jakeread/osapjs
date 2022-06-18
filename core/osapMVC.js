@@ -109,7 +109,7 @@ export default function OMVC(osap) {
     // setup handler, 
     return new Promise((resolve, reject) => {
       routeReqsAwaiting.push({
-        request: datagram.slice(),
+        request: new Uint8Array(datagram),
         id: datagram[route.length + 4],
         timeout: setTimeout(() => {
           reject(`route req timeout to ${route}`)
@@ -152,7 +152,7 @@ export default function OMVC(osap) {
     // setup handler 
     return new Promise((resolve, reject) => {
       routeReqsAwaiting.push({
-        request: datagram.slice(),
+        request: new Uint8Array(datagram),
         id: datagram[rteLen + 4],
         timeout: setTimeout(() => {
           reject(`route set req timeout`)
@@ -184,7 +184,7 @@ export default function OMVC(osap) {
     // setup handler, 
     return new Promise((resolve, reject) => {
       routeReqsAwaiting.push({
-        request: datagram.slice(),
+        request: new Uint8Array(datagram),
         id: datagram[rteLen + 4],
         timeout: setTimeout(() => {
           reject('route rm req timeout')

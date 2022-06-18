@@ -111,12 +111,7 @@ export default class Vertex {
 
   // ---------------------------------- PING 
   // any vertex can issue a ping to a route...
-  runningPingID = 0
-  getNewPingID = () => {
-    this.runningPingID ++ 
-    if(this.runningPingID > 255) this.runningPingID = 0;
-    return this.runningPingID
-  }
+  runningPingID = 42
   pingsAwaiting = [] 
 
   ping = async (route, ttl = 1000, segSize = 128) => {
@@ -135,15 +130,44 @@ export default class Vertex {
       // resolve when the ping comes back, 
       return new Promise((resolve, reject) => {
         this.pingsAwaiting.push({
+          startTime: startTime,
           res: resolve,
           id: id,
         })
         setTimeout(() => {
-          reject(`ping timed out after 5s`, 5000)
-        })
+          reject(`ping timed out after 5s`)
+        }, 5000)
       })
     } catch (err) {
       throw err 
+    }
+  }
+
+  pingRequestHandler = (item, ptr) => {
+    // item.data[ptr] == PK.PTR 
+    // we want to ack this... basically without modifying anything,
+    let id = TS.readArg(item.data, ptr + 1)
+    let payload = new Uint8Array(2)
+    TS.writeKeyArgPair(payload, 0, PK.PINGRES, id)
+    let datagram = PK.writeReply(item.data, payload)
+    // we'll ack "in place" by rm-ing this item from the destination stack & then replacing it, 
+    // no checks this way: pings and scope are always answered, even if i.e. single-stack endpoint
+    // is on an every-loop-update, etc... 
+    item.handled()
+    //PK.logPacket(datagram)
+    //console.log(item.vt.name)
+    item.vt.handle(datagram, VT.STACK_DEST)
+  }
+
+  pingResponseHandler = (item, ptr) => {
+    // item.data[ptr] = PK.PTR, ptr + 1 == PK.PINGRES 
+    let id = TS.readArg(item.data, ptr + 1)
+    for(let a = 0; a < this.pingsAwaiting.length; a ++){
+      if(this.pingsAwaiting[a].id == id){
+        let pa = this.pingsAwaiting[a]
+        pa.res(TIMES.getTimeStamp() - pa.startTime)
+        this.pingsAwaiting.splice(a, 1)
+      }
     }
   }
 
@@ -159,7 +183,7 @@ export default class Vertex {
       return
     }
     let item = {}
-    item.data = data.slice()                          // copy in, old will be gc 
+    item.data = new Uint8Array(data)                  // copy in, old will be gc 
     item.arrivalTime = TIMES.getTimeStamp()           // track arrival time 
     item.timeToLive = TS.read('uint16', item.data, 0) // track TTL, 
     item.vt = this                                    // handle to us, 

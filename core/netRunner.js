@@ -219,7 +219,7 @@ export default function NetRunner(osap) {
       // (4) setup to handle the request, associating it w/ this fn  
       return new Promise((resolve, reject) => {
         pingsAwaiting.push({
-          request: datagram.slice(),                    // the og request 
+          request: new Uint8Array(datagram),            // copy-in the og request 
           id: datagram[route.length + 1],               // it's id 
           timeout: setTimeout(() => {                   // a timeout
             reject(`scope timeout`)
@@ -310,7 +310,7 @@ export default function NetRunner(osap) {
     let recursor = (route, from) => {
       console.log('recurse', route)
       // copy...
-      route = route.slice()
+      route = new Uint8Array(route)
       // first... find the thing, 
       for (let s in from.parent.children) {
         s = parseInt(s)

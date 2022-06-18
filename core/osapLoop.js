@@ -17,7 +17,7 @@ import { VT, PK, TIMES, TS } from "./ts.js"
 let LOGHANDLER = false 
 let LOGSWITCH = false 
 // sed default arg to log-or-not, or override at specific call... 
-let LOGLOOP = (msg, pck = null, log = true) => {
+let LOGLOOP = (msg, pck = null, log = false) => {
   if(log) console.warn('LP: ' + msg)
   if(log && pck) PK.logPacket(pck)
 }
@@ -90,19 +90,19 @@ let osapItemHandler = (item) => {
       break;
     // reply to pings
     case PK.PINGREQ:
-      vt.pingRequestHandler(item, ptr)
+      item.vt.pingRequestHandler(item, ptr)
       break; 
     // handle replies *from* pings, 
     case PK.PINGRES:
-      vt.pingResponseHandler(item, ptr)
+      item.vt.pingResponseHandler(item, ptr)
       break;
     // reply to scopes
     case PK.SCOPEREQ:
-      vt.scopeRequestHandler(item, ptr) 
+      item.vt.scopeRequestHandler(item, ptr) 
       break;
     // handle replies *from* scopes 
     case PK.SCOPERES:
-      vt.scopeResponseHandler(item, ptr) 
+      item.vt.scopeResponseHandler(item, ptr) 
       break; 
     // do internal transport, 
     case PK.SIB:
@@ -129,7 +129,7 @@ let osapItemHandler = (item) => {
           item.vt.requestLoopCycle() 
         }
       } else {
-        LOGLOOP(`pfwd at non-vport`, item.data)
+        LOGLOOP(`pfwd at non-vport, ${item.vt.name} is type ${item.vt.type}`, item.data)
         item.handled()
       }
       break;
@@ -185,8 +185,8 @@ let osapInternalTransport = (item, ptr) => {
           item.handled()
           return 
         }
-        // keep going, 
-        vt = parent
+        //keep going, 
+        vt = vt.parent
         break;
       case PK.CHILD:
         LOGLOOP(`instruction is child, ${TS.readArg(item.data, fwdPtr)}`)
@@ -204,7 +204,7 @@ let osapInternalTransport = (item, ptr) => {
       case PK.BFWD:
       case PK.BBRD:
       case PK.DEST:
-      case PK.PINREQ:
+      case PK.PINGREQ:
       case PK.PINGRES:
       case PK.SCOPEREQ:
       case PK.SCOPERES:
@@ -215,7 +215,6 @@ let osapInternalTransport = (item, ptr) => {
           LOGLOOP(`clear to shift in to ${vt.name} from ${item.vt.name}`)
           // we shift ptrs up, 
           PK.walkPtr(item.data, ptr, item.vt, opCount)
-          PK.logPacket(item.data) 
           // and ingest it at the new place, clearing the source, 
           vt.handle(item.data, VT.STACK_DEST)
           item.handled() 
@@ -234,6 +233,8 @@ let osapInternalTransport = (item, ptr) => {
     opCount ++;
   }
 }
+
+// ----------------------------------------------- OLD SHIT BELOW 
 
 let osapHandler = (vt) => {
   // time uniform across loops 

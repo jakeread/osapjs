@@ -35,16 +35,8 @@ export default class VPort extends Vertex {
   send = function (buffer) { console.warn('transmitted to undefined vport send fn') }
 
   receive = function (buffer) {
-    // find the ptr, shift arrival in 
-    let ptr = ptrLoop(buffer)
-    // check ptrwalk is OK on entrance to help clear bad pckts faster
-    if (ptr == undefined) {
-      console.log(`pop for bad ptr walk at vport ${this.name}`)
-      PK.logPacket(buffer)
-      return
-    }
     // datagram goes straight through 
-    this.handle(buffer, 0)
+    this.handle(buffer, VT.STACK_ORIGIN)
   }
 
   // rm self from osap instance, 
