@@ -12,7 +12,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, EP, TIMES } from './ts.js'
+import { PK, VT, EP, TIMES } from './ts.js'
 import Vertex from './osapVertex.js'
 
 export default class Query extends Vertex {
@@ -25,22 +25,19 @@ export default class Query extends Vertex {
   // ---------------------------------- Some State, as a Treat 
 
   queryAwaiting = null 
+  runningQueryID = 101
 
   // ---------------------------------- Reply Catch Side 
 
   destHandler = function (item, ptr) {
-    let data = item.data 
-    //console.log(data, ptr, data[ptr])
-    //                 data[ptr]
-    // [route:n][ptr:1][dest:1][segsize:2][application]
-    ptr += 3
-    switch (data[ptr]) {
+    // again, item.data[ptr] == PK.PTR, ptr + 1 = PK.DEST, ptr + 2 = EP.QUERY_RESP,
+    switch (item.data[ptr + 2]) {
       case EP.QUERY_RESP:
         // match & bail 
-        if(this.queryAwaiting.id == data[ptr + 1]){
+        if(this.queryAwaiting.id == item.data[ptr + 3]){
           clearTimeout(this.queryAwaiting.timeout)
           for(let res of this.queryAwaiting.resolutions){
-            res(data.slice(ptr + 2))
+            res(new Uint8Array(item.data.subarray(ptr + 4)))
           }
           this.queryAwaiting = null 
         } else {
@@ -56,29 +53,16 @@ export default class Query extends Vertex {
 
   // ---------------------------------- Issuing Side 
 
-  runningQueryId = 101
-  getNewQueryId = () => {
-    this.runningQueryId++
-    if (this.runningQueryId > 255) {
-      this.runningQueryId = 0
-    }
-    return this.runningQueryId
-  }
-
   pull = () => {
     return new Promise((resolve, reject) => {
       if (this.queryAwaiting) {
-        //console.warn(`already awaiting on this line from '${this.parent.name}' adding 2nd response`)
-        //console.log(this.route)
         this.queryAwaiting.resolutions.push(resolve)
       } else {
-        let queryId = this.getNewQueryId()
-        let req = new Uint8Array(this.route.length + 2)
-        req.set(this.route, 0)
-        req[this.route.length] = EP.QUERY
-        req[this.route.length + 1] = queryId
+        let queryID = this.runningQueryID 
+        this.runningQueryID ++; this.runningQueryID = this.runningQueryID & 0b11111111; 
+        let datagram = PK.writeDatagram(this.route, new Uint8Array([PK.DEST, EP.QUERY, queryID]))
         this.queryAwaiting = {
-          id: queryId,
+          id: queryID,
           resolutions: [resolve],
           retries: 0,
           timeoutFn: () => {
@@ -88,7 +72,7 @@ export default class Query extends Vertex {
             } else {
               console.warn(`query retry`)
               this.queryAwaiting.retries ++ 
-              this.handle(req, 0)
+              this.handle(datagram, VT.STACK_ORIGIN)
               this.queryAwaiting.timeout = setTimeout(this.queryAwaiting.timeoutFn, TIMES.staleTimeout)
             }
           }
@@ -96,8 +80,7 @@ export default class Query extends Vertex {
         // set 1st timeout, 
         this.queryAwaiting.timeout = setTimeout(this.queryAwaiting.timeoutFn,TIMES.staleTimeout)
         // parent handles,
-        //console.log('query', req)
-        this.handle(req, 0)
+        this.handle(datagram, VT.STACK_ORIGIN)
       }
     })
   }

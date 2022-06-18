@@ -127,20 +127,17 @@ export default class Endpoint extends Vertex {
           return true
         }
       case EP.QUERY:
-        if (this.stackAvailableSpace(VT.STACK_ORIGIN)) {
-          // have query & space to reply, 
-          let route = reverseRoute(data)
-          let repl = new Uint8Array(route.length + 2 + this.data.length)
-          // *should do* checks data length against max. segsize... 
-          repl.set(route, 0)
-          repl[route.length] = EP.QUERY_RESP;
-          repl[route.length + 1] = data[ptr + 1];
-          repl.set(this.data, route.length + 2)
-          this.handle(repl, VT.STACK_ORIGIN)
-          return true
-        } else {
-          return false
+        {
+          // new payload for reply, keys are dest, query_resp, and ID from incoming, 
+          let payload = new Uint8Array(3 + this.data.length)
+          payload[0] = PK.DEST; payload[1] = EP.QUERY_RESP; payload[2] = item.data[ptr + 3];
+          // write-in data,
+          payload.set(this.data, 3)
+          // formulate packet, 
+          let datagram = PK.writeReply(item.data, payload)
+          this.handle(datagram, VT.STACK_ORIGIN)
         }
+        return true 
       case EP.ROUTE_QUERY:
         if (this.stackAvailableSpace(VT.STACK_ORIGIN)) {
           // let's see about our route... it should be at 
