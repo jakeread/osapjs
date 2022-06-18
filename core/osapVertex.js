@@ -102,7 +102,7 @@ export default class Vertex {
         } else {
           // TODO: curious to watch if this occurs, so: (should delete later)
           console.warn('stack await space...')
-          setTimeout(check, 10)
+          setTimeout(check, 0)
         }
       }
       check()
@@ -169,6 +169,7 @@ export default class Vertex {
         this.pingsAwaiting.splice(a, 1)
       }
     }
+    item.handled()
   }
 
   // ---------------------------------- Data Ingest 

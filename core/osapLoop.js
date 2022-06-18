@@ -14,15 +14,15 @@ no warranty is provided, and users accept all liability.
 
 import { VT, PK, TIMES, TS } from "./ts.js"
 
-let LOGHANDLER = false 
-let LOGSWITCH = false 
+let LOGHANDLER = false
+let LOGSWITCH = false
 // sed default arg to log-or-not, or override at specific call... 
 let LOGLOOP = (msg, pck = null, log = false) => {
-  if(log) console.warn('LP: ' + msg)
-  if(log && pck) PK.logPacket(pck)
+  if (log) console.warn('LP: ' + msg)
+  if (log && pck) PK.logPacket(pck)
 }
 
-let loopItems = [] 
+let loopItems = []
 
 // this should be called just once per cycle, from the root vertex, 
 let osapLoop = (root) => {
@@ -33,7 +33,7 @@ let osapLoop = (root) => {
   // collect 'em recursively, 
   collectRecursor(root)
   // we want to pre-compute each items' time until death, this is handy in two places, 
-  for(let item of loopItems){
+  for (let item of loopItems) {
     item.timeToDeath = item.timeToLive - (now - item.arrivalTime)
   }
   // sort items by their time-to-live,
@@ -43,8 +43,9 @@ let osapLoop = (root) => {
     // be serviced *after* items whose life is on the line etc 
     return a.timeToDeath - b.timeToDeath
   })
+  //console.warn(loopItems.length)
   // now we just go through each item, in order, and try to handle it...   
-  for(let i = 0; i < loopItems.length; i ++){
+  for (let i = 0; i < loopItems.length; i++) {
     // handle 'em ! 
     osapItemHandler(loopItems[i])
   }
@@ -55,8 +56,8 @@ let osapLoop = (root) => {
 
 let collectRecursor = (vt) => {
   // we want to collect items from input & output stacks alike, 
-  for(let od = 0; od < 2; od ++){
-    for(let i = 0; i < vt.stack[od].length; i ++){
+  for (let od = 0; od < 2; od++) {
+    for (let i = 0; i < vt.stack[od].length; i++) {
       loopItems.push(vt.stack[od][i])
     }
   }
@@ -69,41 +70,41 @@ let collectRecursor = (vt) => {
 let osapItemHandler = (item) => {
   LOGLOOP(`handling at ${item.vt.name}`, item.data)
   // kill deadies 
-  if(item.timeToDeath < 0){
-    LOGLOOP(`LP: item at ${item.vt.name} times out`)
-    item.handled(); return  
+  if (item.timeToDeath < 0) {
+    LOGLOOP(`LP: item at ${item.vt.name} times out`, null, true)
+    item.handled(); return
   }
   // find ptrs, 
   let ptr = PK.findPtr(item.data)
-  if(ptr == undefined) {
+  if (ptr == undefined) {
     LOGLOOP(`item at ${item.vt.name} is ptr-less`)
-    item.handled(); return  
+    item.handled(); return
   }
   // now we can try to transport it, switching on the instruction (which is ahead)
-  switch(TS.readKey(item.data, ptr + 1)){
+  switch (TS.readKey(item.data, ptr + 1)) {
     // packet is at destination, send to vertex to handle, 
     // if handler returns true, OK to destroy packet, else wait on it 
-    case PK.DEST:       
-      if(item.vt.destHandler(item, ptr)){
+    case PK.DEST:
+      if (item.vt.destHandler(item, ptr)) {
         item.handled()
       }
       break;
     // reply to pings
     case PK.PINGREQ:
       item.vt.pingRequestHandler(item, ptr)
-      break; 
+      break;
     // handle replies *from* pings, 
     case PK.PINGRES:
       item.vt.pingResponseHandler(item, ptr)
       break;
     // reply to scopes
     case PK.SCOPEREQ:
-      item.vt.scopeRequestHandler(item, ptr) 
+      item.vt.scopeRequestHandler(item, ptr)
       break;
     // handle replies *from* scopes 
     case PK.SCOPERES:
-      item.vt.scopeResponseHandler(item, ptr) 
-      break; 
+      item.vt.scopeResponseHandler(item, ptr)
+      break;
     // do internal transport, 
     case PK.SIB:
     case PK.PARENT:
@@ -113,20 +114,20 @@ let osapItemHandler = (item) => {
     // do port-forwarding transport, 
     case PK.PFWD:
       // only possible if vertex is a vport, 
-      if(item.vt.type == VT.VPORT){
+      if (item.vt.type == VT.VPORT) {
         // and if it's clear to send, 
-        if(item.vt.cts()){
+        if (item.vt.cts()) {
           LOGLOOP(`pfwd OK at ${item.vt.name}`)
           // walk the ptr 
           PK.walkPtr(item.data, ptr, item.vt, 1)
           // send it... if we were to operate total-packet-ttl, we would also  
           // decriment the packet's ttl counter, but at the time of writing (2022-06-17) 
           // we are operating on per-hop ttl, 
-          item.vt.send(item.data) 
-          item.handled() 
-        } else { 
-          LOGLOOP(`pfwd hold, not CTS at ${item.vt.name}`); 
-          item.vt.requestLoopCycle() 
+          item.vt.send(item.data)
+          item.handled()
+        } else {
+          LOGLOOP(`pfwd hold, not CTS at ${item.vt.name}`);
+          item.vt.requestLoopCycle()
         }
       } else {
         LOGLOOP(`pfwd at non-vport, ${item.vt.name} is type ${item.vt.type}`, item.data)
@@ -136,7 +137,7 @@ let osapItemHandler = (item) => {
     case PK.BFWD:
     case PK.BBRD:
       LOGLOOP(`bus transport request in JS, at ${item.vt.name}`, item.data)
-      break; 
+      break;
     case PK.LLESCAPE:
       LOGLOOP(`low level escape msg from ${item.vt.name}`, null, true)
       break;
@@ -151,86 +152,73 @@ let osapItemHandler = (item) => {
 // i.e. we want to tunnel straight thru multiple steps, using the DAG as an addressing space 
 // but not necessarily transport space 
 let osapInternalTransport = (item, ptr) => {
-  // starting at the items' vertice... 
-  let vt = item.vt 
-  // new ptr to walk fwds, 
-  let fwdPtr = ptr + 1
-  // count # of ops, 
-  let opCount = 0 
-  // loop thru internal ops until we hit a destination of a forwarding step, 
-  fwdSweep: for(let h = 0; h < 16; h ++){
-    LOGLOOP(`fwd look from ${vt.name}, ptr ${fwdPtr} key ${item.data[fwdPtr]}`)
-    switch(TS.readKey(item.data, fwdPtr)){
-      // these are the internal transport cases: across, up, or down the tree 
-      case PK.SIB:
-        LOGLOOP(`instruction is sib, ${TS.readArg(item.data, fwdPtr)}`)
-        if(!vt.parent){
-          LOGLOOP(`at sib instruction, missing parent along internal route, bailing`)
+  try {
+    // starting at the items' vertice... 
+    let vt = item.vt
+    // new ptr to walk fwds, 
+    let fwdPtr = ptr + 1
+    // count # of ops, 
+    let opCount = 0
+    // loop thru internal ops until we hit a destination of a forwarding step, 
+    fwdSweep: for (let h = 0; h < 16; h++) {
+      LOGLOOP(`fwd look from ${vt.name}, ptr ${fwdPtr} key ${item.data[fwdPtr]}`)
+      switch (TS.readKey(item.data, fwdPtr)) {
+        // these are the internal transport cases: across, up, or down the tree 
+        case PK.SIB:
+          LOGLOOP(`instruction is sib, ${TS.readArg(item.data, fwdPtr)}`)
+          if (!vt.parent) { throw new Error(`fwd to sib from ${vt.name}, but no parent exists`) }
+          let sib = vt.parent.children[TS.readArg(item.data, fwdPtr)]
+          if (!sib) { throw new Error(`fwd to sib ${TS.readArg(item.data, fwdPtr)} from ${vt.name}, but none exists`) }
+          vt = sib
+          break;
+        case PK.PARENT:
+          LOGLOOP(`instruction is parent, ${TS.readArg(item.data, fwdPtr)}`)
+          if (!vt.parent) { throw new Error(`fwd to parent from ${vt.name}, but no parent exists`) }
+          vt = vt.parent
+          break;
+        case PK.CHILD:
+          LOGLOOP(`instruction is child, ${TS.readArg(item.data, fwdPtr)}`)
+          let child = vt.children[TS.readArg(item.data, fwdPtr)]
+          if (!child) { throw new Error(`fwd to child ${TS.readArg(item.data, fwdPtr)} from ${vt.name}, none exists`) }
+          vt = child
+          break;
+        // these are all cases where i.e. the vt itself will handle, or networking will happen, 
+        case PK.PFWD:
+        case PK.BFWD:
+        case PK.BBRD:
+        case PK.DEST:
+        case PK.PINGREQ:
+        case PK.PINGRES:
+        case PK.SCOPEREQ:
+        case PK.SCOPERES:
+        case PK.LLESCAPE:
+          LOGLOOP(`context exit at ${vt.name}, counts ${opCount} ops`)
+          // this is the end stop, we should see if we can transport in, 
+          if (vt.stackAvailableSpace(VT.STACK_DEST) >= 0) {
+            LOGLOOP(`clear to shift in to ${vt.name} from ${item.vt.name}, shifting...`)
+            // we shift ptrs up, 
+            PK.walkPtr(item.data, ptr, item.vt, opCount)
+            // and ingest it at the new place, clearing the source, 
+            vt.handle(item.data, VT.STACK_DEST)
+            item.handled()
+          } else {
+            LOGLOOP(`flow-controlled from ${vt.name} to ${item.vt.name}, awaiting...`, null, true)
+            item.vt.requestLoopCycle()
+          }
+          // fwd-look is terminal here in all cases, 
+          break fwdSweep;
+        default:
+          LOGLOOP(`internal transport failure, bad key ${item.data[fwdPtr]}`)
           item.handled()
-          return 
-        }
-        let sib = vt.parent.children[TS.readArg(item.data, fwdPtr)]
-        if(!sib){
-          LOGLOOP(`at sib instruction, missing sib along internal route, bailing`)
-          item.handled()
-          return 
-        }
-        // keep going onwards,
-        vt = sib 
-        break;
-      case PK.PARENT:
-        LOGLOOP(`instruction is parent, ${TS.readArg(item.data, fwdPtr)}`)
-        if(!vt.parent){
-          LOGLOOP(`at parent instruction, missing parent along internal route, bailing`)
-          item.handled()
-          return 
-        }
-        //keep going, 
-        vt = vt.parent
-        break;
-      case PK.CHILD:
-        LOGLOOP(`instruction is child, ${TS.readArg(item.data, fwdPtr)}`)
-        let child = vt.children[TS.readArg(item.data, fwdPtr)]
-        if(!child) {
-          LOGLOOP(`at child instruction, missing child along route, bailing`)
-          item.handled()
-          return 
-        }
-        // keep on, 
-        vt = child 
-        break; 
-      // these are all cases where i.e. the vt itself will handle, or networking will happen, 
-      case PK.PFWD:
-      case PK.BFWD:
-      case PK.BBRD:
-      case PK.DEST:
-      case PK.PINGREQ:
-      case PK.PINGRES:
-      case PK.SCOPEREQ:
-      case PK.SCOPERES:
-      case PK.LLESCAPE:
-        LOGLOOP(`context exit at ${vt.name}, counts ${opCount} ops`)
-        // this is the end stop, we should see if we can transport in, 
-        if(vt.stackAvailableSpace(VT.STACK_DEST)){
-          LOGLOOP(`clear to shift in to ${vt.name} from ${item.vt.name}`)
-          // we shift ptrs up, 
-          PK.walkPtr(item.data, ptr, item.vt, opCount)
-          // and ingest it at the new place, clearing the source, 
-          vt.handle(item.data, VT.STACK_DEST)
-          item.handled() 
-        } else {
-          LOGLOOP(`flow-controlled from ${item.vt.name} to ${item.vt.name}, awaiting...`)
-          item.vt.requestLoopCycle() 
-        }
-        // fwd-look is terminal here in all cases, 
-        break fwdSweep;
-      default:
-        LOGLOOP(`internal transport failure, bad key ${item.data[fwdPtr]}`)
-        item.handled()
-        return 
-    } // end switch 
-    fwdPtr += 2;
-    opCount ++;
+          return
+      } // end switch 
+      fwdPtr += 2;
+      opCount++;
+    }
+  } catch (err) {
+    console.error(err)
+    item.handled()
+    return 
   }
 }
 
@@ -244,7 +232,7 @@ let osapHandler = (vt) => {
     // collecting a list of items in the stack to handle 
     let count = Math.min(vt.stack[od].length, TIMES.stackSize)
     let items = vt.stack[od].slice(0, count)
-    if(count && LOGHANDLER) console.warn(`switch pcks: ${count} at ${vt.indice} stack ${od}`)
+    if (count && LOGHANDLER) console.warn(`switch pcks: ${count} at ${vt.indice} stack ${od}`)
     for (let i = 0; i < count; i++) {
       // get handle, pointer, 
       let item = items[i]
@@ -275,7 +263,7 @@ let osapSwitch = (vt, od, item, ptr, now) => {
   switch (pck[ptr]) {
     case PK.DEST:
       //console.log(`${vt.type} is destination`)
-      if(vt.destHandler(pck, ptr)){
+      if (vt.destHandler(pck, ptr)) {
         item.handled()
         break;
       } else {
@@ -285,11 +273,11 @@ let osapSwitch = (vt, od, item, ptr, now) => {
     case PK.SIB.KEY:
       // read-out the indice, 
       let si = TS.read('uint16', pck, ptr + 1)
-      if(!vt.parent){
+      if (!vt.parent) {
         console.error('no vt parent at sib switch')
         PK.logPacket(pck)
         item.handled();
-        return 
+        return
       }
       let sib = vt.parent.children[si]
       if (!sib) {
@@ -298,10 +286,10 @@ let osapSwitch = (vt, od, item, ptr, now) => {
         return;
       }
       if (sib.stackAvailableSpace(VT.STACK_DEST) <= 0) {
-        if(LOGSWITCH) console.log(`sibling wait ${sib.stack[VT.STACK_DEST].length}`)
+        if (LOGSWITCH) console.log(`sibling wait ${sib.stack[VT.STACK_DEST].length}`)
         vt.requestLoopCycle()
       } else {
-        if(LOGSWITCH) console.log('shift into sib')
+        if (LOGSWITCH) console.log('shift into sib')
         // increment block & write 
         pck[ptr - 1] = PK.SIB.KEY
         TS.write('uint16', vt.indice, pck, ptr)
@@ -319,15 +307,15 @@ let osapSwitch = (vt, od, item, ptr, now) => {
         item.handled()
         return;
       }
-      if(vt.parent.stackAvailableSpace(VT.STACK_DEST) <= 0){
-        if(LOGSWITCH) console.log(`parent wait ${vt.parent.stack[VT.STACK_DEST].length}`)
+      if (vt.parent.stackAvailableSpace(VT.STACK_DEST) <= 0) {
+        if (LOGSWITCH) console.log(`parent wait ${vt.parent.stack[VT.STACK_DEST].length}`)
         vt.requestLoopCycle()
       } else {
-        if(LOGSWITCH) console.log('shift into parent')
+        if (LOGSWITCH) console.log('shift into parent')
         // increment block and write 
         pck[ptr - 1] = PK.CHILD.KEY
         TS.write('uint16', vt.indice, pck, ptr)
-        pck[ptr + 2] = PK.PTR 
+        pck[ptr + 2] = PK.PTR
         // copy in dest & clear source 
         vt.parent.handle(pck, VT.STACK_DEST)
         item.handled()
@@ -342,15 +330,15 @@ let osapSwitch = (vt, od, item, ptr, now) => {
         item.handled()
         return;
       }
-      if(child.stackAvailableSpace(VT.STACK_DEST) <= 0){
-        if(LOGSWITCH) console.log(`child wait ${child.stack[VT.STACK_DEST].length}`)
+      if (child.stackAvailableSpace(VT.STACK_DEST) <= 0) {
+        if (LOGSWITCH) console.log(`child wait ${child.stack[VT.STACK_DEST].length}`)
         vt.requestLoopCycle()
       } else {
-        if(LOGSWITCH) console.log('shift into child')
+        if (LOGSWITCH) console.log('shift into child')
         // increment block & write 
-        pck[ptr - 1] = PK.PARENT.KEY 
+        pck[ptr - 1] = PK.PARENT.KEY
         TS.write('uint16', 0, pck, ptr)
-        pck[ptr + 2] = PK.PTR 
+        pck[ptr + 2] = PK.PTR
         // copy in to child 
         child.handle(pck, VT.STACK_DEST)
         // clear out of parent 
@@ -368,7 +356,7 @@ let osapSwitch = (vt, od, item, ptr, now) => {
           vt.send(pck)
           item.handled()
         } else { // else, awaits here 
-          if(LOGSWITCH) console.log(`pfwd hodl ${vt.name}`)
+          if (LOGSWITCH) console.log(`pfwd hodl ${vt.name}`)
           vt.requestLoopCycle()
         }
       } else {
@@ -447,7 +435,7 @@ let reverseRoute = (pck, ptr, scope = false) => {
   }
   // now pck[ptr] = PK.DEST (!) unless this is a scope pckt, 
   // route is a new uint8, 
-  let route = new Uint8Array(ptr + 3) 
+  let route = new Uint8Array(ptr + 3)
   // the tail is the same: same segsize, dest at end 
   for (let i = 3; i > 0; i--) {
     route[route.length - i] = pck[ptr + 3 - i]

@@ -71,15 +71,31 @@ export default class OSAP extends Vertex {
   // root loop is unique, children's requestLoopCycle() all terminate here, 
   // only schedule once per turn, 
   loopTimer = null
+  directCallCount = 0 
   requestLoopCycle = () => {
-    if (!this.loopTimer) this.loopTimer = setTimeout(this.loop, 0)
+    if (!this.loopTimer){
+      this.loopTimer = setTimeout(this.loop, 0)
+    }
   }
 
   loop = () => {
-    //console.warn('lp --------------')
     // cancel old timer & start loop
+    clearTimeout(this.loopTimer)
     this.loopTimer = null
     osapLoop(this)
+    // if we have queued a timer, just loop again, 
+    // to some limit... 
+    if(this.loopTimer != null){
+      this.directCallCount ++ 
+      if(this.directCallCount < 16){
+        // call it outright, bypassing timer, 
+        this.loop()
+      } else {
+        // relax, give the js event loop space, 
+        // timer will ensure that we are called in next js event cycle 
+        this.directCallCount = 0 
+      }
+    }
   }
 
   // graph search tool;
