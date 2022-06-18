@@ -14,7 +14,10 @@ no warranty is provided, and users accept all liability.
 
 import { PK, TS, VT, EP, TIMES } from './ts.js'
 import Vertex from './osapVertex.js'
-import { reverseRoute } from './osapLoop.js'
+
+let reverseRoute = (route) => {
+  console.error(`badness, pls refactor for pk.writeReply`)
+}
 
 export default class Endpoint extends Vertex {
   constructor(parent, indice) {

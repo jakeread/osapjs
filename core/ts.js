@@ -70,7 +70,7 @@ let PK = {
   PFWD: 64,         // forward at this port, to port's partner 
   BFWD: 80,         // fwd at this bus, to <arg> indice 
   BBRD: 96,         // broadcast here, to <arg> channel 
-  LLESCAPE: 0,      // pls escape this string-formatted message... 
+  LLESCAPE: 112,    // pls escape this string-formatted message... 
 }
 
 PK.logPacket = (data, routeOnly = false) => {
@@ -191,8 +191,8 @@ PK.route = (existing, scope = false) => {
       return this
     },
     end: function () {
-      console.log(path, wptr)
-      return path.slice(0, wptr)
+      console.log(path.subarray(0, wptr))
+      return new Uint8Array(path.subarray(0, wptr))
     }
   }
 }
@@ -210,7 +210,7 @@ PK.writeReply = (ogPck, payload) => {
   // find the pointer, 
   let ptr = PK.findPtr(ogPck)
   if (!ptr) throw new Error(`during reply-write, couldn't find the pointer...`);
-  // our new datagram will be this long, + the payload length, so 
+  // our new datagram will be this long (ptr is location of ptr, len is there + 1) + the payload length, so 
   let datagram = new Uint8Array(ptr + 1 + payload.length)
   // we're using the OG ttl and segsize, so we can just write that in, 
   datagram.set(ogPck.subarray(0, 4))
@@ -220,8 +220,12 @@ PK.writeReply = (ogPck, payload) => {
   // we write at the head of the packet, whose first byte is the pointer, 
   let wptr = 4
   datagram[wptr++] = PK.PTR
+  // don't write past here, 
+  let end = ptr 
+  // read from the back, 
   let rptr = ptr
   walker: for (let h = 0; h < 16; h++) {
+    if(wptr >= end) break walker;
     rptr -= 2
     switch (TS.readKey(ogPck, rptr)) {
       case PK.SIB:
@@ -237,7 +241,6 @@ PK.writeReply = (ogPck, payload) => {
       default:
         throw new Error(`during writeReply route reversal, encountered unpredictable key ${ogPck[rptr]}`)
     }
-    if (rptr <= 4) break walker;
   }
   // that's it, 
   return datagram

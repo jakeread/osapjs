@@ -100,7 +100,7 @@ export default function NetRunner(osap) {
     if (LOG_NETRUNNER) console.log(`NR: now traversing vport ${vport.indice} ${vport.name} at ${vport.parent.name}`)
     try {
       // collect vport on the other side of this one:
-      vport.reciprocal = await this.scope(PK.route(vport.route, true).pfwd().end(256, true), frontierScanTime)
+      vport.reciprocal = await osap.scope(PK.route(vport.route, true).pfwd().end(256, true), frontierScanTime)
       if (vport.reciprocal.previousTimeTag > scanStartTime) {
         if (LOG_NETRUNNER) console.warn("lp here")
         for (let p of allVPorts) {
@@ -123,7 +123,7 @@ export default function NetRunner(osap) {
       // TODO: I think we would already have enough info to detect overlaps: w/ the reciprocal's 
       // console.log(vport.reciprocal.previousTimeTag)
       // it's parent: 
-      vport.reciprocal.parent = await this.scope(PK.route(reciprocal.route, true).parent().end(256, true), frontierScanTime)
+      vport.reciprocal.parent = await osap.scope(PK.route(reciprocal.route, true).parent().end(256, true), frontierScanTime)
       let parent = vport.reciprocal.parent
       // and plumb that:
       parent.children[reciprocal.indice] = reciprocal
@@ -131,7 +131,7 @@ export default function NetRunner(osap) {
       // could speed this up by transporting all child lookups before awaiting each, more packets flying 
       for (let c = 0; c < parent.children.length; c++) {
         if (parent.children[c] == undefined) {
-          parent.children[c] = await this.scope(PK.route(reciprocal.route, true).sib(c).end(256, true), frontierScanTime)
+          parent.children[c] = await osap.scope(PK.route(reciprocal.route, true).sib(c).end(256, true), frontierScanTime)
           parent.children[c].parent = parent
         }
       }
@@ -163,10 +163,10 @@ export default function NetRunner(osap) {
     allVPorts = []
     return new Promise(async (resolve, reject) => {
       try {
-        let root = await this.scope(PK.route().end(256, true), scanStartTime)
+        let root = await osap.scope(PK.route().end(), scanStartTime)
         // now each child, 
         for (let c = 0; c < root.children.length; c++) {
-          root.children[c] = await this.scope(PK.route(root.route, true).child(c).end(256, true), scanStartTime)
+          root.children[c] = await osap.scope(PK.route(root.route, true).child(c).end(), scanStartTime)
           root.children[c].parent = root
         }
         // now launch query per virtual port,
@@ -188,77 +188,6 @@ export default function NetRunner(osap) {
         reject('sweep fails')
       }
     })
-  }
-
-  let runningPingID = 11
-  let getNewPingID = () => {
-    runningPingID++
-    if (runningPingID > 255) { runningPingID = 0 }
-    return runningPingID
-  }
-  let pingsAwaiting = []
-
-  // pings a particular route, for SCOPE info, resolving when 
-  // info comes back: simple enough:
-  this.scope = async (route, timeTag) => {
-    try {
-      if (!timeTag) console.warn("scope called w/ no timeTag")
-      // maybe a nice API in general is like 
-      // (1) wait for outgoing space in the root's origin stack: 
-      await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
-      //console.log('flying...', TIMES.getTimeStamp(), route)
-      // (2) write a packet, just the scope request, to whatever route:
-      let datagram = new Uint8Array(route.length + 6)
-      datagram.set(route, 0)
-      datagram[route.length] = PK.SCOPE_REQ.KEY
-      datagram[route.length + 1] = getNewPingID()
-      TS.write('uint32', timeTag, datagram, route.length + 2)
-      // what's next? an ID for us to demux? 
-      // (3) send the packet !
-      osap.handle(datagram, VT.STACK_ORIGIN)
-      // (4) setup to handle the request, associating it w/ this fn  
-      return new Promise((resolve, reject) => {
-        pingsAwaiting.push({
-          request: new Uint8Array(datagram),            // copy-in the og request 
-          id: datagram[route.length + 1],               // it's id 
-          timeout: setTimeout(() => {                   // a timeout
-            reject(`scope timeout`)
-          }, PING_MAX_TIME),
-          onResponse: function (item, ptr) {            // callback / handler 
-            // clear timeout 
-            clearTimeout(this.timeout)
-            // now we want to resolve this w/ a description of the ...
-            // virtual vertex ? vvt ? 
-            let vvt = {}
-            vvt.route = route
-            vvt.timeTag = timeTag // what we just tagged it with 
-            vvt.previousTimeTag = TS.read('uint32', item.data, ptr + 2) // what it replies w/ as previous tag 
-            vvt.type = item.data[ptr + 6]
-            vvt.indice = TS.read('uint16', item.data, ptr + 7)
-            vvt.children = new Array(TS.read('uint16', item.data, ptr + 11))
-            vvt.name = TS.read('string', item.data, ptr + 13).value
-            resolve(vvt)
-          }
-        })
-      })
-    } catch (err) {
-      throw err
-    }
-  }
-
-  // scope *response* handler:
-  this.scopeResponseHandler = (item, ptr) => {
-    let pingId = item.data[ptr + 1]
-    let spliced = false
-    for (let p = 0; p < pingsAwaiting.length; p++) {
-      if (pingsAwaiting[p].id == pingId) {
-        pingsAwaiting[p].onResponse(item, ptr)
-        pingsAwaiting.splice(p, 1)
-        spliced = true
-      }
-    }
-    if (!spliced) { console.error(`on ping response, no ID awaiting... ${pingId}`); PK.logPacket(item.data) }
-    item.handled()
   }
 
   // walks routes along a virtual graph, returning a list of stops, 

@@ -104,7 +104,4 @@ export default class OSAP extends Vertex {
   mvc = new OMVC(this)
   // we ship MVC msgs from the root node, so their responses arrive here... 
   destHandler = this.mvc.destHandler
-  // root will want responses to scope queries, so 
-  scopeResponseHandler = this.netRunner.scopeResponseHandler
-
 } // end OSAP
