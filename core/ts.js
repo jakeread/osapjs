@@ -203,6 +203,7 @@ PK.writeDatagram = (route, payload, ttl = 1000, segSize = 128) => {
   TS.write('uint16', segSize, datagram, 2)
   datagram.set(route, 4)
   datagram.set(payload, 4 + route.length)
+  if(datagram.length > segSize) throw new Error(`writing datagram of len ${datagram.length} w/ segSize setting ${segSize}`);
   return datagram
 }
 

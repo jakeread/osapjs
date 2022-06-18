@@ -77,7 +77,7 @@ let osapItemHandler = (item) => {
   // find ptrs, 
   let ptr = PK.findPtr(item.data)
   if (ptr == undefined) {
-    LOGLOOP(`item at ${item.vt.name} is ptr-less`)
+    LOGLOOP(`item at ${item.vt.name} is ptr-less`, item.data, true)
     item.handled(); return
   }
   // now we can try to transport it, switching on the instruction (which is ahead)

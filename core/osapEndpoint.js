@@ -36,7 +36,6 @@ export default class Endpoint extends Vertex {
 
   // and has a local data cache 
   data = new Uint8Array(0)
-  token = false
 
   // has outgoing routes, 
   addRoute = function (route) {
@@ -54,7 +53,8 @@ export default class Endpoint extends Vertex {
     this.timeoutLength = time
   }
 
-  // software data delivery, define per endpoint, should return promise 
+  // software data delivery, define per endpoint, 
+  // onData handlers can return promises in order to enact flow control,
   onData = function (data) {
     return new Promise((resolve, reject) => {
       console.warn('default endpoint onData')
@@ -62,67 +62,65 @@ export default class Endpoint extends Vertex {
     })
   }
 
-  // yar, this'll need a redux w/ new transport layers, 
+  // local helper, wraps onData in always-promiseness,
+  token = false 
+  onDataResolver = (data) => {
+    let res = this.onData(data)
+    if(res instanceof Promise){   // return user promise, 
+      return res 
+    } else {                      // invent & resolve promise, 
+      return new Promise((resolve, reject) => {
+        resolve()
+      })
+    }
+  }
+
+  // handles 'dest' keys at endpoints, 
   destHandler = function (item, ptr) {
-    let data = item.data 
-    // console.log('endpoint dest handler')
-    // PK.logPacket(data)
-    // console.log(ptr, data[ptr])
-    ptr += 3;
-    switch (data[ptr]) {
+    // item.data[ptr] == PK.PTR, item.data[ptr + 1] == PK.DEST 
+    switch (item.data[ptr + 2]) {
       case EP.SS_ACK:
         { // ack *to us* arriveth, check against awaiting transmits 
-          let ackId = data[ptr + 1]
-          let spliced = false
-          // console.log('before pick', JSON.parse(JSON.stringify(this.acksAwaiting)))
+          let ackID = item.data[ptr + 3]
           for (let a = 0; a < this.acksAwaiting.length; a++) {
-            if (this.acksAwaiting[a].id == ackId) {
-              spliced = true
-              clearTimeout(this.acksAwaiting[a].timeout)
+            if (this.acksAwaiting[a].id == ackID) {
               this.acksAwaiting.splice(a, 1)
             }
           }
-          if (!spliced) { console.error(`on ack, no ID ${ackId} awaiting...`); PK.logPacket(data); return true; }
           if (this.acksAwaiting.length == 0) {
             this.acksResolve()
-            this.acksResolve = null
           }
         }
         return true
-        break;
       case EP.SS_ACKLESS:
-        // if already occupied, push to next turn 
-        if (this.token) {
+        if(this.token){
+          // packet will wait for res, 
           return false
         } else {
-          //console.warn('data -> endpoint, ackless')
-          this.onData(data.slice(ptr + 1)).then(() => {
+          this.token = true 
+          this.onDataResolver(new Uint8Array(item.data.subarray(ptr + 3))).then(() => {
             // resolution to the promise means data is OK, we accept 
-            this.data = data.slice(ptr + 1)
-            this.token = false
+            this.data = new Uint8Array(item.data.subarray(ptr + 3))
+            this.token = false 
           }).catch((err) => {
             // error / rejection means not our data, donot change internal, but clear for new 
             this.token = false
-          })
+          })  
           return true
         }
-        break;
       case EP.SS_ACKED:
-        if (this.token || !(this.stackAvailableSpace(VT.STACK_ORIGIN))) {
-          // are occupied or don't have space ready to ack it, so can't handle yet
+        if (this.token) {
+          // packet will wait for res, 
           return false
         } else {
-          //console.warn('data -> endpoint, ack required')
-          this.onData(data.slice(ptr + 2)).then(() => {
-            this.data = data.slice(ptr + 2)
+          this.token = true 
+          this.onDataResolver(new Uint8Array(item.data.subarray(ptr + 4))).then(() => {
+            this.data = new Uint8Array(item.data.subarray(ptr + 4))
             this.token = false
-            // push the ack into the stack... not totally able to guarantee there's enough space here atm, but js arrays, so... 
-            let route = reverseRoute(data)
-            let ack = new Uint8Array(route.length + 2)
-            ack.set(route, 0)
-            ack[route.length] = EP.SS_ACK;
-            ack[route.length + 1] = data[ptr + 1];
-            this.handle(ack, 0)
+            // payload is just the dest key, ack key & id, id is at ptr + dest + key + id 
+            let datagram = PK.writeReply(item.data, new Uint8Array([PK.DEST, EP.SS_ACK, item.data[ptr + 3]]))
+            // we... should flowcontrol this, it's awkward, just send it, this is OK in JS 
+            this.handle(datagram, VT.STACK_ORIGIN)            
           }).catch((err) => {
             this.token = false
           })
@@ -150,44 +148,44 @@ export default class Endpoint extends Vertex {
           let indice = data[ptr + 2]
           //console.log(`retrieve route at indice ${indice} w/ qid ${rqid}`)
           let respRoute = reverseRoute(data)
-          if(this.routes[indice]){
+          if (this.routes[indice]) {
             let route = this.routes[indice]
             //console.log('has route', route)
             // header len... + route len less 3 (no dest & segsize...), + 3 for 
             // RQRESP, RQID, MODE, LEN
             let repl = new Uint8Array(respRoute.length + route.length - 3 + 4)
             repl.set(respRoute, 0)
-            repl[respRoute.length] = EP.ROUTE_RESP 
+            repl[respRoute.length] = EP.ROUTE_RESP
             repl[respRoute.length + 1] = rqid
             // yeah, this is also a dummy: endpoints in JS don't store modes... 
-            repl[respRoute.length + 2] = EP.ROUTEMODE_ACKLESS 
-            repl[respRoute.length + 3] = route.length - 3 
+            repl[respRoute.length + 2] = EP.ROUTEMODE_ACKLESS
+            repl[respRoute.length + 3] = route.length - 3
             repl.set(route.slice(0, -3), respRoute.length + 4)
             this.handle(repl, VT.STACK_ORIGIN)
           } else {
             // + 3 RQRESP, RQID, LEN 
             let repl = new Uint8Array(respRoute.length + 3)
             repl.set(respRoute, 0)
-            repl[respRoute.length] = EP.ROUTE_RESP 
-            repl[respRoute.length + 1] = rqid 
+            repl[respRoute.length] = EP.ROUTE_RESP
+            repl[respRoute.length + 1] = rqid
             repl[respRoute.length + 2] = 0 // for does-not-exist here, 
             this.handle(repl, VT.STACK_ORIGIN)
           }
-          return true 
+          return true
         } else {
           return false // 'true' from dest handler clears msg, 'false' waits it one cycle 
         }
       case EP.ROUTE_SET:
-        if(this.stackAvailableSpace(VT.STACK_ORIGIN)){
+        if (this.stackAvailableSpace(VT.STACK_ORIGIN)) {
           // uuuuh 
           let rqid = data[ptr + 1]
-          let respRoute = reverseRoute(data) 
+          let respRoute = reverseRoute(data)
           // just do it blind, eh?
           let newRoute = data.slice(ptr + 4)
           // stick the tail elements in, big bad, this whole subsystem ignores segsizes...
           let route = new Uint8Array(newRoute.length + 3)
           route.set(newRoute, 0)
-          route[newRoute.length] = PK.DEST 
+          route[newRoute.length] = PK.DEST
           route[newRoute.length + 1] = 0; route[newRoute.length + 2] = 2; // 512 segsize... 
           console.log('new route...', route)
           this.addRoute(route)
@@ -195,35 +193,35 @@ export default class Endpoint extends Vertex {
           let repl = new Uint8Array(respRoute.length + 3)
           repl.set(respRoute, 0)
           repl[respRoute.length] = EP.ROUTE_SET_RESP
-          repl[respRoute.length + 1] = rqid 
+          repl[respRoute.length + 1] = rqid
           repl[respRoute.length + 2] = 1 // 1: ok, 0: badness 
           this.handle(repl, VT.STACK_ORIGIN)
-          return true 
+          return true
         } else {
-          return false 
+          return false
         }
       case EP.ROUTE_RM:
-        if(this.stackAvailableSpace(VT.STACK_ORIGIN)){
+        if (this.stackAvailableSpace(VT.STACK_ORIGIN)) {
           // uuuuh 
           let rqid = data[ptr + 1]
-          let respRoute = reverseRoute(data) 
+          let respRoute = reverseRoute(data)
           let indice = data[ptr + 2]
           // a reply is kind, 
           let repl = new Uint8Array(respRoute.length + 3)
           repl.set(respRoute, 0)
           repl[respRoute.length] = EP.ROUTE_RM_RESP
-          repl[respRoute.length + 1] = rqid 
+          repl[respRoute.length + 1] = rqid
           // now, if we can rm, do:
-          if(this.routes[indice]){
+          if (this.routes[indice]) {
             this.routes.splice(indice, 1)
             repl[respRoute.length + 2] = 1 // 1: ok, 0: badness   
           } else {
             repl[respRoute.length + 2] = 0
           }
           this.handle(repl, VT.STACK_ORIGIN)
-          return true 
+          return true
         } else {
-          return false 
+          return false
         }
       case EP.QUERY_RESP:
         // query response, 
@@ -237,84 +235,85 @@ export default class Endpoint extends Vertex {
     }
   }
 
-  runningAckId = 10
-  getNewAckId = () => {
-    this.runningAckId++
-    if (this.runningAckId > 255) { this.runningAckId = 0 }
-    return this.runningAckId
-  }
+  runningAckID = 68
   acksAwaiting = []
   acksResolve = null
 
-  // transmit to all routes & await return before resolving, 
-  write = function (data, mode = "ackless") {
-    //console.warn(`endpoint ${this.indice} writes ${mode}`)
-    // then, onData modification... and should modify loop similar to embedded 
-    // keep the cache always: 
-    this.data = data
-    // returning promise, clears based on mode / network 
+  // this could be smarter, since we already have this acksResolve() state 
+  awaitAllAcks = (timeout = this.timeoutLength) => {
     return new Promise((resolve, reject) => {
-      if (this.maxStackLength - this.stack[VT.STACK_ORIGIN].length < this.routes.length) {
-        reject('write to full stack')
-        return
+      let startTime = TIMES.getTimeStamp()
+      let check = () => {
+        if (this.acksAwaiting.length == 0) {
+          resolve()
+        } else if (TIMES.getTimeStamp() - startTime > timeout) {
+          reject(`awaitAllAcks timeout`)
+        } else {
+          setTimeout(check, 0)
+        }
       }
+      check()
+    })
+  }
+
+  // transmit to all routes & await return before resolving, 
+  write = async (data, mode = "ackless") => {
+    try {
+      // console.warn(`endpoint ${this.indice} writes ${mode}`)
+      // it's the uint8-s only club again, 
+      if (!(data instanceof Uint8Array)) throw new Error(`non-uint8_t write at endpoint, rejecting`);
+      // otherwise keep that data, 
+      this.data = data
+      // now wait for clear space, we need as many slots open as we have routes to write to, 
+      await this.awaitStackAvailableSpace(VT.STACK_ORIGIN, this.timeoutLength, this.routes.length)
+      // now we can write our datagrams, yeah ?
       if (mode == "ackless") {
         for (let route of this.routes) {
-          // we want to push elements into the stack, 
-          let datagram = new Uint8Array(route.length + 1 + this.data.length)
-          datagram.set(route, 0)
-          datagram[route.length] = EP.SS_ACKLESS
-          datagram.set(this.data, route.length + 1)
-          //console.log(datagram)
-          // this is the universal vertex data uptake, '0' for origin stack, 
-          this.handle(datagram, 0)
-        }
-        // and we can check... when the stack will be clear to write again, 
-        let resolved = false
-        let rejected = false
-        let check = () => {
-          if (this.maxStackLength - this.stack[VT.STACK_ORIGIN].length >= this.routes.length) {
-            resolved = true
-            if (!rejected) resolve()
-          } else {
-            setTimeout(check, 0) // check next cycle, 
-          }
-        }
-        check()
-        // set a timeout, 
-        setTimeout(() => {
-          rejected = true
-          if (!resolved) reject('timeout')
-        }, this.timeoutLength)
+          // this is data length + 1 (DEST) + 1 (EP_SSEG_ACKLESS)
+          let payload = new Uint8Array(this.data.length + 2)
+          payload[0] = PK.DEST
+          payload[1] = EP.SS_ACKLESS
+          payload.set(this.data, 2)
+          // the whole gram, and uptake... 
+          let datagram = PK.writeDatagram(route, payload)
+          this.handle(datagram, VT.STACK_ORIGIN)
+        } // that's it, ackless write is done, async will complete, 
       } else if (mode == "acked") {
-        if (this.acksAwaiting.length > 0) {
-          reject("on write, still awaiting previous acks")
-        }
+        // wait to have zero previous acks awaiting... right ? 
+        await this.awaitAllAcks()
+        // now write 'em 
         for (let route of this.routes) {
-          let ackId = this.getNewAckId()
-          let datagram = new Uint8Array(route.length + 2 + this.data.length)
-          datagram.set(route, 0)
-          datagram[route.length] = EP.SS_ACKED
-          datagram[route.length + 1] = ackId;
-          datagram.set(this.data, route.length + 2)
-          //console.log(datagram)
-          // push it to acks awaiting, 
+          // data len + 1 (DEST) + 1 (EP_SSEG_ACKED) + 1 (ID)
+          let payload = new Uint8Array(this.data.length + 3)
+          payload[0] = PK.DEST
+          payload[1] = EP.SS_ACKED
+          let id = this.runningAckID
+          this.runningAckID++; this.runningAckID = this.runningAckID & 0b11111111;
+          payload[2] = id
+          payload.set(this.data, 3)
+          let datagram = PK.writeDatagram(route, payload)
           this.acksAwaiting.push({
-            id: ackId,
-            timeout: setTimeout(() => {
-              this.acksAwaiting.length = 0
-              reject('write timeout')
-            }, this.timeoutLength)
-          });
-          //console.log('push', JSON.parse(JSON.stringify(this.acksAwaiting)))
-          this.handle(datagram, 0)
+            id: id,
+          })
+          this.handle(datagram, VT.STACK_ORIGIN)
         }
-        // setup for on-all-acks to clear this promise, 
-        this.acksResolve = resolve
+        // end conditions: we return a promise, rejecting on a timeout, resolving when all acks come back, 
+        return new Promise((resolve, reject) => {
+          let timeout = setTimeout(() => {
+            reject(`write to ${this.name} times out w/ ${this.acksAwaiting.length} acks still awaiting`)
+          }, this.timeoutLength)
+          this.acksResolve = () => {
+            clearTimeout(timeout)
+            this.acksResolve = null
+            resolve()
+          }
+        })
       } else {
-        reject("bad mode at ep.write(), use 'ackless' or 'acked'")
+        throw new Error(`endpoint ${this.name} written to w/ bad mode argument ${mode}, should be "acked" or "ackless"`)
       }
-    }) // end write promise 
-  }// end write 
+    } catch (err) {
+      throw err
+    }
+  } // end write 
 
 } // end endpoint 

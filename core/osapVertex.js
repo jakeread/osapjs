@@ -44,13 +44,13 @@ export default class Vertex {
     return (this.maxStackLength - this.stack[od].length)
   }
 
-  awaitStackAvailableSpace = (od, timeout = 1000) => {
+  awaitStackAvailableSpace = (od, timeout = 1000, count = 1) => {
     return new Promise((resolve, reject) => {
       let to = setTimeout(() => {
         reject('await stack available space timeout')
       }, timeout)
       let check = () => {
-        if (this.stackAvailableSpace(od)) {
+        if (this.stackAvailableSpace(od) >= count) {
           clearTimeout(to)
           resolve()
         } else {
