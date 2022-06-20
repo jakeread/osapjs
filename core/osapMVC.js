@@ -166,29 +166,22 @@ export default function OMVC(osap) {
   }
 
   this.removeEndpointRoute = async (routeToEndpoint, indice) => {
-    console.error(`MVC Call setEndpointRoute not yet adjusted for new-transport`)
     await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
-    // +3 for dest / segsize, + ROUTERM:1, RSID:1, INDICE:1 
-    let datagram = new Uint8Array(routeToEndpoint.length + 6)
-    datagram.set(routeToEndpoint, 0)
-    let rteLen = routeToEndpoint.length
-    datagram[rteLen] = PK.DEST
-    datagram[rteLen + 1] = 0; datagram[rteLen + 2] = 2;
-    datagram[rteLen + 3] = EP.ROUTE_RM
-    datagram[rteLen + 4] = getNewRouteReqID()
-    datagram[rteLen + 5] = parseInt(indice)
-    // ok, 
+    // same energy
+    let id = getNewQueryID()
+    // + DEST, + ROUTE_RM, + ID, + Indice 
+    let payload = new Uint8Array([PK.DEST, EP.ROUTE_RM, id, indice])
+    let datagram = PK.writeDatagram(routeToEndpoint, payload)
     osap.handle(datagram, VT.STACK_ORIGIN)
     // setup handler, 
     return new Promise((resolve, reject) => {
       queriesAwaiting.push({
-        request: new Uint8Array(datagram),
-        id: datagram[rteLen + 4],
+        id: id,
         timeout: setTimeout(() => {
           reject('route rm req timeout')
         }, ROUTEREQ_MAX_TIME),
-        onResponse: function (data, ptr) {
-          if (data[ptr + 1]) {
+        onResponse: function (data) {
+          if (data[0]) {
             resolve()
           } else {
             reject(`badness error code ${data[ptr + 1]} from endpoint, on try-to-delete-route`)

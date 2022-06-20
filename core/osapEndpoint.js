@@ -196,29 +196,23 @@ export default class Endpoint extends Vertex {
         }
         break;
       case EP.ROUTE_RM:
-        console.error(`ROUTE_RM handler not fixed... do new-transport & item.handled`)
-        if (this.stackAvailableSpace(VT.STACK_ORIGIN)) {
+          {
           // uuuuh 
-          let rqid = data[ptr + 1]
-          let respRoute = reverseRoute(data)
-          let indice = data[ptr + 2]
-          // a reply is kind, 
-          let repl = new Uint8Array(respRoute.length + 3)
-          repl.set(respRoute, 0)
-          repl[respRoute.length] = EP.ROUTE_RM_RESP
-          repl[respRoute.length + 1] = rqid
+          let rqid = item.data[ptr + 3]
+          let indice = item.data[ptr + 4]
+          // either/or, 
+          let payload = new Uint8Array([PK.DEST, EP.ROUTE_RM_RESP, rqid, 0])
           // now, if we can rm, do:
           if (this.routes[indice]) {
             this.routes.splice(indice, 1)
-            repl[respRoute.length + 2] = 1 // 1: ok, 0: badness   
-          } else {
-            repl[respRoute.length + 2] = 0
-          }
-          this.handle(repl, VT.STACK_ORIGIN)
-          return true
-        } else {
-          return false
+            payload[3] = 1
+          } 
+          // wrip it & ship it, 
+          let datagram = PK.writeReply(item.data, payload)
+          item.handled()
+          this.handle(datagram, VT.STACK_ORIGIN)
         }
+        break;
       case EP.QUERY_RESP:
         // query response, 
         console.error(`query response arrived at endpoint, should've gone to a query vt...`)
