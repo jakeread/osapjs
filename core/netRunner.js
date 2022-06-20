@@ -166,7 +166,7 @@ export default function NetRunner(osap) {
         let root = await osap.scope(PK.route().end(), scanStartTime)
         // now each child, 
         for (let c = 0; c < root.children.length; c++) {
-          root.children[c] = await osap.scope(PK.route(root.route, true).child(c).end(), scanStartTime)
+          root.children[c] = await osap.scope(PK.route(root.route).child(c).end(), scanStartTime)
           root.children[c].parent = root
         }
         // now launch query per virtual port,

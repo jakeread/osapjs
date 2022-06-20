@@ -243,7 +243,9 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
       if (this.state == "idle" && target == "scanning") {
         writeState("scanning")
         osap.netRunner.sweep().then((net) => {
+          console.warn(`SWEEP returns`, net)
           osap.mvc.fillRouteData(net).then((net) => {
+            console.warn(`FILLROUTE returns`, net)
             this.stateTransition("drawing", net)
           }).catch((err) => { // route collect error, more common 
             console.error(err)

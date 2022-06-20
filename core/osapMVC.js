@@ -23,7 +23,7 @@ export default function OMVC(osap) {
     let eps = []
     let listGenTime = TIMES.getTimeStamp()
     let contextRecursor = (vvt) => {
-      if(!vvt){
+      if (!vvt) {
         console.warn('no vvt here on recurse... ?')
         return
       }
@@ -57,14 +57,14 @@ export default function OMVC(osap) {
       }
     })
   }
-  // ute
-  let runningRouteReqID = 112
-  let getNewRouteReqID = () => {
-    runningRouteReqID++
-    if (runningRouteReqID > 255) runningRouteReqID = 0;
-    return runningRouteReqID
+  // msgs all have an ID... we just use one string of 'em, then can easily dispatch callbacks, 
+  let runningQueryID = 112 
+  let getNewQueryID = () => {
+    runningQueryID ++
+    runningQueryID = runningQueryID & 0b11111111
+    return runningQueryID
   }
-  let routeReqsAwaiting = []
+  let queriesAwaiting = [] 
   // get route at x indice, 
   this.getEndpointRoutes = async (route) => {
     // alright, do it in a loop until they return an empty array, 
@@ -74,7 +74,7 @@ export default function OMVC(osap) {
       let indice = 0, routes = []
       while (true) {
         let epRoute = await this.getEndpointRoute(route, indice)
-        if (epRoute.length > 0) {
+        if (epRoute != undefined) {
           routes[indice] = epRoute
           indice++
         } else {
@@ -88,34 +88,40 @@ export default function OMVC(osap) {
       throw (err)
     }
   }
-  // gets route info for one endpoint,
+  // gets route info for one endpoint... arg is route-to-endpoint, 
   this.getEndpointRoute = async (route, indice) => {
     // wait for clear space, 
     await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
     // payload is pretty simple, 
-    let id = this.runningRouteReqID
-    this.runningRouteReqID ++; this.runningRouteReqID = this.runningRouteReqID & 0b11111111;
+    let id = getNewQueryID()
     let payload = new Uint8Array([PK.DEST, EP.ROUTE_QUERY, id, indice])
     let datagram = PK.writeDatagram(route, payload)
     // ship it from the root vertex, 
     osap.handle(datagram, VT.STACK_ORIGIN)
     // setup handler, 
     return new Promise((resolve, reject) => {
-      routeReqsAwaiting.push({
-        request: new Uint8Array(datagram),
-        id: datagram[route.length + 4],
+      queriesAwaiting.push({
+        id: id,
         timeout: setTimeout(() => {
-          reject(`route req timeout to ${route}`)
+          reject(`route req timeout to ${route.path}`)
         }, ROUTEREQ_MAX_TIME),
-        onResponse: function (data, ptr) {
+        onResponse: function (data) {
           // clear timer, 
           clearTimeout(this.timeout)
-          // mode, len, 
-          let routeMode = data[ptr + 1]
-          let routeLen = data[ptr + 2]
-          // resolve w/ the route, which should be ptr + 2 -> end of pckt, 
-          // which should match the len char... 
-          resolve(data.slice(ptr + 3, ptr + 3 + routeLen))
+          // make a new route object for our caller, 
+          let routeMode = data[0]
+          // if mode == 0, no route exists at this indice, 
+          // otherwise... resolve the route... 
+          if(routeMode == 0){
+            resolve()
+          } else {
+            resolve({
+              mode: routeMode, 
+              ttl: TS.read('uint16', data, 1),
+              segSize: TS.read('uint16', data, 3),
+              path: new Uint8Array(data.subarray(5))
+            })
+          }
         }
       })
     })
@@ -144,7 +150,7 @@ export default function OMVC(osap) {
     osap.handle(datagram, VT.STACK_ORIGIN)
     // setup handler 
     return new Promise((resolve, reject) => {
-      routeReqsAwaiting.push({
+      queriesAwaiting.push({
         request: new Uint8Array(datagram),
         id: datagram[rteLen + 4],
         timeout: setTimeout(() => {
@@ -176,7 +182,7 @@ export default function OMVC(osap) {
     osap.handle(datagram, VT.STACK_ORIGIN)
     // setup handler, 
     return new Promise((resolve, reject) => {
-      routeReqsAwaiting.push({
+      queriesAwaiting.push({
         request: new Uint8Array(datagram),
         id: datagram[rteLen + 4],
         timeout: setTimeout(() => {
@@ -194,28 +200,31 @@ export default function OMVC(osap) {
   }
 
   this.destHandler = (item, ptr) => {
-    let data = item.data 
-    // here data[pr] == PK_PTR == 99, so our key is at 
-    ptr += 3
-    let rqid = 0 // really, we are using the same list... means we could do most-all 
+    // here data[ptr] == PK.PTR, then ptr + 1 is PK.DEST, ptr + 2 is key for us, 
+    // ... we could do: 
     // mvc things w/ one attach-and-release reponse handlers and root-unique request IDs, non?
-    switch (data[ptr]) {
+    keySwitch: switch (item.data[ptr + 2]) {
       case EP.ROUTE_RESP:
       case EP.ROUTE_SET_RESP:
       case EP.ROUTE_RM_RESP:
-        // match to id, send to handler, carry on... 
-        rqid = data[ptr + 1]
-        for (let rqa of routeReqsAwaiting) {
-          if (rqa.id == rqid) {
-            rqa.onResponse(data, ptr + 1)
-            return true
+        {
+          // match to id, send to handler, carry on... 
+          let rqid = item.data[ptr + 3]
+          for (let rqa of queriesAwaiting) {
+            if (rqa.id == rqid) {
+              // do onResponse w/ reply-specific payload... 
+              rqa.onResponse(new Uint8Array(item.data.subarray(ptr + 4)))
+              break keySwitch;
+            }
           }
+          // some network retries etc can result in double replies... this is OK, happens... 
+          console.warn(`recvd mvc response ${rqid}, but no matching req awaiting... of ${queriesAwaiting.length}`)
+          break;
         }
-        console.error('recvd route_resp, but no matching req awaiting...')
-        return true
       default:
         console.error(`unrecognized key in osap root / mvc dest handler, ${data[ptr]}`)
-        return true // clears it 
-    }
+    } // end switch, 
+    // all mvc replies get *handled* 
+    item.handled()
   }
 }

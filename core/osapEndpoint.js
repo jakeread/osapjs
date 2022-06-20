@@ -38,11 +38,22 @@ export default class Endpoint extends Vertex {
   data = new Uint8Array(0)
 
   // has outgoing routes, 
-  addRoute = function (route) {
+  addRoute = function (route, mode = "acked") {
     console.log(`adding route to ep ${this.indice}`, route)
     if (this.maxStackLength <= this.routes.length) {
       console.warn('increasing stack space to match count of routes')
       this.maxStackLength++
+    }
+    // endpoints store route objects that have a .mode setting,
+    // ... 
+    switch(mode){
+      case "ackless":
+        route.mode = EP.ROUTEMODE_ACKLESS
+        break;
+      case "acked":
+      default:
+        route.mode = EP.ROUTEMODE_ACKED
+        break;
     }
     this.routes.push(route)
   }
@@ -140,7 +151,6 @@ export default class Endpoint extends Vertex {
         item.handled(); break;
       case EP.ROUTE_QUERY:
         {
-          console.warn(`ROUTE_QUERY`)
           // let's see about our route... it should be at 
           let rqid = item.data[ptr + 3]
           let indice = item.data[ptr + 4]
@@ -149,7 +159,7 @@ export default class Endpoint extends Vertex {
           if (this.routes[indice]) {
             let route = this.routes[indice]
             // this is dest, reply key, id, mode, + 2 <ttl> + 2 <segsize> + route.length, 
-            payload = new Uint8Array(4 + 4 + route.length)
+            payload = new Uint8Array(4 + 4 + route.path.length)
             payload.set([PK.DEST, EP.ROUTE_RESP, rqid, route.mode], 0)
             let wptr = 4
             wptr += TS.write('uint16', route.ttl, payload, wptr)
@@ -165,6 +175,7 @@ export default class Endpoint extends Vertex {
           item.handled()
           this.handle(datagram, VT.STACK_DEST)
         }
+        break;
       case EP.ROUTE_SET:
         if (this.stackAvailableSpace(VT.STACK_ORIGIN)) {
           // uuuuh 

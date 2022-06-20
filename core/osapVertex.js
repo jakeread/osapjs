@@ -166,7 +166,7 @@ export default class Vertex {
   runningScopeID = 11
   scopesAwaiting = []
 
-  scope = async (route, timeTag, ttl = 1000, segSize = 128) => {
+  scope = async (route, timeTag) => {
     try {
       if (!timeTag){
         console.warn("scope called w/ no timeTag")
@@ -195,7 +195,7 @@ export default class Vertex {
           id: id,                                       // it's id 
           timeout: setTimeout(() => {                   // a timeout... 
             reject(`scope timeout`)
-          }, route.length * ttl),
+          }, route.path.length * route.ttl),
           onResponse: function (item, ptr) {            // callback / handler 
             // clear timeout 
             clearTimeout(this.timeout)

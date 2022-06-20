@@ -42,6 +42,7 @@ let VT = {
   ROOT: 22,
   MODULE: 23,
   ENDPOINT: 24,
+  QUERY: 25,
   VPORT: 44,
   VBUS: 45,
   STACK_ORIGIN: 0,
@@ -149,8 +150,8 @@ PK.route = (existing) => {
   let wptr = 0
   // copy-in existing path, if starting from some root, 
   if (existing != null && existing.path != undefined) {
-    path.set(existing, 0)
-    wptr = existing.length
+    path.set(existing.path, 0)
+    wptr = existing.path.length
   } else {
     path[wptr++] = PK.PTR
   }

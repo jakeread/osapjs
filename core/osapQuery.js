@@ -21,6 +21,8 @@ export default class Query extends Vertex {
     this.route = route
     this.maxRetries = retries 
   }
+
+  type = VT.QUERY
   
   // ---------------------------------- Some State, as a Treat 
 
