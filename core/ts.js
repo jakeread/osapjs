@@ -143,12 +143,12 @@ PK.logPacket = (data, routeOnly = false) => {
   console.trace()
 }
 
-PK.route = (existing, scope = false) => {
+PK.route = (existing) => {
   // start w/ a temp uint8 array, 
   let path = new Uint8Array(256)
   let wptr = 0
   // copy-in existing path, if starting from some root, 
-  if (existing != null && existing.length > 0) {
+  if (existing != null && existing.path != undefined) {
     path.set(existing, 0)
     wptr = existing.length
   } else {
@@ -190,20 +190,34 @@ PK.route = (existing, scope = false) => {
       wptr += 2
       return this
     },
-    end: function () {
-      console.log(path.subarray(0, wptr))
-      return new Uint8Array(path.subarray(0, wptr))
+    end: function (ttl, segSize) {
+      // we want to absorb ttl & segSize from existing if it was used, 
+      // but also *not* of ttl and segSize are used here, 
+      if(existing != null && existing.ttl && existing.segSize){
+        ttl = existing.ttl
+        segSize = existing.segSize
+      } else {
+        ttl = 1000
+        segSize = 128 
+      }
+      // return a path object, 
+      return {
+        ttl: ttl, 
+        segSize: segSize,
+        path: new Uint8Array(path.subarray(0, wptr)),
+      }
     }
   }
 }
 
-PK.writeDatagram = (route, payload, ttl = 1000, segSize = 128) => {
-  let datagram = new Uint8Array(route.length + payload.length + 4)
-  TS.write('uint16', ttl, datagram, 0)
-  TS.write('uint16', segSize, datagram, 2)
-  datagram.set(route, 4)
-  datagram.set(payload, 4 + route.length)
-  if(datagram.length > segSize) throw new Error(`writing datagram of len ${datagram.length} w/ segSize setting ${segSize}`);
+// where route = { ttl: <num>, segSize: <num>, path: <uint8array> }
+PK.writeDatagram = (route, payload) => {
+  let datagram = new Uint8Array(route.path.length + payload.length + 4)
+  TS.write('uint16', route.ttl, datagram, 0)
+  TS.write('uint16', route.segSize, datagram, 2)
+  datagram.set(route.path, 4)
+  datagram.set(payload, 4 + route.path.length)
+  if(datagram.length > route.segSize) throw new Error(`writing datagram of len ${datagram.length} w/ segSize setting ${segSize}`);
   return datagram
 }
 
@@ -358,6 +372,10 @@ let TS = {}
 // just shorthands, 
 TS.read16 = (data, start) => {
   return TS.read('int16', data, start)
+}
+
+TS.write16 = (value, data, start) => {
+  TS.write('uint16', value, data, start)
 }
 
 TS.readKey = (data, start) => {

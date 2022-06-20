@@ -111,7 +111,7 @@ export default class Endpoint extends Vertex {
       case EP.SS_ACKED:
         if (this.token) {
           // packet will wait for res, 
-          return 
+          return
         } else {
           this.token = true
           this.onDataResolver(new Uint8Array(item.data.subarray(ptr + 4))).then(() => {
@@ -140,6 +140,7 @@ export default class Endpoint extends Vertex {
         item.handled(); break;
       case EP.ROUTE_QUERY:
         {
+          console.warn(`ROUTE_QUERY`)
           // let's see about our route... it should be at 
           let rqid = item.data[ptr + 3]
           let indice = item.data[ptr + 4]
@@ -147,27 +148,19 @@ export default class Endpoint extends Vertex {
           let payload = {}
           if (this.routes[indice]) {
             let route = this.routes[indice]
-            //console.log('has route', route)
-            // header len... + route len less 3 (no dest & segsize...), + 3 for 
-            // RQRESP, RQID, MODE, LEN
-            let repl = new Uint8Array(respRoute.length + route.length - 3 + 4)
-            repl.set(respRoute, 0)
-            repl[respRoute.length] = EP.ROUTE_RESP
-            repl[respRoute.length + 1] = rqid
-            // yeah, this is also a dummy: endpoints in JS don't store modes... 
-            repl[respRoute.length + 2] = EP.ROUTEMODE_ACKLESS
-            repl[respRoute.length + 3] = route.length - 3
-            repl.set(route.slice(0, -3), respRoute.length + 4)
-            this.handle(repl, VT.STACK_ORIGIN)
+            // this is dest, reply key, id, mode, + 2 <ttl> + 2 <segsize> + route.length, 
+            payload = new Uint8Array(4 + 4 + route.length)
+            payload.set([PK.DEST, EP.ROUTE_RESP, rqid, route.mode], 0)
+            let wptr = 4
+            wptr += TS.write('uint16', route.ttl, payload, wptr)
+            wptr += TS.write('uint16', route.segSize, payload, wptr)
+            // write the actual path in... 
+            payload.set(route.path, wptr)
           } else {
-            // + 3 RQRESP, RQID, LEN 
-            let repl = new Uint8Array(respRoute.length + 3)
-            repl.set(respRoute, 0)
-            repl[respRoute.length] = EP.ROUTE_RESP
-            repl[respRoute.length + 1] = rqid
-            repl[respRoute.length + 2] = 0 // for does-not-exist here, 
-            this.handle(repl, VT.STACK_ORIGIN)
+            // destination key, reply key, id to match, '0' to indicate no-route-here, 
+            payload = new Uint8Array([PK.DEST, EP.ROUTE_RESP, rqid, 0])
           }
+          // format reply, wipe & replace at dest stack,
           let datagram = PK.writeReply(item.data, payload)
           item.handled()
           this.handle(datagram, VT.STACK_DEST)

@@ -105,7 +105,7 @@ export default class Vertex {
   runningPingID = 42
   pingsAwaiting = []
 
-  ping = async (route, ttl = 1000, segSize = 128) => {
+  ping = async (route) => {
     try {
       // record ping start time, 
       let startTime = TIMES.getTimeStamp()
@@ -116,7 +116,7 @@ export default class Vertex {
       // payload is just the request & its id, 
       let payload = new Uint8Array([PK.PINGREQ, id])
       // write a 'gram from that, then have vertex ingest it, 
-      let datagram = PK.writeDatagram(route, payload, ttl, segSize)
+      let datagram = PK.writeDatagram(route, payload)
       this.handle(datagram, VT.STACK_ORIGIN)
       // resolve when the ping comes back, 
       return new Promise((resolve, reject) => {
@@ -137,10 +137,8 @@ export default class Vertex {
   pingRequestHandler = (item, ptr) => {
     // item.data[ptr] == PK.PTR 
     // we want to ack this... basically without modifying anything,
-    let id = TS.readArg(item.data, ptr + 1)
-    let payload = new Uint8Array(2)
-    TS.writeKeyArgPair(payload, 0, PK.PINGRES, id)
-    let datagram = PK.writeReply(item.data, payload)
+    let id = item.data[ptr + 2]
+    let datagram = PK.writeReply(item.data, [PK.PINGRES, id])
     // we'll ack "in place" by rm-ing this item from the destination stack & then replacing it, 
     // no checks this way: pings and scope are always answered, even if i.e. single-stack endpoint
     // is on an every-loop-update, etc... 
@@ -184,8 +182,8 @@ export default class Vertex {
       let payload = new Uint8Array(6)
       payload[0] = PK.SCOPEREQ; payload[1] = id;
       TS.write('uint32', timeTag, payload, 2)
-      // can write a datagram w/ the route & payload, will use default TTL and segSize, 
-      let datagram = PK.writeDatagram(route, payload, ttl, segSize)
+      // can write a datagram w/ the route & payload
+      let datagram = PK.writeDatagram(route, payload)
       // (3) send the packet !
       this.handle(datagram, VT.STACK_ORIGIN)
       // (4) setup to handle the request, associating it w/ this fn  
