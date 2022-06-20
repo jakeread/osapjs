@@ -43,12 +43,11 @@ export default class Query extends Vertex {
         } else {
           console.error('on query reply, no matching resolution')
         }
-        // clear always anyways 
-        return true
+        break;
       default:
         console.error('root recvs data / not query resp')
-        return true
     }
+    item.handled() 
   }
 
   // ---------------------------------- Issuing Side 

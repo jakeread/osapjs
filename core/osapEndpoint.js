@@ -63,11 +63,11 @@ export default class Endpoint extends Vertex {
   }
 
   // local helper, wraps onData in always-promiseness,
-  token = false 
+  token = false
   onDataResolver = (data) => {
     let res = this.onData(data)
-    if(res instanceof Promise){   // return user promise, 
-      return res 
+    if (res instanceof Promise) {   // return user promise, 
+      return res
     } else {                      // invent & resolve promise, 
       return new Promise((resolve, reject) => {
         resolve()
@@ -91,40 +91,40 @@ export default class Endpoint extends Vertex {
             this.acksResolve()
           }
         }
-        return true
+        item.handled(); break;
       case EP.SS_ACKLESS:
-        if(this.token){
+        if (this.token) {
           // packet will wait for res, 
-          return false
+          return
         } else {
-          this.token = true 
+          this.token = true
           this.onDataResolver(new Uint8Array(item.data.subarray(ptr + 3))).then(() => {
             // resolution to the promise means data is OK, we accept 
             this.data = new Uint8Array(item.data.subarray(ptr + 3))
-            this.token = false 
+            this.token = false
           }).catch((err) => {
             // error / rejection means not our data, donot change internal, but clear for new 
             this.token = false
-          })  
-          return true
+          })
+          item.handled(); break;
         }
       case EP.SS_ACKED:
         if (this.token) {
           // packet will wait for res, 
-          return false
+          return 
         } else {
-          this.token = true 
+          this.token = true
           this.onDataResolver(new Uint8Array(item.data.subarray(ptr + 4))).then(() => {
             this.data = new Uint8Array(item.data.subarray(ptr + 4))
             this.token = false
             // payload is just the dest key, ack key & id, id is at ptr + dest + key + id 
             let datagram = PK.writeReply(item.data, new Uint8Array([PK.DEST, EP.SS_ACK, item.data[ptr + 3]]))
             // we... should flowcontrol this, it's awkward, just send it, this is OK in JS 
-            this.handle(datagram, VT.STACK_ORIGIN)            
+            this.handle(datagram, VT.STACK_ORIGIN)
           }).catch((err) => {
             this.token = false
           })
-          return true
+          item.handled(); break;
         }
       case EP.QUERY:
         {
@@ -137,14 +137,14 @@ export default class Endpoint extends Vertex {
           let datagram = PK.writeReply(item.data, payload)
           this.handle(datagram, VT.STACK_ORIGIN)
         }
-        return true 
+        item.handled(); break;
       case EP.ROUTE_QUERY:
-        if (this.stackAvailableSpace(VT.STACK_ORIGIN)) {
+        {
           // let's see about our route... it should be at 
-          let rqid = data[ptr + 1]
-          let indice = data[ptr + 2]
-          //console.log(`retrieve route at indice ${indice} w/ qid ${rqid}`)
-          let respRoute = reverseRoute(data)
+          let rqid = item.data[ptr + 3]
+          let indice = item.data[ptr + 4]
+          // make payloads, 
+          let payload = {}
           if (this.routes[indice]) {
             let route = this.routes[indice]
             //console.log('has route', route)
@@ -168,9 +168,9 @@ export default class Endpoint extends Vertex {
             repl[respRoute.length + 2] = 0 // for does-not-exist here, 
             this.handle(repl, VT.STACK_ORIGIN)
           }
-          return true
-        } else {
-          return false // 'true' from dest handler clears msg, 'false' waits it one cycle 
+          let datagram = PK.writeReply(item.data, payload)
+          item.handled()
+          this.handle(datagram, VT.STACK_DEST)
         }
       case EP.ROUTE_SET:
         if (this.stackAvailableSpace(VT.STACK_ORIGIN)) {

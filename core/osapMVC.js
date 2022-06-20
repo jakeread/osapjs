@@ -92,19 +92,12 @@ export default function OMVC(osap) {
   this.getEndpointRoute = async (route, indice) => {
     // wait for clear space, 
     await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
-    // console.warn('querying to ep at route', route)
-    // write a message, here the route doesn't have any tail, so we add
-    // + 3 for DEST:1, Segsize:2 
-    // + 3 for ROUTEREQ:1, MSGID:1, <Indice> 
-    let datagram = new Uint8Array(route.length + 3 + 3)
-    datagram.set(route, 0)
-    // destination, and *total hack* to assume 512 segsize, badness 
-    datagram[route.length] = PK.DEST
-    datagram[route.length + 1] = 0; datagram[route.length + 2] = 2;
-    datagram[route.length + 3] = EP.ROUTE_QUERY
-    datagram[route.length + 4] = getNewRouteReqID()
-    datagram[route.length + 5] = indice // get 0th indice, 
-    // ship it 
+    // payload is pretty simple, 
+    let id = this.runningRouteReqID
+    this.runningRouteReqID ++; this.runningRouteReqID = this.runningRouteReqID & 0b11111111;
+    let payload = new Uint8Array([PK.DEST, EP.ROUTE_QUERY, id, indice])
+    let datagram = PK.writeDatagram(route, payload)
+    // ship it from the root vertex, 
     osap.handle(datagram, VT.STACK_ORIGIN)
     // setup handler, 
     return new Promise((resolve, reject) => {

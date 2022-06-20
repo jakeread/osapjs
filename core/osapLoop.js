@@ -85,9 +85,7 @@ let osapItemHandler = (item) => {
     // packet is at destination, send to vertex to handle, 
     // if handler returns true, OK to destroy packet, else wait on it 
     case PK.DEST:
-      if (item.vt.destHandler(item, ptr)) {
-        item.handled()
-      }
+      item.vt.destHandler(item, ptr)
       break;
     // reply to pings
     case PK.PINGREQ:

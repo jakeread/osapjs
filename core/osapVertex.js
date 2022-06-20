@@ -24,12 +24,11 @@ export default class Vertex {
   children = [] // all have some children array, not all have children 
   scopeTimeTag = 0 // this property is helpful when looking across graphs, 
 
-  // return true when message flushes / is OK / handled, 
-  // return false if we want this to bother again on next main loop 
-  // i.e. endpoint types extend this to disambiguate acks / messages etc, 
+  // should be extended... 
+  // pls don't forget to item.handled(), or don't if you want it to hang & return next loop 
   destHandler = function (item, ptr) {
     console.log(`default vertex type ${this.type} indice ${this.indice} destHandler`)
-    return true
+    item.handled()
   }
 
   // ------------------------------------------------------ Stacks 
