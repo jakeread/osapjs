@@ -235,15 +235,20 @@ export default function NetRunner(osap) {
     console.warn('searching between...', head.route, tail.route)
     // we... recursively poke around? this is maybe le-difficult, 
     let recursor = (route, from) => {
-      console.log('recurse', route)
+      console.warn('recurse', route)
       // copy...
-      route = new Uint8Array(route)
-      // first... find the thing, 
+      route = {
+        ttl: route.ttl, 
+        segSize: route.segSize,
+        path: new Uint8Array(route.path)
+      }
+      // first... look thru siblines at this level, 
       for (let s in from.parent.children) {
         s = parseInt(s)
         let sib = from.parent.children[s]
+        // if that's the ticket, ship it, 
         if (sib == tail) {
-          return route.concat([PK.SIB.KEY, s & 255, (s >> 8) & 255])
+          return PK.route(route).sib(s).end()
         }
       }
       // if not, find ports, 
@@ -255,7 +260,7 @@ export default function NetRunner(osap) {
           if (sib.reciprocal && sib.reciprocal.type != "unreachable") {
             // sweep, then pick first... 
             // as a warning... this is not loop safe ! 
-            results.push(recursor(route.concat([PK.SIB.KEY, s & 255, (s >> 8) & 255, PK.PFWD.KEY]), sib.reciprocal))
+            results.push(recursor(PK.route(route).sib(s).pfwd().end(), sib.reciprocal))
             for(let res of results){
               if(res != null) return res 
             }
@@ -265,6 +270,7 @@ export default function NetRunner(osap) {
       console.log('returning null...')
       return null
     } // end recursor 
-    return recursor([PK.PTR], head)
+    // start recursor w/ initial route-to-self, 
+    return recursor(PK.route().end(), head)
   }
 }
