@@ -127,41 +127,38 @@ export default function OMVC(osap) {
     })
   }// end getEndpoint Route
 
-  // request to add a new route to an endpoint... 
-  this.setEndpointRoute = async (routeToEndpoint, routeFromEndpoint, routeMode) => {
-    console.error(`MVC Call setEndpointRoute not yet adjusted for new-transport`)
+  // request to add a new route to an endpoint... set mode via routeFromEndpoint.mode == ... 
+  this.setEndpointRoute = async (routeToEndpoint, routeFromEndpoint) => {
+    // not all routes have modes, set a default, 
+    if(!routeFromEndpoint.mode){ routeFromEndpoint.mode = EP.ROUTEMODE_ACKED }
     // ok we dooooo
     await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
-    // hit the gram: route + dest:1 + segsize:2 + ROUTESET:1 + RSID:1 + MODE:1 + LEN:1 + routeToSet
-    let datagram = new Uint8Array(routeToEndpoint.length + 7 + routeFromEndpoint.length)
-    datagram.set(routeToEndpoint, 0)
-    let rteLen = routeToEndpoint.length
-    datagram[rteLen] = PK.DEST
-    datagram[rteLen + 1] = 0; datagram[rteLen + 2] = 2;
-    datagram[rteLen + 3] = EP.ROUTE_SET
-    datagram[rteLen + 4] = getNewRouteReqID()
-    if (routeMode == "ackless") { // so we'll default to acks... 
-      datagram[rteLen + 5] = EP.ROUTEMODE_ACKLESS
-    } else {
-      datagram[rteLen + 5] = EP.ROUTEMODE_ACKED
-    }
-    datagram[rteLen + 6] = routeFromEndpoint.length
-    datagram.set(routeFromEndpoint, rteLen + 7)
+    // similar...
+    let id = getNewQueryID()
+    // + DEST, + ROUTE_SET, + ID, + Route (route.length + mode + ttl + segsize)
+    let payload = new Uint8Array(3 + routeFromEndpoint.path.length + 5)
+    payload.set([PK.DEST, EP.ROUTE_SET, id, routeFromEndpoint.mode])
+    let wptr = 4
+    wptr += TS.write('uint16', routeFromEndpoint.ttl, payload, wptr)
+    wptr += TS.write('uint16', routeFromEndpoint.segSize, payload, wptr)
+    payload.set(routeFromEndpoint.path, wptr)
+    // gram it up, 
+    let datagram = PK.writeDatagram(routeToEndpoint, payload)
     // ship it 
     osap.handle(datagram, VT.STACK_ORIGIN)
     // setup handler 
     return new Promise((resolve, reject) => {
       queriesAwaiting.push({
-        request: new Uint8Array(datagram),
-        id: datagram[rteLen + 4],
+        id: id,
         timeout: setTimeout(() => {
           reject(`route set req timeout`)
         }, ROUTEREQ_MAX_TIME),
-        onResponse: function (data, ptr) {
-          if (data[ptr + 1]) {
+        onResponse: function (data) {
+          console.warn(`ROUTE SET REPLY`)
+          if (data[0]) {
             resolve()
           } else {
-            reject(`badness error code ${data[ptr + 1]} from endpoint, on try-to-set-new-route`)
+            reject(`badness error code ${data} from endpoint, on try-to-set-new-route`)
           }
         }
       })
