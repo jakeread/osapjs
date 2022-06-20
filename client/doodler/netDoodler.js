@@ -16,17 +16,8 @@ no warranty is provided, and users accept all liability.
 
 import DT from '../interface/domTools.js'
 import { Button, TextBlock } from '../interface/basics.js'
-import { VT, TIMES } from '../../core/ts.js'
+import { PK, VT, TIMES } from '../../core/ts.js'
 import { GraphicalContext, GraphicalVertex, checkGvtOverlap } from './graphicalElements.js';
-
-// get sameness based on route uniqueness 
-let routeMatch = (ra, rb) => {
-  if (ra.length != rb.length) return false
-  for (let i = 0; i < ra.length; i++) {
-    if (ra[i] != rb[i]) return false
-  }
-  return true
-}
 
 // get dom:gvt match
 let getGvtByUUID = (uuid) => {
@@ -355,7 +346,7 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
       // we have a new node, a new gvt, 
       // if there's an element in the old gvts for this node, set fixed posn 
       for (let pos of posns) {
-        if (routeMatch(pos.route, gvt.vvt.route)) {
+        if (PK.routeMatch(pos.route, gvt.vvt.route)) {
           // console.log('found same!')
           node.fx = pos.x - simOffset
           node.fy = pos.y - simOffset

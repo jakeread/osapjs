@@ -129,6 +129,7 @@ export default function OMVC(osap) {
 
   // request to add a new route to an endpoint... 
   this.setEndpointRoute = async (routeToEndpoint, routeFromEndpoint, routeMode) => {
+    console.error(`MVC Call setEndpointRoute not yet adjusted for new-transport`)
     // ok we dooooo
     await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
     // hit the gram: route + dest:1 + segsize:2 + ROUTESET:1 + RSID:1 + MODE:1 + LEN:1 + routeToSet
@@ -168,6 +169,7 @@ export default function OMVC(osap) {
   }
 
   this.removeEndpointRoute = async (routeToEndpoint, indice) => {
+    console.error(`MVC Call setEndpointRoute not yet adjusted for new-transport`)
     await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
     // +3 for dest / segsize, + ROUTERM:1, RSID:1, INDICE:1 
     let datagram = new Uint8Array(routeToEndpoint.length + 6)

@@ -147,7 +147,7 @@ export default function NetRunner(osap) {
         }
       }
     } catch (err) {
-      if (LOG_NETRUNNER) console.error(err)
+      if (true) console.error(err)
       if (LOG_NETRUNNER) console.log(`NR: unreachable across vport ${vport.indice} ${vport.name} at ${vport.parent.name}`)
       vport.reciprocal = { type: "unreachable" }
       // check 4 
@@ -193,35 +193,31 @@ export default function NetRunner(osap) {
   // walks routes along a virtual graph, returning a list of stops, 
   this.routeWalk = (route, source) => {
     //console.log('walking', route, 'from', source)
-    if (route[0] != PK.PTR) {
-      console.error("currently assuming all routes to walk have ptr in head")
-      console.error(route)
-      return
-    }
+    if (!(route.path instanceof Uint8Array)) { throw new Error(`strange route structure in the routeWalk fn, netRunner`) }
+    // we'll make a list... of vvts, which are on this path, 
+    // walking along the route... 
     let ptr = 1, indice = 0, vvt = source, list = []
     // append vvt to head of list, or no? yah, should do 
     list.push(vvt)
     for (let s = 0; s < 16; s++) {
-      if (ptr >= route.length) {
+      if (ptr >= route.path.length) {
         return { path: list, state: 'complete' }
       }
-      switch (route[ptr]) {
-        case PK.SIB.KEY:
-          indice = TS.read('uint16', route, ptr + 1)
+      switch (route.path[ptr]) {
+        case PK.SIB:
+          indice = TS.readArg(route.path, ptr)
           // do we have it ? 
           if (vvt.parent && vvt.parent.children[indice]) {
             vvt = vvt.parent.children[indice]
             list.push(vvt)
-            ptr += PK.SIB.INC
-            break
+            break; 
           } else {
             return { path: list, state: 'incomplete', reason: 'missing sib' }
           }
-        case PK.PFWD.KEY:
+        case PK.PFWD:
           if (vvt.reciprocal && vvt.reciprocal.type != "unreachable") {
             vvt = vvt.reciprocal
             list.push(vvt)
-            ptr += PK.PFWD.INC
             break
           } else {
             return { path: list, state: 'incomplete', reason: 'nonconn vport' }
@@ -229,6 +225,8 @@ export default function NetRunner(osap) {
         default:
           return { path: list, state: 'incomplete', reason: 'default switch' }
       }
+      // increment to next, 
+      ptr += 2 
     }
   }
 

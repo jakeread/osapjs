@@ -177,6 +177,7 @@ export default class Endpoint extends Vertex {
         }
         break;
       case EP.ROUTE_SET:
+        console.error(`ROUTE_SET handler not fixed... do new-transport & item.handled`)
         if (this.stackAvailableSpace(VT.STACK_ORIGIN)) {
           // uuuuh 
           let rqid = data[ptr + 1]
@@ -202,6 +203,7 @@ export default class Endpoint extends Vertex {
           return false
         }
       case EP.ROUTE_RM:
+        console.error(`ROUTE_RM handler not fixed... do new-transport & item.handled`)
         if (this.stackAvailableSpace(VT.STACK_ORIGIN)) {
           // uuuuh 
           let rqid = data[ptr + 1]
@@ -226,13 +228,14 @@ export default class Endpoint extends Vertex {
         }
       case EP.QUERY_RESP:
         // query response, 
-        console.error('query resp to endpoint, should go to root')
-        return true
+        console.error(`query response arrived at endpoint, should've gone to a query vt...`)
+        item.handled() 
         break;
       default:
         // not recognized: resolving here will cause pck to clear above 
         console.error(`nonrec endpoint key at ep ${this.indice}`)
-        return true
+        item.handled()
+        break;
     }
   }
 

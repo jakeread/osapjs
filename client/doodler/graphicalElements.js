@@ -220,6 +220,7 @@ function GraphicalEndpoint(virtualVertex){
     for(let r in this.vvt.routes){
       let route = this.vvt.routes[r]
       let walk = window.osap.netRunner.routeWalk(route, this.vvt)
+      console.warn('WALKED', walk)
       try {
         walk.path = walk.path.map(x => x.gvt)
       } catch (err){

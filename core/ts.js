@@ -211,6 +211,15 @@ PK.route = (existing) => {
   }
 }
 
+// match on route objects, 
+PK.routeMatch = (ra, rb) => {
+  if(ra.path.length != rb.path.length) return false; 
+  for(let i = 0; i < ra.path.length; i ++){
+    if(ra.path[i] != rb.path[i]) return false;
+  }
+  return true
+}
+
 // where route = { ttl: <num>, segSize: <num>, path: <uint8array> }
 PK.writeDatagram = (route, payload) => {
   let datagram = new Uint8Array(route.path.length + payload.length + 4)

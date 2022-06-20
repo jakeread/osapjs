@@ -243,8 +243,8 @@ export default class Vertex {
     let wptr = 2 
     // the time we were last scoped:
     wptr += TS.write('uint32', this.scopeTimeTag, payload, wptr)
-    // and read-in the new scope time data: 
-    this.scopeTimeTag = TS.read('uint32', item.data, ptr + 2)
+    // and read-in the new scope time data 
+    this.scopeTimeTag = TS.read('uint32', item.data, ptr + 3)
     // our type, 
     payload[wptr++] = this.type
     // our own indice, # of siblings, # of children:
