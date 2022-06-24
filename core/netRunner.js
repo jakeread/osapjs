@@ -100,7 +100,8 @@ export default function NetRunner(osap) {
     if (LOG_NETRUNNER) console.log(`NR: now traversing vport ${vport.indice} ${vport.name} at ${vport.parent.name}`)
     try {
       // collect vport on the other side of this one:
-      vport.reciprocal = await osap.scope(PK.route(vport.route, true).pfwd().end(256, true), frontierScanTime)
+      // .end(ttl, segSize)
+      vport.reciprocal = await osap.scope(PK.route(vport.route, true).pfwd().end(250, 128), frontierScanTime)
       if (vport.reciprocal.previousTimeTag > scanStartTime) {
         if (LOG_NETRUNNER) console.warn("lp here")
         for (let p of allVPorts) {
@@ -123,7 +124,7 @@ export default function NetRunner(osap) {
       // TODO: I think we would already have enough info to detect overlaps: w/ the reciprocal's 
       // console.log(vport.reciprocal.previousTimeTag)
       // it's parent: 
-      vport.reciprocal.parent = await osap.scope(PK.route(reciprocal.route, true).parent().end(256, true), frontierScanTime)
+      vport.reciprocal.parent = await osap.scope(PK.route(reciprocal.route, true).parent().end(250, 128), frontierScanTime)
       let parent = vport.reciprocal.parent
       // and plumb that:
       parent.children[reciprocal.indice] = reciprocal
@@ -131,7 +132,7 @@ export default function NetRunner(osap) {
       // could speed this up by transporting all child lookups before awaiting each, more packets flying 
       for (let c = 0; c < parent.children.length; c++) {
         if (parent.children[c] == undefined) {
-          parent.children[c] = await osap.scope(PK.route(reciprocal.route, true).sib(c).end(256, true), frontierScanTime)
+          parent.children[c] = await osap.scope(PK.route(reciprocal.route, true).sib(c).end(250, 128), frontierScanTime)
           parent.children[c].parent = parent
         }
       }
@@ -163,7 +164,7 @@ export default function NetRunner(osap) {
     allVPorts = []
     return new Promise(async (resolve, reject) => {
       try {
-        let root = await osap.scope(PK.route().end(), scanStartTime)
+        let root = await osap.scope(PK.route().end(250, 128), scanStartTime)
         // now each child, 
         for (let c = 0; c < root.children.length; c++) {
           root.children[c] = await osap.scope(PK.route(root.route).child(c).end(), scanStartTime)

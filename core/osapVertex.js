@@ -190,12 +190,14 @@ export default class Vertex {
       // about timeout math: we have a route which has route.length / 2 operations, and each has a ttl of our given ttl, 
       // and we have a round-trip, so absolute maximum time it could take is... that count * that time, 
       return new Promise((resolve, reject) => {
+        // timeouts... should be appropriately long, but not ultra-long, 
+        let toTime = Math.min(route.path.length * route.ttl, 2000)
         this.scopesAwaiting.push({
           request: new Uint8Array(datagram),            // copy-in the og request 
           id: id,                                       // it's id 
           timeout: setTimeout(() => {                   // a timeout... 
             reject(`scope timeout`)
-          }, route.path.length * route.ttl),
+          }, toTime),
           onResponse: function (item, ptr) {            // callback / handler 
             // clear timeout 
             clearTimeout(this.timeout)
