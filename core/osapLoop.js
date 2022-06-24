@@ -128,19 +128,19 @@ let osapItemHandler = (item) => {
           item.vt.requestLoopCycle()
         }
       } else {
-        LOGLOOP(`pfwd at non-vport, ${item.vt.name} is type ${item.vt.type}`, item.data)
+        LOGLOOP(`pfwd at non-vport, ${item.vt.name} is type ${item.vt.type}`, item.data, true)
         item.handled()
       }
       break;
     case PK.BFWD:
     case PK.BBRD:
-      LOGLOOP(`bus transport request in JS, at ${item.vt.name}`, item.data)
+      LOGLOOP(`bus transport request in JS, at ${item.vt.name}`, item.data, true)
       break;
     case PK.LLESCAPE:
       LOGLOOP(`low level escape msg from ${item.vt.name}`, null, true)
       break;
     default:
-      LOGLOOP(`LP: item at ${item.vt.name} has unknown packet key after ptr, bailing`, item.data)
+      LOGLOOP(`LP: item at ${item.vt.name} has unknown packet key after ptr, bailing`, item.data, true)
       item.handled()
       break;
   } // end item switch, 

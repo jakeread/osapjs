@@ -46,7 +46,7 @@ export default class Endpoint extends Vertex {
     }
     // endpoints store route objects that have a .mode setting,
     // ... 
-    switch(mode){
+    switch (mode) {
       case "ackless":
         route.mode = EP.ROUTEMODE_ACKLESS
         break;
@@ -90,19 +90,6 @@ export default class Endpoint extends Vertex {
   destHandler = function (item, ptr) {
     // item.data[ptr] == PK.PTR, item.data[ptr + 1] == PK.DEST 
     switch (item.data[ptr + 2]) {
-      case EP.SS_ACK:
-        { // ack *to us* arriveth, check against awaiting transmits 
-          let ackID = item.data[ptr + 3]
-          for (let a = 0; a < this.acksAwaiting.length; a++) {
-            if (this.acksAwaiting[a].id == ackID) {
-              this.acksAwaiting.splice(a, 1)
-            }
-          }
-          if (this.acksAwaiting.length == 0) {
-            this.acksResolve()
-          }
-        }
-        item.handled(); break;
       case EP.SS_ACKLESS:
         if (this.token) {
           // packet will wait for res, 
@@ -137,6 +124,19 @@ export default class Endpoint extends Vertex {
           })
           item.handled(); break;
         }
+      case EP.SS_ACK:
+        { // ack *to us* arriveth, check against awaiting transmits 
+          let ackID = item.data[ptr + 3]
+          for (let a = 0; a < this.acksAwaiting.length; a++) {
+            if (this.acksAwaiting[a].id == ackID) {
+              this.acksAwaiting.splice(a, 1)
+            }
+          }
+          if (this.acksAwaiting.length == 0) {
+            this.acksResolve()
+          }
+        }
+        item.handled(); break;
       case EP.QUERY:
         {
           // new payload for reply, keys are dest, query_resp, and ID from incoming, 
@@ -177,7 +177,7 @@ export default class Endpoint extends Vertex {
         }
         break;
       case EP.ROUTE_SET:
-          {
+        {
           // uuuuh 
           let rqid = item.data[ptr + 3]
           // the new route would be: mode, ttl, segsize, path... as in the packet, 
@@ -196,7 +196,7 @@ export default class Endpoint extends Vertex {
         }
         break;
       case EP.ROUTE_RM:
-          {
+        {
           // uuuuh 
           let rqid = item.data[ptr + 3]
           let indice = item.data[ptr + 4]
@@ -206,7 +206,7 @@ export default class Endpoint extends Vertex {
           if (this.routes[indice]) {
             this.routes.splice(indice, 1)
             payload[3] = 1
-          } 
+          }
           // wrip it & ship it, 
           let datagram = PK.writeReply(item.data, payload)
           item.handled()
@@ -216,7 +216,7 @@ export default class Endpoint extends Vertex {
       case EP.QUERY_RESP:
         // query response, 
         console.error(`query response arrived at endpoint, should've gone to a query vt...`)
-        item.handled() 
+        item.handled()
         break;
       default:
         // not recognized: resolving here will cause pck to clear above 

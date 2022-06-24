@@ -353,7 +353,6 @@ PK.walkPtr = (pck, ptr, source, steps) => {
 // item.data[ptr + 1] = 0 
 // item.data[ptr + 2] = PK.PTR 
 
-
 // endpoint layer 
 let EP = {
   SS_ACK: 101,      // the ack, 
