@@ -33,7 +33,7 @@ export default class QueryMSeg extends Vertex {
     switch(data[ptr]){
       case EPMSEG.QUERY_END_RESP:
         terminal = true 
-      case EPMSEG.QUERY_RESP:
+      case EPMSEG.QUERY_RES:
         // bytes -> bytes 
         startByte = TS.read('uint16', data, ptr + 1)
         endByte = TS.read('uint16', data, ptr + 3)

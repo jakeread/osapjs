@@ -141,9 +141,9 @@ export default class Endpoint extends Vertex {
         item.handled(); break;
       case EP.QUERY:
         {
-          // new payload for reply, keys are dest, query_resp, and ID from incoming, 
+          // new payload for reply, keys are dest, QUERY_RES, and ID from incoming, 
           let payload = new Uint8Array(3 + this.data.length)
-          payload[0] = PK.DEST; payload[1] = EP.QUERY_RESP; payload[2] = item.data[ptr + 3];
+          payload[0] = PK.DEST; payload[1] = EP.QUERY_RES; payload[2] = item.data[ptr + 3];
           // write-in data,
           payload.set(this.data, 3)
           // formulate packet, 
@@ -151,7 +151,7 @@ export default class Endpoint extends Vertex {
           this.handle(datagram, VT.STACK_ORIGIN)
         }
         item.handled(); break;
-      case EP.ROUTE_QUERY:
+      case EP.ROUTE_QUERY_REQ:
         {
           // let's see about our route... it should be at 
           let rqid = item.data[ptr + 3]
@@ -162,7 +162,7 @@ export default class Endpoint extends Vertex {
             let route = this.routes[indice]
             // this is dest, reply key, id, mode, + 2 <ttl> + 2 <segsize> + route.length, 
             payload = new Uint8Array(4 + 4 + route.path.length)
-            payload.set([PK.DEST, EP.ROUTE_RESP, rqid, route.mode], 0)
+            payload.set([PK.DEST, EP.ROUTE_QUERY_RES, rqid, route.mode], 0)
             let wptr = 4
             wptr += TS.write('uint16', route.ttl, payload, wptr)
             wptr += TS.write('uint16', route.segSize, payload, wptr)
@@ -170,7 +170,7 @@ export default class Endpoint extends Vertex {
             payload.set(route.path, wptr)
           } else {
             // destination key, reply key, id to match, '0' to indicate no-route-here, 
-            payload = new Uint8Array([PK.DEST, EP.ROUTE_RESP, rqid, 0])
+            payload = new Uint8Array([PK.DEST, EP.ROUTE_QUERY_RES, rqid, 0])
           }
           // format reply, wipe & replace at dest stack,
           let datagram = PK.writeReply(item.data, payload)
@@ -178,7 +178,7 @@ export default class Endpoint extends Vertex {
           this.handle(datagram, VT.STACK_DEST)
         }
         break;
-      case EP.ROUTE_SET:
+      case EP.ROUTE_SET_REQ:
         {
           // uuuuh 
           let rqid = item.data[ptr + 3]
@@ -192,18 +192,18 @@ export default class Endpoint extends Vertex {
           // add it... have infinite length in js, right? 
           this.addRoute(route)
           // and ack that, 1 is yes-it-worked, 0 is an error... more verbose later, maybe, haha 
-          let datagram = PK.writeReply(item.data, [PK.DEST, EP.ROUTE_SET_RESP, rqid, 1])
+          let datagram = PK.writeReply(item.data, [PK.DEST, EP.ROUTE_SET_RES, rqid, 1])
           item.handled()
           this.handle(datagram, VT.STACK_DEST)
         }
         break;
-      case EP.ROUTE_RM:
+      case EP.ROUTE_RM_REQ:
         {
           // uuuuh 
           let rqid = item.data[ptr + 3]
           let indice = item.data[ptr + 4]
           // either/or, 
-          let payload = new Uint8Array([PK.DEST, EP.ROUTE_RM_RESP, rqid, 0])
+          let payload = new Uint8Array([PK.DEST, EP.ROUTE_RM_RES, rqid, 0])
           // now, if we can rm, do:
           if (this.routes[indice]) {
             this.routes.splice(indice, 1)
@@ -215,7 +215,7 @@ export default class Endpoint extends Vertex {
           this.handle(datagram, VT.STACK_ORIGIN)
         }
         break;
-      case EP.QUERY_RESP:
+      case EP.QUERY_RES:
         // query response, 
         console.error(`query response arrived at endpoint, should've gone to a query vt...`)
         item.handled()

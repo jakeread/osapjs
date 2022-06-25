@@ -96,7 +96,7 @@ export default function OMVC(osap) {
     await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
     // payload is pretty simple, 
     let id = getNewQueryID()
-    let payload = new Uint8Array([PK.DEST, EP.ROUTE_QUERY, id, indice])
+    let payload = new Uint8Array([PK.DEST, EP.ROUTE_QUERY_REQ, id, indice])
     let datagram = PK.writeDatagram(route, payload)
     // ship it from the root vertex, 
     osap.handle(datagram, VT.STACK_ORIGIN)
@@ -139,7 +139,7 @@ export default function OMVC(osap) {
     let id = getNewQueryID()
     // + DEST, + ROUTE_SET, + ID, + Route (route.length + mode + ttl + segsize)
     let payload = new Uint8Array(3 + routeFromEndpoint.path.length + 5)
-    payload.set([PK.DEST, EP.ROUTE_SET, id, routeFromEndpoint.mode])
+    payload.set([PK.DEST, EP.ROUTE_SET_REQ, id, routeFromEndpoint.mode])
     let wptr = 4
     wptr += TS.write('uint16', routeFromEndpoint.ttl, payload, wptr)
     wptr += TS.write('uint16', routeFromEndpoint.segSize, payload, wptr)
@@ -172,7 +172,7 @@ export default function OMVC(osap) {
     // same energy
     let id = getNewQueryID()
     // + DEST, + ROUTE_RM, + ID, + Indice 
-    let payload = new Uint8Array([PK.DEST, EP.ROUTE_RM, id, indice])
+    let payload = new Uint8Array([PK.DEST, EP.ROUTE_RM_REQ, id, indice])
     let datagram = PK.writeDatagram(routeToEndpoint, payload)
     osap.handle(datagram, VT.STACK_ORIGIN)
     // setup handler, 
@@ -198,9 +198,9 @@ export default function OMVC(osap) {
     // ... we could do: 
     // mvc things w/ one attach-and-release reponse handlers and root-unique request IDs, non?
     keySwitch: switch (item.data[ptr + 2]) {
-      case EP.ROUTE_RESP:
-      case EP.ROUTE_SET_RESP:
-      case EP.ROUTE_RM_RESP:
+      case EP.ROUTE_QUERY_RES:
+      case EP.ROUTE_SET_RES:
+      case EP.ROUTE_RM_RES:
         {
           // match to id, send to handler, carry on... 
           let rqid = item.data[ptr + 3]

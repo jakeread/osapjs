@@ -34,9 +34,9 @@ export default class Query extends Vertex {
   // ---------------------------------- Reply Catch Side 
 
   destHandler = function (item, ptr) {
-    // again, item.data[ptr] == PK.PTR, ptr + 1 = PK.DEST, ptr + 2 = EP.QUERY_RESP,
+    // again, item.data[ptr] == PK.PTR, ptr + 1 = PK.DEST, ptr + 2 = EP.QUERY_RES,
     switch (item.data[ptr + 2]) {
-      case EP.QUERY_RESP:
+      case EP.QUERY_RES:
         // match & bail 
         if(this.queryAwaiting.id == item.data[ptr + 3]){
           clearTimeout(this.queryAwaiting.timeout)

@@ -32,20 +32,20 @@ let EP = {
   SS_ACKLESS: 121,  // ackless transmit 
   SS_ACKED: 122,    // transmit requests ack 
   QUERY: 131,       // query for current data 
-  QUERY_RESP: 132,  // query response 
-  ROUTE_QUERY: 141, // request route list 
-  ROUTE_RESP: 142,  // route list, 
-  ROUTE_SET: 143,    // req-to-add-route 
-  ROUTE_SET_RESP: 144,
-  ROUTE_RM: 147,
-  ROUTE_RM_RESP: 148,
+  QUERY_RES: 132,  // query response 
+  ROUTE_QUERY_REQ: 141, // request route list 
+  ROUTE_QUERY_RES: 142,  // route list, 
+  ROUTE_SET_REQ: 143,    // req-to-add-route 
+  ROUTE_SET_RES: 144,
+  ROUTE_RM_REQ: 147,
+  ROUTE_RM_RES: 148,
   ROUTEMODE_ACKED: 167,
   ROUTEMODE_ACKLESS: 168,
 }
 
 let EPMSEG = {
   QUERY: 141,
-  QUERY_RESP: 142,
+  QUERY_RES: 142,
   QUERY_END_RESP: 143
 }
 
