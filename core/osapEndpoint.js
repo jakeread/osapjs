@@ -12,7 +12,9 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, TS, VT, EP, TIMES } from './ts.js'
+import { TS, VT, EP } from './ts.js'
+import TIME from './time.js'
+import PK from './packets.js'
 import Vertex from './osapVertex.js'
 
 let reverseRoute = (route) => {
@@ -59,7 +61,7 @@ export default class Endpoint extends Vertex {
   }
 
   // can upd8 how long it takes to to 
-  timeoutLength = TIMES.staleTimeout
+  timeoutLength = TIME.staleTimeout
   setTimeoutLength = (time) => {
     this.timeoutLength = time
   }
@@ -233,11 +235,11 @@ export default class Endpoint extends Vertex {
   // this could be smarter, since we already have this acksResolve() state 
   awaitAllAcks = (timeout = this.timeoutLength) => {
     return new Promise((resolve, reject) => {
-      let startTime = TIMES.getTimeStamp()
+      let startTime = TIME.getTimeStamp()
       let check = () => {
         if (this.acksAwaiting.length == 0) {
           resolve()
-        } else if (TIMES.getTimeStamp() - startTime > timeout) {
+        } else if (TIME.getTimeStamp() - startTime > timeout) {
           reject(`awaitAllAcks timeout`)
         } else {
           setTimeout(check, 0)

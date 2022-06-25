@@ -12,7 +12,9 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, VT, TIMES, TS } from './ts.js'
+import { VT, TS } from './ts.js'
+import TIME from './time.js'
+import PK from './packets.js'
 
 export default class Vertex {
   constructor(parent, indice) {
@@ -34,7 +36,7 @@ export default class Vertex {
   // ------------------------------------------------------ Stacks 
 
   // we keep a stack of messages... 
-  maxStackLength = TIMES.stackSize
+  maxStackLength = VT.defaultStackSize
   stack = [[], []]
 
   // can check availability, we use this for FC 
@@ -75,7 +77,7 @@ export default class Vertex {
     }
     let item = {}
     item.data = new Uint8Array(data)                  // copy in, old will be gc 
-    item.arrivalTime = TIMES.getTimeStamp()           // track arrival time 
+    item.arrivalTime = TIME.getTimeStamp()           // track arrival time 
     item.timeToLive = TS.read('uint16', item.data, 0) // track TTL, 
     item.vt = this                                    // handle to us, 
     item.od = od                                      // which stack... 
@@ -108,7 +110,7 @@ export default class Vertex {
   ping = async (route) => {
     try {
       // record ping start time, 
-      let startTime = TIMES.getTimeStamp()
+      let startTime = TIME.getTimeStamp()
       await this.awaitStackAvailableSpace(VT.STACK_ORIGIN)
       // track an id & increment / wrap tracker,
       let id = this.runningPingID
@@ -150,11 +152,11 @@ export default class Vertex {
 
   pingResponseHandler = (item, ptr) => {
     // item.data[ptr] = PK.PTR, ptr + 1 == PK.PINGRES 
-    let id = TS.readArg(item.data, ptr + 1)
+    let id = PK.readArg(item.data, ptr + 1)
     for (let a = 0; a < this.pingsAwaiting.length; a++) {
       if (this.pingsAwaiting[a].id == id) {
         let pa = this.pingsAwaiting[a]
-        pa.res(TIMES.getTimeStamp() - pa.startTime)
+        pa.res(TIME.getTimeStamp() - pa.startTime)
         this.pingsAwaiting.splice(a, 1)
       }
     }
@@ -222,7 +224,7 @@ export default class Vertex {
 
   scopeResponseHandler = (item, ptr) => {
     // search for tailing by id...
-    let id = TS.readArg(item.data, ptr + 1)
+    let id = PK.readArg(item.data, ptr + 1)
     for(let a = 0; a < this.scopesAwaiting.length; a ++){
       if(this.scopesAwaiting[a].id == id){
         this.scopesAwaiting[a].onResponse(item, ptr)
@@ -234,13 +236,13 @@ export default class Vertex {
 
   scopeRequestHandler = (item, ptr) => {
     // replying to this thing... we have item.data[ptr] == PK.PTR 
-    let id = TS.readArg(item.data, ptr + 1)
+    let id = PK.readArg(item.data, ptr + 1)
     // +1 for the key, +1 for the id, +4 for the time tag, +1 for type, 
     // +2 for own indice, +2 for # siblings, +2 for # children
     // + string name length + 4 counts for string's length
     let payload = new Uint8Array(13 + this.name.length + 4)
     // write the key & id, 
-    TS.writeKeyArgPair(payload, 0, PK.SCOPERES, id)
+    PK.writeKeyArgPair(payload, 0, PK.SCOPERES, id)
     // to write the rest, we'll wptr +=... starting from 2, 
     let wptr = 2 
     // the time we were last scoped:

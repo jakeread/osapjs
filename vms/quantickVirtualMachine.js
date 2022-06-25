@@ -12,7 +12,9 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, TS, TIMES } from '../../osapjs/core/ts.js'
+import { TS } from '../../osapjs/core/ts.js'
+import TIME from '../../osapjs/core/time.js'
+import PK from '../../osapjs/core/packets.js'
 
 export default function QuantickVM(osap, route) {
   // one to get states, 
@@ -85,7 +87,7 @@ export default function QuantickVM(osap, route) {
   this.runCalib = async () => {
     try {
       await this.setMode("calibrating")
-      let startTime = TIMES.getTimeStamp()
+      let startTime = TIME.getTimeStamp()
       while (true) {
         let mode = await this.getMode()
         ///console.log(`${mode}...`)
@@ -93,11 +95,11 @@ export default function QuantickVM(osap, route) {
           console.log(`calibrating done, mode: ${mode}`)
           break;
         }
-        // if (startTime + 50000 < TIMES.getTimeStamp()) {
+        // if (startTime + 50000 < TIME.getTimeStamp()) {
         //   console.log("calibration timeout!")
         //   break;
         // }
-        await TIMES.delay(100)
+        await TIME.delay(100)
       }
       //let map = await this.getEncoderMap()
       //return map

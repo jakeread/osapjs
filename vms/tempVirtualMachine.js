@@ -12,7 +12,9 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, TS, VT, EP, TIMES } from '../../osapjs/core/ts.js'
+import { TS } from '../../osapjs/core/ts.js'
+import TIME from '../osapjs/core/time.js'
+import PK from '../../osapjs/core/packets.js'
 
 export default function TempVM(osap, route) {
   // set a temp 
@@ -44,7 +46,7 @@ export default function TempVM(osap, route) {
     try {
       await this.setExtruderTemp(temp)
       while(true){
-        await TIMES.delay(250)
+        await TIME.delay(250)
         let ct = await this.getExtruderTemp()
         console.log(`temp: ${ct}`)
         if(temp + 1 > ct && temp - 1 < ct){

@@ -12,7 +12,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, EPMSEG, TIMES, TS, EP } from './ts.js'
+import { EPMSEG, TS, EP } from './ts.js'
 import Vertex from './osapVertex.js'
 
 export default class QueryMSeg extends Vertex {

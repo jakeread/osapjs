@@ -12,7 +12,9 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, TS, VT, TIMES } from './ts.js'
+import { TS, VT } from './ts.js'
+import TIME from './time.js'
+import PK from './packets.js'
 
 let PING_MAX_TIME = 1000 // ms 
 let LOG_NETRUNNER = false
@@ -37,7 +39,7 @@ export default function NetRunner(osap) {
     // we r going to walk the whole gd thing to see if anything is pending, 
     if (LOG_COMPLETION_CHECKS) console.warn('hang on, we are checking...')
     // we also have to use some timer action to ensure we don't check / recurse through twice 
-    let checkTime = TIMES.getTimeStamp()
+    let checkTime = TIME.getTimeStamp()
     let notDone = false
     let recursor = (vport) => {
       if (LOG_COMPLETION_CHECKS) console.warn('traverse across', vport.name)
@@ -96,7 +98,7 @@ export default function NetRunner(osap) {
   // block inspect one context:
   this.inspectFrontier = async (vport) => {
     // per-node scan time: 
-    let frontierScanTime = TIMES.getTimeStamp()
+    let frontierScanTime = TIME.getTimeStamp()
     if (LOG_NETRUNNER) console.log(`NR: now traversing vport ${vport.indice} ${vport.name} at ${vport.parent.name}`)
     try {
       // collect vport on the other side of this one:
@@ -158,7 +160,7 @@ export default function NetRunner(osap) {
 
   // runs a sweep, starting at the osap root vertex 
   this.sweep = async () => {
-    scanStartTime = TIMES.getTimeStamp()
+    scanStartTime = TIME.getTimeStamp()
     // this is lazy, but I keep a set list of nodes as well:
     // we should only add to this list when a parent is complete / all children have been added 
     allVPorts = []
@@ -206,7 +208,7 @@ export default function NetRunner(osap) {
       }
       switch (route.path[ptr]) {
         case PK.SIB:
-          indice = TS.readArg(route.path, ptr)
+          indice = PK.readArg(route.path, ptr)
           // do we have it ? 
           if (vvt.parent && vvt.parent.children[indice]) {
             vvt = vvt.parent.children[indice]

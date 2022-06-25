@@ -12,7 +12,9 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { VT, PK, TIMES, TS } from "./ts.js"
+import { VT } from "./ts.js"
+import TIME from "./time.js"
+import PK from './packets.js'
 
 let LOGHANDLER = false
 let LOGSWITCH = false
@@ -27,7 +29,7 @@ let loopItems = []
 // this should be called just once per cycle, from the root vertex, 
 let osapLoop = (root) => {
   // time is now, 
-  let now = TIMES.getTimeStamp()
+  let now = TIME.getTimeStamp()
   // reset our list of items-to-handle, 
   loopItems = []
   // collect 'em recursively, 
@@ -81,7 +83,7 @@ let osapItemHandler = (item) => {
     item.handled(); return
   }
   // now we can try to transport it, switching on the instruction (which is ahead)
-  switch (TS.readKey(item.data, ptr + 1)) {
+  switch (PK.readKey(item.data, ptr + 1)) {
     // packet is at destination, send to vertex to handle, 
     // if handler returns true, OK to destroy packet, else wait on it 
     case PK.DEST:
@@ -160,24 +162,24 @@ let osapInternalTransport = (item, ptr) => {
     // loop thru internal ops until we hit a destination of a forwarding step, 
     fwdSweep: for (let h = 0; h < 16; h++) {
       LOGLOOP(`fwd look from ${vt.name}, ptr ${fwdPtr} key ${item.data[fwdPtr]}`)
-      switch (TS.readKey(item.data, fwdPtr)) {
+      switch (PK.readKey(item.data, fwdPtr)) {
         // these are the internal transport cases: across, up, or down the tree 
         case PK.SIB:
-          LOGLOOP(`instruction is sib, ${TS.readArg(item.data, fwdPtr)}`)
+          LOGLOOP(`instruction is sib, ${PK.readArg(item.data, fwdPtr)}`)
           if (!vt.parent) { throw new Error(`fwd to sib from ${vt.name}, but no parent exists`) }
-          let sib = vt.parent.children[TS.readArg(item.data, fwdPtr)]
-          if (!sib) { throw new Error(`fwd to sib ${TS.readArg(item.data, fwdPtr)} from ${vt.name}, but none exists`) }
+          let sib = vt.parent.children[PK.readArg(item.data, fwdPtr)]
+          if (!sib) { throw new Error(`fwd to sib ${PK.readArg(item.data, fwdPtr)} from ${vt.name}, but none exists`) }
           vt = sib
           break;
         case PK.PARENT:
-          LOGLOOP(`instruction is parent, ${TS.readArg(item.data, fwdPtr)}`)
+          LOGLOOP(`instruction is parent, ${PK.readArg(item.data, fwdPtr)}`)
           if (!vt.parent) { throw new Error(`fwd to parent from ${vt.name}, but no parent exists`) }
           vt = vt.parent
           break;
         case PK.CHILD:
-          LOGLOOP(`instruction is child, ${TS.readArg(item.data, fwdPtr)}`)
-          let child = vt.children[TS.readArg(item.data, fwdPtr)]
-          if (!child) { throw new Error(`fwd to child ${TS.readArg(item.data, fwdPtr)} from ${vt.name}, none exists`) }
+          LOGLOOP(`instruction is child, ${PK.readArg(item.data, fwdPtr)}`)
+          let child = vt.children[PK.readArg(item.data, fwdPtr)]
+          if (!child) { throw new Error(`fwd to child ${PK.readArg(item.data, fwdPtr)} from ${vt.name}, none exists`) }
           vt = child
           break;
         // these are all cases where i.e. the vt itself will handle, or networking will happen, 

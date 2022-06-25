@@ -12,7 +12,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, TS, VT, TIMES } from './ts.js'
+import { VT } from './ts.js'
 import Vertex from './osapVertex.js'
 
 export default class VPort extends Vertex {

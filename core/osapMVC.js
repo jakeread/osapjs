@@ -12,7 +12,9 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, TS, VT, EP, TIMES } from './ts.js'
+import { TS, VT, EP } from './ts.js'
+import TIME from './time.js'
+import PK from './packets.js'
 
 let ROUTEREQ_MAX_TIME = 1000 // ms 
 
@@ -21,7 +23,7 @@ export default function OMVC(osap) {
   this.fillRouteData = (graph) => {
     // make a list of endpoints, 
     let eps = []
-    let listGenTime = TIMES.getTimeStamp()
+    let listGenTime = TIME.getTimeStamp()
     let contextRecursor = (vvt) => {
       if (!vvt) {
         console.warn('no vvt here on recurse... ?')

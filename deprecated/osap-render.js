@@ -15,7 +15,8 @@ no warranty is provided, and users accept all liability.
 'use strict'
 
 import DT from '../client/interface/domTools.js'
-import { PK, TS, VT, EP, TIMES } from '../core/ts.js'
+import { TS, EP } from '../core/ts.js'
+import PK from '../core/packets.js'
 
 import { Button } from '../interface/button.js'
 

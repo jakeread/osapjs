@@ -15,7 +15,8 @@ no warranty is provided, and users accept all liability.
 'use strict'
 
 import DT from '../interface/domTools.js'
-import { VT, TIMES } from '../../core/ts.js'
+import { VT } from '../../core/ts.js'
+import TIME from '../../core/time.js'
 
 let padSize = 150 // square 
 let padPadding = 10
@@ -25,7 +26,7 @@ export default function GridDoodler(xPlace, yPlace) {
     // rm all old, 
     $('.node').remove()
     // for this one, we should recurse by root, right?
-    let drawTime = TIMES.getTimeStamp()
+    let drawTime = TIME.getTimeStamp()
     let recursor = (root, x, y) => {
       // don't draw forever 
       if (root.lastDrawTime == drawTime){

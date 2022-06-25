@@ -12,7 +12,9 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, TIMES, TS } from '../../osapjs/core/ts.js'
+import { TS } from '../../osapjs/core/ts.js'
+import TIME from '../../osapjs/core/time.js'
+import PK from '../../osapjs/core/packets.js'
 
 export default function BladePlateVM(osap, route){
   // set current for servo actuator 
@@ -45,7 +47,7 @@ export default function BladePlateVM(osap, route){
         await this.writeServoMicroseconds(this.config.microsOpen)
       }
       // takes ~ some time to close / open 
-      await TIMES.delay(1000)
+      await TIME.delay(1000)
     } catch (err) {
       throw err 
     }

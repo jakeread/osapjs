@@ -12,7 +12,9 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, VT, EP, TIMES } from './ts.js'
+import { VT, EP } from './ts.js'
+import TIME from './time.js'
+import PK from './packets.js'
 import Vertex from './osapVertex.js'
 
 export default class Query extends Vertex {
@@ -74,12 +76,12 @@ export default class Query extends Vertex {
               console.warn(`query retry`)
               this.queryAwaiting.retries ++ 
               this.handle(datagram, VT.STACK_ORIGIN)
-              this.queryAwaiting.timeout = setTimeout(this.queryAwaiting.timeoutFn, TIMES.staleTimeout)
+              this.queryAwaiting.timeout = setTimeout(this.queryAwaiting.timeoutFn, TIME.staleTimeout)
             }
           }
         } // end query obj 
         // set 1st timeout, 
-        this.queryAwaiting.timeout = setTimeout(this.queryAwaiting.timeoutFn,TIMES.staleTimeout)
+        this.queryAwaiting.timeout = setTimeout(this.queryAwaiting.timeoutFn,TIME.staleTimeout)
         // parent handles,
         this.handle(datagram, VT.STACK_ORIGIN)
       }

@@ -14,8 +14,8 @@ no warranty is provided, and users accept all liability.
 
 'use strict'
 
-import { PK, TS, VT, EP, TIMES } from './ts.js'
-import VPort from './vport.js'
+import { VT } from './ts.js'
+import VPort from './osapVPort.js'
 import Vertex from './osapVertex.js'
 import Module from './osapModule.js'
 import Endpoint from './osapEndpoint.js'

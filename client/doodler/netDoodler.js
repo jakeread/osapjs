@@ -16,7 +16,9 @@ no warranty is provided, and users accept all liability.
 
 import DT from '../interface/domTools.js'
 import { Button, TextBlock } from '../interface/basics.js'
-import { PK, VT, TIMES } from '../../core/ts.js'
+import { VT } from '../../core/ts.js'
+import TIME from '../../core/time.js'
+import PK from '../../core/packets.js'
 import { GraphicalContext, GraphicalVertex, checkGvtOverlap } from './graphicalElements.js';
 
 // get dom:gvt match
@@ -325,7 +327,7 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
     // we'll populate these recursively... 
     let nodes = []; let links = []
     let lastId = 1;
-    let drawTime = TIMES.getTimeStamp()
+    let drawTime = TIME.getTimeStamp()
     // let's just walk the graph and try our new rendering tech, 
     let contextRecursor = (vvt, partner = undefined) => {
       // guard against whatever tf this is ?

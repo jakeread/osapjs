@@ -12,7 +12,8 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { PK, TS, VT, EP, TIMES } from '../../osapjs/core/ts.js'
+import { TS } from '../../osapjs/core/ts.js'
+import PK from '../../osapjs/core/packets.js'
 import { delay } from '../../osapjs/core/time.js'
 
 export default function MotionVM(osap, route) {
