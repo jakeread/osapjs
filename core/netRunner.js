@@ -101,7 +101,7 @@ export default function NetRunner(osap) {
     let frontierScanTime = TIME.getTimeStamp()
     if (LOG_NETRUNNER) console.log(`NR: now traversing vport ${vport.indice} ${vport.name} at ${vport.parent.name}`)
     try {
-      // collect vport on the other side of this one:
+      // try to collect vport on the other side of this one:
       // .end(ttl, segSize)
       vport.reciprocal = await osap.scope(PK.route(vport.route, true).pfwd().end(250, 128), frontierScanTime)
       if (vport.reciprocal.previousTimeTag > scanStartTime) {
@@ -146,7 +146,11 @@ export default function NetRunner(osap) {
         if (parent.children[c].type == VT.VPORT && c != reciprocal.indice) {
           //if(reciprocal.previousTimeTag == )
           allVPorts.push(parent.children[c])
-          this.inspectFrontier(parent.children[c])
+          if(parent.children[c].linkState){
+            this.inspectFrontier(parent.children[c])
+          } else {
+            parent.children[c].reciprocal = { type: "unreachable" }
+          }
         }
       }
     } catch (err) {
