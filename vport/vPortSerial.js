@@ -14,6 +14,7 @@ no warranty is provided, and users accept all liability.
 
 import { SerialPort, DelimiterParser } from 'serialport'
 import { TS } from '../core/ts.js'
+import TIME from '../core/time.js'
 import COBS from "../utes/cobs.js"
 
 // have some "protocol" at the link layer 
@@ -25,16 +26,19 @@ let SERLINK_SEGSIZE = SERLINK_BUFSIZE - 5
 let SERLINK_KEY_PCK = 170  // 0b10101010
 let SERLINK_KEY_ACK = 171  // 0b10101011
 let SERLINK_KEY_DBG = 172
+let SERLINK_KEY_KEEPALIVE = 173 // keepalive ping 
 // retry settings 
 let SERLINK_RETRY_MACOUNT = 2
 let SERLINK_RETRY_TIME = 100  // milliseconds  
+let SERLINK_KEEPALIVE_TX_TIME = 800 // ms, dead-time interval before sending an 'i'm-still-here' ping 
+let SERLINK_KEEPALIVE_RX_TIME = 1200 // ms, dead-time interval before assuming neighbour is dead 
 
 export default function VPortSerial(osap, portName, debug = false) {
   // track la, 
   this.portName = portName
   // make the vport object (will auto attach to osap)
   let vport = osap.vPort(`vport_${this.portName}`)
-  vport.maxSegLength = 255 
+  vport.maxSegLength = 255
   // open the port itself, 
   if (debug) console.log(`SERPORT contact at ${this.portName}, opening`)
   // we keep a little state, as a treat 
@@ -43,18 +47,16 @@ export default function VPortSerial(osap, portName, debug = false) {
   let outAwaitingTimer = null
   let numRetries = 0
   let lastIdRxd = 0
+  let lastRxTime = 0 // last time we heard back ? for keepalive 
   // flowcontrol is based on this state, 
   this.status = "opening"
   let flowCondition = () => {
     return (outAwaiting == null)
   }
-  vport.cts = () => {
-    if (this.status == "open" && flowCondition()) {
-      return true
-    } else {
-      return false
-    }
-  }
+  // we report flowcondition, 
+  vport.cts = () => { return (this.status == "open" && flowCondition()) }
+  // and open / closed-ness, 
+  vport.isOpen = () => { return (this.status == "open" && (TIME.getTimeStamp() - lastRxTime) < SERLINK_KEEPALIVE_RX_TIME) }
   // we have a port... 
   let port = new SerialPort({
     path: this.portName,
@@ -65,11 +67,27 @@ export default function VPortSerial(osap, portName, debug = false) {
     console.log(`SERPORT at ${this.portName} OPEN`)
     // is now open,
     this.status = "open"
+    // we do some keepalive, 
+    let keepAliveTimer = null
+    // we can manually write this, 
+    let keepAlivePacket = new Uint8Array([3, SERLINK_KEY_KEEPALIVE, 0])
+    // clear current keepAlive timer and set new one, 
+    let keepAliveTxUpdate = () => {
+      if (keepAliveTimer) { clearTimeout(keepAliveTimer) }
+      keepAliveTimer = setTimeout(() => {
+        port.write(keepAlivePacket)
+        keepAliveTxUpdate()
+      }, SERLINK_KEEPALIVE_TX_TIME)
+    }
+    // also set last-rx to now, and init keepalive state, 
+    lastRxTime = TIME.getTimeStamp()
+    keepAliveTxUpdate()
     // to get, use delimiter
     let parser = port.pipe(new DelimiterParser({ delimiter: [0] }))
     //let parser = port.pipe(new ByteLength({ length: 1 }))
     // implement rx
     parser.on('data', (buf) => {
+      lastRxTime = TIME.getTimeStamp()
       if (debug) console.log('SERPORT Rx', buf)
       // checksum... 
       if (buf.length + 1 != buf[0]) {
@@ -77,32 +95,42 @@ export default function VPortSerial(osap, portName, debug = false) {
         return
       }
       // ack / pack: check and clear, or noop 
-      if (buf[1] == SERLINK_KEY_ACK) {
-        if (buf[2] == outAwaitingId) {
-          outAwaiting = null
-        }
-      } else if (buf[1] == SERLINK_KEY_PCK) {
-        if (buf[2] == lastIdRxd) {
-          console.log(`SERPORT Rx double id`)
-          return
-        } else {
-          lastIdRxd = buf[2]
-          let decoded = COBS.decode(buf.slice(3))
-          vport.awaitStackAvailableSpace(0, 2000).then(() => {
-            //console.log('SERPORT RX Decoded', decoded)
-            vport.receive(decoded)
-            // output an ack, 
-            let ack = new Uint8Array(4)
-            ack[0] = 4
-            ack[1] = SERLINK_KEY_ACK
-            ack[2] = lastIdRxd
-            ack[3] = 0
-            port.write(ack)
-          })
-        }
-      } else if (buf[1] == SERLINK_KEY_DBG) {
-        let decoded = COBS.decode(buf.slice(2))
-        let str = TS.read('string', decoded, 0, true).value; console.log("LL: ", str);
+      switch (buf[1]) {
+        case SERLINK_KEY_ACK:
+          if (buf[2] == outAwaitingId) outAwaiting = null;
+          break;
+        case SERLINK_KEY_PCK:
+          if (buf[2] == lastIdRxd) {
+            console.log(`SERPORT Rx double id ${buf[2]}`)
+            return
+          } else {
+            lastIdRxd = buf[2]
+            let decoded = COBS.decode(buf.slice(3))
+            vport.awaitStackAvailableSpace(0, 2000).then(() => {
+              //console.log('SERPORT RX Decoded', decoded)
+              vport.receive(decoded)
+              // output an ack, 
+              let ack = new Uint8Array(4)
+              ack[0] = 4
+              ack[1] = SERLINK_KEY_ACK
+              ack[2] = lastIdRxd
+              ack[3] = 0
+              port.write(ack)
+            })
+          }
+          break;
+        case SERLINK_KEY_DBG:
+          {
+            let decoded = COBS.decode(buf.slice(2))
+            let str = TS.read('string', decoded, 0, true).value; console.log("LL: ", str)
+          }
+          break;
+        case SERLINK_KEY_KEEPALIVE:
+          // this is just for updating lastRxTime... 
+          break;
+        default:
+          console.error(`SERPORT Rx unknown front-key ${buf[1]}`)
+          break;
       }
     })
     // implement tx
@@ -123,10 +151,12 @@ export default function VPortSerial(osap, portName, debug = false) {
       // ship eeeet 
       if (debug) console.log('SERPORT Tx', outAwaiting)
       port.write(outAwaiting)
+      keepAliveTxUpdate()
       // retry timeout, in reality USB is robust enough, but codes sometimes bungle messages too 
       outAwaitingTimer = setTimeout(() => {
         if (outAwaiting && numRetries < SERLINK_RETRY_MACOUNT && port.isOpen) {
           port.write(outAwaiting)
+          keepAliveTxUpdate()
           numRetries++
         } else if (!outAwaiting) {
           // noop
@@ -141,7 +171,7 @@ export default function VPortSerial(osap, portName, debug = false) {
   port.on('error', (err) => {
     this.status = "closing"
     console.log(`SERPORT ${this.portName} ERR`, err)
-    if(port.isOpen) port.close()
+    if (port.isOpen) port.close()
   })
   port.on('close', (evt) => {
     vport.dissolve()

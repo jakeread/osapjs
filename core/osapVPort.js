@@ -29,10 +29,15 @@ export default class VPort extends Vertex {
   maxSegLength = 128
   type = VT.VPORT
 
-  // phy implements this, 
-  cts = function () { return false }
-  send = function (buffer) { console.warn('transmitted to undefined vport send fn') }
+  // phy implements these;
+  // is the connection open ? link state 
+  isOpen = function () { throw new Error(`vport ${this.name} hasn't implemented an isOpen() function`) }
+  // is it clear to send ? flow control 
+  cts = function () { throw new Error(`vport ${this.name} hasn't implemented a cts() function`) }
+  // send this... 
+  send = function (buffer) { throw new Error(`vport ${this.name} hasn't implemented a send() function`) }
 
+  // phy uses this on receipt of a datagram, to ingest to OSAP 
   receive = function (buffer) {
     // datagram goes straight through 
     this.handle(buffer, VT.STACK_ORIGIN)

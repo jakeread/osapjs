@@ -210,6 +210,15 @@ export default class Vertex {
             vvt.timeTag = timeTag // what we just tagged it with 
             vvt.previousTimeTag = TS.read('uint32', item.data, ptr + 3) // what it replies w/ as previous tag 
             vvt.type = item.data[ptr + 7]
+            if(vvt.type == VT.VPORT){
+              vvt.linkState = (item.data[ptr + 8] > 0 ? true : false);
+              ptr += 1
+            } else if (vvt.type == VT.VBUS){
+              vvt.linkState = {}
+              throw new Error("pls build vbus-scope-response")
+            } else {
+              vvt.linkState = false
+            }
             vvt.indice = TS.read('uint16', item.data, ptr + 8)
             vvt.children = new Array(TS.read('uint16', item.data, ptr + 12))
             vvt.name = TS.read('string', item.data, ptr + 14).value
@@ -238,9 +247,10 @@ export default class Vertex {
     // replying to this thing... we have item.data[ptr] == PK.PTR 
     let id = PK.readArg(item.data, ptr + 1)
     // +1 for the key, +1 for the id, +4 for the time tag, +1 for type, 
+    // +1 if we are vport-type, 
     // +2 for own indice, +2 for # siblings, +2 for # children
     // + string name length + 4 counts for string's length
-    let payload = new Uint8Array(13 + this.name.length + 4)
+    let payload = new Uint8Array(13 + this.name.length + 4 + (this.type == VT.VPORT ? 1 : 0))
     // write the key & id, 
     PK.writeKeyArgPair(payload, 0, PK.SCOPERES, id)
     // to write the rest, we'll wptr +=... starting from 2, 
@@ -251,6 +261,12 @@ export default class Vertex {
     this.scopeTimeTag = TS.read('uint32', item.data, ptr + 3)
     // our type, 
     payload[wptr++] = this.type
+    // vport / vbus writes link states, 
+    if(this.type == VT.VPORT){
+      payload[wptr ++] = (this.isOpen() ? 1 : 0);
+    } else if(this.type == VT.VBUS){
+      throw new Error("scopeRequestHandler at vbus in JS, now you have to write this code")
+    }
     // our own indice, # of siblings, # of children:
     wptr += TS.write('uint16', this.indice, payload, wptr)
     if (this.parent) {
