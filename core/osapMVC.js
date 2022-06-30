@@ -156,7 +156,7 @@ export default function OMVC(osap) {
           reject(`route set req timeout`)
         }, ROUTEREQ_MAX_TIME),
         onResponse: function (data) {
-          console.warn(`ROUTE SET REPLY`)
+          //console.warn(`ROUTE SET REPLY`)
           if (data[0]) {
             resolve()
           } else {

@@ -100,6 +100,8 @@ export default class OSAP extends Vertex {
 
   // graph search tool;
   netRunner = new NetRunner(this)
+  // with handles...
+  connect = this.netRunner.connect
   // mvc tool, 
   mvc = new OMVC(this)
   // we ship MVC msgs from the root node, so their responses arrive here... 

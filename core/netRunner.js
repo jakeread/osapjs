@@ -43,7 +43,6 @@ export default function NetRunner(osap) {
 
   this.searchContext = async (root, entrance) => {
     try {
-      console.warn(`Searching ${root.name}...`)
       let contextScanTime = TIME.getTimeStamp()
       // get data for new children... i.e. the entrance should already be all hooked up, 
       for (let c = 0; c < root.children.length; c++) {
@@ -64,7 +63,6 @@ export default function NetRunner(osap) {
         if(vt.type == VT.VPORT){ //---------------------------------- if vport, find vport partner, 
           if(vt.linkState){
             // we try to catch the reciprocal, or we time out... 
-            console.warn(`possible traverse to ${vt.name}`)
             let reciprocal = {}
             try {
               // get reciprocal port & reverse-plumb, 
@@ -77,7 +75,6 @@ export default function NetRunner(osap) {
               // if that works, we do a little plumbing:
               reciprocal.parent.children[reciprocal.indice] = reciprocal
               // then we can carry on to the next, 
-              console.warn(`found ${reciprocal.parent.name}, carrying on...`)
               await this.searchContext(reciprocal.parent, reciprocal)
             } catch (err) {
               console.warn(`${vt.name}'s reciprocal traverse error, reason:`, err)
@@ -85,29 +82,30 @@ export default function NetRunner(osap) {
             }
             // plumb it & reverse it, 
             vt.reciprocal = reciprocal
+          } else {
+            vt.reciprocal = { type: "unreachable" }
           }
         } else if (vt.type == VT.VBUS){ //--------------------------- if vbus, find bus partner for each... 
           allNetworkVertices.push(vt)
           for(let d = 0; d < vt.linkState.length; d ++){
+            let reciprocal = {} 
             if(vt.linkState[d]){
-              console.warn(`possible traverse to ${vt.name}`)
-              let reciprocal = {} 
               try {
                 reciprocal = await osap.scope(PK.route(root.route).child(c).bfwd(d).end(), contextScanTime)
                 reciprocal.reciprocals[vt.ownRxAddr] = vt 
                 if(loopDetect(reciprocal)) continue;
                 reciprocal.parent = await osap.scope(PK.route(reciprocal.route).parent().end(), contextScanTime)
                 reciprocal.parent.children[reciprocal.indice] = reciprocal 
-                console.warn(`found ${reciprocal.parent.name}, carrying on...`)
                 await this.searchContext(reciprocal.parent, reciprocal)
               } catch (err) {
                 console.warn(`${vt.name}'s reciprocal traverse error, reason:`, err)
                 reciprocal = { type: "unreachable" }
               }
-              // plumb it, & the reverse... 
-              vt.reciprocals[d] = reciprocal
-
+            } else {
+              reciprocal = { type: "unreachable" }
             }
+            // plumb it, & the reverse... 
+            vt.reciprocals[d] = reciprocal
           }
         }
       }
@@ -131,6 +129,55 @@ export default function NetRunner(osap) {
       throw new Error('loop detecting fn is unfinished: plan was to detect & plumb loops here, returning true')
     } else {
       return false 
+    }
+  }
+
+  // also not loop-safe atm, 
+  this.stringLookup = (vtName, start) => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        // if we weren't given one, do a systems-wide lookup, 
+        if(!start) start = await this.sweep()
+        // carry on w/ the string search... another lazy depth-first recursor, 
+        let recursor = (root, entrance) => {
+          for(let child of root.children){
+            if(child.name == vtName){
+              resolve(child)
+              break
+            }
+            if(child == entrance) continue;
+            if(child.type == VT.VPORT){
+              if(child.reciprocal.type != "unreachable"){
+                recursor(child.reciprocal.parent, child.reciprocal)
+              }
+            } else if (child.type == VT.VBUS){
+              for(let recip of child.reciprocals){
+                if(recip.type != "unreachable"){
+                  recursor(recip.parent, recip)
+                }
+              }
+            }
+          } // end sweep over children 
+        }
+        recursor(start)
+        throw new Error(`can't find any vertex w/ name ${vtName} in this graph`)
+      } catch (err) {
+        reject(err)
+      }
+    })
+  }
+
+  this.connect = async (headName, tailName) => {
+    try {
+      let graph = await this.sweep()
+      let head = await this.stringLookup(headName, graph)
+      let tail = await this.stringLookup(tailName, graph)
+      let route = this.findRoute(head, tail)
+      // then we could do this to add the route / make the connection: 
+      await osap.mvc.setEndpointRoute(head.route, route)
+      return route 
+    } catch (err) {
+      throw err 
     }
   }
 
@@ -186,7 +233,7 @@ export default function NetRunner(osap) {
         segSize: route.segSize,
         path: new Uint8Array(route.path)
       }
-      // first... look thru siblines at this level, 
+      // first... look thru siblings at this level, 
       for (let s in from.parent.children) {
         s = parseInt(s)
         let sib = from.parent.children[s]
@@ -202,14 +249,22 @@ export default function NetRunner(osap) {
         let sib = from.parent.children[s]
         if (sib.type == VT.VPORT && sib != from) {
           if (sib.reciprocal && sib.reciprocal.type != "unreachable") {
-            // sweep, then pick first... 
+            // we push potential results into this collection of results & then pass them back up,
+            // there's likely a better way to cancel the recursing once we find a match 
             // as a warning... this is not loop safe ! 
             results.push(recursor(PK.route(route).sib(s).pfwd().end(), sib.reciprocal))
-            for (let res of results) {
-              if (res != null) return res
+          }
+        } else if (sib.type == VT.VBUS && sib != from){
+          for(let d in sib.reciprocals){
+            if(sib.reciprocals[d].type != "unreachable"){
+              results.push(recursor(PK.route(route).sib(s).bfwd(d).end(), sib.reciprocals[d]))
             }
           }
         }
+      } 
+      // done children-sweep, now look for matches, should only be one... 
+      for (let res of results) {
+        if (res != null) return res
       }
       console.log('returning null...')
       return null
