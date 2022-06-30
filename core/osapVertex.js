@@ -219,6 +219,9 @@ export default class Vertex {
                 // first we get uint16_t num-addresses, 
                 vvt.linkState = new Array(TS.read('uint16', item.data, rptr))
                 rptr += 2
+                vvt.reciprocals = new Array(vvt.linkState.length)
+                vvt.ownRxAddr = TS.read('uint16', item.data, rptr)
+                rptr += 2
                 let bitByteModulo = 0
                 for (let l = 0; l < vvt.linkState.length; l++) {
                   vvt.linkState[l] = (item.data[rptr] & (1 << bitByteModulo) ? true : false)
@@ -228,7 +231,7 @@ export default class Vertex {
                     rptr++
                   }
                 }
-                console.warn(vvt.linkState)
+                //console.warn(vvt.type, vvt.linkState)
               } else {
                 vvt.linkState = false
               }

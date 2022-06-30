@@ -237,6 +237,9 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
         writeState("scanning")
         osap.netRunner.sweep().then((net) => {
           console.warn(`SWEEP returns`, net)
+          writeState("drawing")
+          this.stateTransition("idle")
+          return true 
           osap.mvc.fillRouteData(net).then((net) => {
             console.warn(`FILLROUTE returns`, net)
             this.stateTransition("drawing", net)
@@ -266,7 +269,7 @@ export default function NetDoodler(osap, xPlace, yPlace, _runState = true) {
       } else if ((this.state == "drawing" || this.state == "dragging") && target == "idle") {
         writeState("idle")
         if (runState && !scanTimer) {
-          scanTimer = setTimeout(() => { scanTimer = null; this.stateTransition("scanning") }, 1000)
+          scanTimer = setTimeout(() => { scanTimer = null; this.stateTransition("scanning") }, 2000)
         }
         return true
       } else if (this.state == "drawing" && target == "dragging") {
