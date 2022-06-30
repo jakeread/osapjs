@@ -116,7 +116,8 @@ export default function NetRunner(osap) {
           }
         }
         // let's check if we can find which one we pinged w/ this time... 
-        throw new Error("loop detected")
+        console.warn("loop detected...")
+        //throw new Error("loop detected")
       }
       let reciprocal = vport.reciprocal
       // add to tl list;

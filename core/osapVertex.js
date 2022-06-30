@@ -170,9 +170,9 @@ export default class Vertex {
 
   scope = async (route, timeTag) => {
     try {
-      if (!timeTag){
+      if (!timeTag) {
         console.warn("scope called w/ no timeTag")
-        timeTag = 0 
+        timeTag = 0
       }
       // maybe a nice API in general is like 
       // (1) wait for outgoing space in the root's origin stack: 
@@ -201,28 +201,45 @@ export default class Vertex {
             reject(`scope timeout`)
           }, toTime),
           onResponse: function (item, ptr) {            // callback / handler 
-            // clear timeout 
-            clearTimeout(this.timeout)
-            // now we want to resolve this w/ a description of the ...
-            // virtual vertex ? vvt ? ffs. 
-            let vvt = {}
-            vvt.route = route
-            vvt.timeTag = timeTag // what we just tagged it with 
-            vvt.previousTimeTag = TS.read('uint32', item.data, ptr + 3) // what it replies w/ as previous tag 
-            vvt.type = item.data[ptr + 7]
-            if(vvt.type == VT.VPORT){
-              vvt.linkState = (item.data[ptr + 8] > 0 ? true : false);
-              ptr += 1
-            } else if (vvt.type == VT.VBUS){
-              vvt.linkState = {}
-              throw new Error("pls build vbus-scope-response")
-            } else {
-              vvt.linkState = false
+            try {
+              // clear timeout 
+              clearTimeout(this.timeout)
+              // now we want to resolve this w/ a description of the ...
+              // virtual vertex ? vvt ? ffs. 
+              let vvt = {}
+              let rptr = ptr + 3
+              vvt.route = route
+              vvt.timeTag = timeTag // what we just tagged it with 
+              vvt.previousTimeTag = TS.read('uint32', item.data, rptr) // what it replies w/ as previous tag 
+              rptr += 4
+              vvt.type = item.data[rptr++]
+              if (vvt.type == VT.VPORT) {
+                vvt.linkState = (item.data[rptr++] > 0 ? true : false);
+              } else if (vvt.type == VT.VBUS) {
+                // first we get uint16_t num-addresses, 
+                vvt.linkState = new Array(TS.read('uint16', item.data, rptr))
+                rptr += 2
+                let bitByteModulo = 0
+                for (let l = 0; l < vvt.linkState.length; l++) {
+                  vvt.linkState[l] = (item.data[rptr] & (1 << bitByteModulo) ? true : false)
+                  bitByteModulo++
+                  if (bitByteModulo >= 8) {
+                    bitByteModulo = 0
+                    rptr++
+                  }
+                }
+                console.warn(vvt.linkState)
+              } else {
+                vvt.linkState = false
+              }
+              vvt.indice = TS.read('uint16', item.data, rptr); rptr += 2
+              vvt.numSiblings = TS.read('uint16', item.data, rptr); rptr += 2
+              vvt.children = new Array(TS.read('uint16', item.data, rptr)); rptr += 2
+              vvt.name = TS.read('string', item.data, rptr).value
+              resolve(vvt)
+            } catch (err) {
+              console.error(err)
             }
-            vvt.indice = TS.read('uint16', item.data, ptr + 8)
-            vvt.children = new Array(TS.read('uint16', item.data, ptr + 12))
-            vvt.name = TS.read('string', item.data, ptr + 14).value
-            resolve(vvt)
           }
         })
       })
@@ -234,8 +251,8 @@ export default class Vertex {
   scopeResponseHandler = (item, ptr) => {
     // search for tailing by id...
     let id = PK.readArg(item.data, ptr + 1)
-    for(let a = 0; a < this.scopesAwaiting.length; a ++){
-      if(this.scopesAwaiting[a].id == id){
+    for (let a = 0; a < this.scopesAwaiting.length; a++) {
+      if (this.scopesAwaiting[a].id == id) {
         this.scopesAwaiting[a].onResponse(item, ptr)
         this.scopesAwaiting.splice(a, 1)
       }
@@ -254,7 +271,7 @@ export default class Vertex {
     // write the key & id, 
     PK.writeKeyArgPair(payload, 0, PK.SCOPERES, id)
     // to write the rest, we'll wptr +=... starting from 2, 
-    let wptr = 2 
+    let wptr = 2
     // the time we were last scoped:
     wptr += TS.write('uint32', this.scopeTimeTag, payload, wptr)
     // and read-in the new scope time data 
@@ -262,9 +279,9 @@ export default class Vertex {
     // our type, 
     payload[wptr++] = this.type
     // vport / vbus writes link states, 
-    if(this.type == VT.VPORT){
-      payload[wptr ++] = (this.isOpen() ? 1 : 0);
-    } else if(this.type == VT.VBUS){
+    if (this.type == VT.VPORT) {
+      payload[wptr++] = (this.isOpen() ? 1 : 0);
+    } else if (this.type == VT.VBUS) {
       throw new Error("scopeRequestHandler at vbus in JS, now you have to write this code")
     }
     // our own indice, # of siblings, # of children:
