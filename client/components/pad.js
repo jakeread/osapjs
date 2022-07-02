@@ -30,7 +30,8 @@ export default function Pad(xPlace, yPlace, width, height, machineX = 100, machi
   dt.writeTransform(pad, dft)
   // drawing lines, 
   let pts = [] // [[x,y],[]]
-  let drawPts = () => {
+  let pos = [0,0]
+  this.redraw = () => {
     $(pad).children('.svgcont').remove() // rm all segs 
     for (let p = 1; p < pts.length; p++) {
       let del = [pts[p - 1][0] - pts[p][0], pts[p - 1][1] - pts[p][1]]
@@ -39,6 +40,7 @@ export default function Pad(xPlace, yPlace, width, height, machineX = 100, machi
         del[0] / scale[0], - del[1] / scale[1]
       ))
     }
+    this.drawPosition(pos)
   }
 
   this.onNewTarget = (pos) => {
@@ -53,7 +55,17 @@ export default function Pad(xPlace, yPlace, width, height, machineX = 100, machi
     //console.log('draw', pt)
     pts.push(pt)
     if (pts.length > 2500) pts.shift()
-    drawPts()
+    //drawPts()
+  }
+
+  this.drawPosition = (pt) => {
+    pos = [pt[0],pt[1]]
+    $(pad).children('#ptagID').remove()
+    $(pad).append(dt.svgLine(
+      pos[0] / scale[0], psize[1] - pos[1] / scale[1],
+      10, 10,
+      1, 'ptagID'
+    ))
   }
 
   // handle clicks 

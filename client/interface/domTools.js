@@ -80,9 +80,9 @@ let dragTool = (dragHandler, upHandler) => {
 // -------------------------------------------------------- SVG
 
 // return in an absolute-positioned wrapper at ax, ay, with dx / dy endpoint
-let svgLine = (ax, ay, dx, dy, width) => {
+let svgLine = (ax, ay, dx, dy, width = 1, id = "svgLine") => {
   let cont = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
-  $(cont).addClass('svgcont').css('left', ax).css('top', ay)
+  $(cont).addClass('svgcont').attr('id', id).css('left', ax).css('top', ay)
   let path = document.createElementNS('http://www.w3.org/2000/svg', 'line')
   $(cont).append(path)
   path.style.stroke = '#1a1a1a'
