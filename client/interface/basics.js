@@ -17,6 +17,13 @@ no warranty is provided, and users accept all liability.
 import DT from './domTools.js'
 import style from './style.js'
 
+// (svg)esus
+function svgRenderer(xPlace, yPlace, width, height, svg){
+  let elem = $('<div>').css('position', 'absolute').get(0)
+  $(elem).append(svg) 
+  DT.placeField(elem, width, height, xPlace, yPlace)
+}
+
 // single action buttons, 
 function EZButton(xPlace, yPlace, width, height, text) {
   let elem = $('<div>').addClass('button')
@@ -63,6 +70,7 @@ function Button(xPlace, yPlace, width, height, defaultText, justify) {
   DT.placeField(elem, width, height, xPlace, yPlace)
   let btn = {}
   btn.onClick = (fn) => {
+    $(elem).off('click')
     $(elem).on('click', (evt) => { fn(evt) })
   }
   btn.setText = (text) => {
@@ -93,9 +101,34 @@ function Button(xPlace, yPlace, width, height, defaultText, justify) {
   return btn
 }
 
+// for ahn slider, 
+function Slider(settings){
+  if(!settings.min) settings.min = -1;
+  if(!settings.max) settings.max = 1;
+  if(!settings.step) settings.step = 0.01;
+  if(!settings.dflt) settings.dflt = 0;
+  if(!settings.title) settings.title = "slider"
+  let elem = $(`<input type="range" min=${settings.min} max=${settings.max} step=${settings.step} value=${settings.dflt}>`).addClass('inputwrap')
+    .text(settings.title)
+    .get(0)
+  DT.placeField(elem, settings.width - 100, settings.height, settings.xPlace, settings.yPlace)
+  let btn = new Button(settings.xPlace + settings.width - 80, settings.yPlace, 80, settings.height, elem.value)
+  btn.setHTML(`${settings.title}<br>${elem.value}`)
+  btn.onClick(() => {
+    elem.value = settings.dflt;
+    elem.oninput()
+  })
+  let slider = { elem: elem }
+  elem.oninput = () => { 
+    btn.setHTML(`${settings.title}<br>${elem.value}`)
+    if(slider.onChange) slider.onChange(elem.value) 
+  }
+  return slider 
+}
+
 // text blocks 
 function TextBlock(xPlace, yPlace, width, height, text, justify) {
-  let elem = $('<div>').addClass('textBlock')
+  let elem = $('<div>').addClass('inputwrap')
     .text(text)
     .get(0)
   if (justify) {
@@ -154,4 +187,4 @@ function TextInput(xPlace, yPlace, width, height, text) {
   return input
 }
 
-export { Button, EZButton, TextInput, TextBlock }
+export { Button, EZButton, Slider, TextInput, TextBlock, svgRenderer }
