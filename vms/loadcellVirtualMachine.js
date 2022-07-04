@@ -71,4 +71,19 @@ export default function LoadVM(osap, route) {
       })
     })
   }
+
+  // for the comparator... 
+  let cmpEP = osap.endpoint()
+  cmpEP.addRoute(PK.route(route).sib(3).end())
+  this.setComparator = async (val, dir) => {
+    try {
+      let datagram = new Uint8Array(5)
+      let wptr = 0
+      datagram[0] = dir ? 1 : 0;
+      TS.write('int32', val, datagram, 1)
+      await cmpEP.write(datagram, "acked")
+    } catch (err) {
+      throw err 
+    }
+  }
 }

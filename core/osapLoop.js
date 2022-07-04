@@ -202,7 +202,7 @@ let osapInternalTransport = (item, ptr) => {
             vt.handle(item.data, VT.STACK_DEST)
             item.handled()
           } else {
-            LOGLOOP(`flow-controlled from ${vt.name} to ${item.vt.name}, awaiting...`, null, true)
+            LOGLOOP(`flow-controlled from ${vt.name} to ${item.vt.name}, awaiting...`)
             item.vt.requestLoopCycle()
           }
           // fwd-look is terminal here in all cases, 

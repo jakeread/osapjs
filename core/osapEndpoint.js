@@ -78,10 +78,17 @@ export default class Endpoint extends Vertex {
   // local helper, wraps onData in always-promiseness,
   token = false
   onDataResolver = (data) => {
-    let res = this.onData(data)
-    if (res instanceof Promise) {   // return user promise, 
-      return res
-    } else {                      // invent & resolve promise, 
+    try {
+      let res = this.onData(data)
+      if (res instanceof Promise) {   // return user promise, 
+        return res
+      } else {                        // invent & resolve promise, 
+        return new Promise((resolve, reject) => {
+          resolve()
+        })
+      }  
+    } catch (err) {
+      console.error(`error during onData call...`, err)
       return new Promise((resolve, reject) => {
         resolve()
       })
