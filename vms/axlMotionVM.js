@@ -26,33 +26,39 @@ export default function AXLMotionVM(osap, route, numDof) {
 
   let setStatesEP = osap.endpoint()
   setStatesEP.addRoute(PK.route(route).sib(2).end())
-  this.setPosition = (posns) => {
+
+  this.writeStates = (mode, vals, set = false) => {
     return new Promise((resolve, reject) => {
-      // guard bad accels... 
-      if (posns.length != numDof) {
-        reject(`need array of len ${numDof} dofs, was given ${posns.length}`);
+      if (vals.length != numDof) {
+        reject(`need array of len ${numDof} dofs, was given ${vals.length}`);
         return;
       }
       // pack, 
-      let datagram = new Uint8Array(numDof * 4 * 3 + 1)
-      datagram[0] = AXL_MODE_POSITION
-      // write accels, 
-      for (let a = 0; a < numDof; a++) {
-        TS.write("float32", 0, datagram, a * 4 + numDof * 4 * 0 + 1)
-      }
-      // velocities,
-      for (let a = 0; a < numDof; a++) {
-        TS.write("float32", 0, datagram, a * 4 + numDof * 4 * 1 + 1)
-      }
-      // positions, 
-      for (let a = 0; a < numDof; a++) {
-        TS.write("float32", posns[a], datagram, a * 4 + numDof * 4 * 2 + 1)
+      let datagram = new Uint8Array(numDof * 4 + 2)
+      datagram[0] = mode
+      // set, or target?
+      set ? datagram[1] = 1 : datagram[1] = 0;
+      // write args... 
+      for(let a = 0; a < numDof; a ++){
+        TS.write("float32", vals[a], datagram, a * 4 + 2)
       }
       // ship it, 
       setStatesEP.write(datagram, "acked").then(() => {
         resolve()
-      }).catch((err) => { reject(err) })
+      }).catch((err) => { reject(err) })  
     })
+  }
+
+  this.setPosition = (posns) => {
+    return this.writeStates(AXL_MODE_POSITION, posns, true)
+  }
+
+  this.targetPosition = (posns) => {
+    return this.writeStates(AXL_MODE_POSITION, posns, false)
+  }
+
+  this.targetVelocity = (vels) => {
+    return this.writeStates(AXL_MODE_VELOCITY, vels, false)
   }
 
   let statesQuery = osap.query(PK.route(route).sib(2).end())
@@ -64,7 +70,7 @@ export default function AXLMotionVM(osap, route, numDof) {
           velocities: [],
           accelerations: []
         }
-        switch(data[0]){
+        switch (data[0]) {
           case AXL_MODE_POSITION:
             states.mode = "position"
             break;
@@ -100,21 +106,36 @@ export default function AXLMotionVM(osap, route, numDof) {
     return new Promise((resolve, reject) => {
       let check = () => {
         this.getStates().then((states) => {
-          if(states.motion){
+          if (states.motion) {
             setTimeout(check, 5)
           } else {
             resolve()
           }
-        })  
+        })
       }
       check()
     })
   }
 
+  // -------------------------------------------- Halt 
+
+  let haltEP = osap.endpoint()
+  haltEP.addRoute(PK.route(route).sib(3).end())
+  this.halt = async () => {
+    try {
+      await haltEP.write(new Uint8Array([1]), "acked");
+      console.warn(`wrote halt... awaiting motion end`)
+      await this.awaitMotionEnd()
+      console.warn(`motion-ended`)
+    } catch (err) {
+      throw err
+    }
+  }
+
   // -------------------------------------------- Add Move
 
   let addMoveEP = osap.endpoint()
-  addMoveEP.addRoute(PK.route(route).sib(3).end())
+  addMoveEP.addRoute(PK.route(route).sib(4).end())
   addMoveEP.setTimeoutLength(60000)
   // hackney, 
   let lastPos = [0, 0, 0, 0]
@@ -148,7 +169,7 @@ export default function AXLMotionVM(osap, route, numDof) {
   }
 
   let settingsEP = osap.endpoint()
-  settingsEP.addRoute(PK.route(route).sib(4).end())
+  settingsEP.addRoute(PK.route(route).sib(5).end())
   this.setup = async () => {
     // console.log(this.settings.accelLimits)
     let datagram = new Uint8Array(4 + numDof * 4 * 2)

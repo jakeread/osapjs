@@ -16,10 +16,6 @@ import { TS } from '../core/ts.js'
 import PK from '../core/packets.js'
 import AXLMotionVM from './axlMotionVM.js'
 
-let HMC_MODE_ACCEL = 1
-let HMC_MODE_VELOCITY = 2
-let HMC_MODE_POSITION = 3
-
 export default function AXLMotorVM(osap, route, numDof = 4) {
   // same settings as the coordinator... 
   this.motion = new AXLMotionVM(osap, route, numDof)
@@ -33,7 +29,7 @@ export default function AXLMotorVM(osap, route, numDof = 4) {
   }
   // and the bonus: axis, microstep, spu...
   let settingsEP = osap.endpoint()
-  settingsEP.addRoute(PK.route(route).sib(5).end())
+  settingsEP.addRoute(PK.route(route).sib(6).end())
   this.setup = async () => {
     try {
       // setup the local integrator settings... 
