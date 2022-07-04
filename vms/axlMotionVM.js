@@ -15,9 +15,10 @@ no warranty is provided, and users accept all liability.
 import { TS } from '../core/ts.js'
 import PK from '../core/packets.js'
 
-let HMC_MODE_ACCEL = 1
-let HMC_MODE_VELOCITY = 2
-let HMC_MODE_POSITION = 3
+let AXL_MODE_ACCEL = 1
+let AXL_MODE_VELOCITY = 2
+let AXL_MODE_POSITION = 3
+let AXL_MODE_QUEUE = 4
 
 export default function AXLMotionVM(osap, route, numDof) {
 
@@ -34,7 +35,7 @@ export default function AXLMotionVM(osap, route, numDof) {
       }
       // pack, 
       let datagram = new Uint8Array(numDof * 4 * 3 + 1)
-      datagram[0] = HMC_MODE_POSITION
+      datagram[0] = AXL_MODE_POSITION
       // write accels, 
       for (let a = 0; a < numDof; a++) {
         TS.write("float32", 0, datagram, a * 4 + numDof * 4 * 0 + 1)
@@ -64,30 +65,49 @@ export default function AXLMotionVM(osap, route, numDof) {
           accelerations: []
         }
         switch(data[0]){
-          case HMC_MODE_POSITION:
+          case AXL_MODE_POSITION:
             states.mode = "position"
             break;
-          case HMC_MODE_ACCEL:
+          case AXL_MODE_ACCEL:
             states.mode = "accel"
             break;
-          case HMC_MODE_VELOCITY:
+          case AXL_MODE_VELOCITY:
             states.mode = "velocity"
+            break;
+          case AXL_MODE_QUEUE:
+            states.mode = "queue"
             break;
           default:
             states.mode = "unrecognized"
             break;
         }
+        data[1] ? states.motion = true : states.motion = false;
         for (let a = 0; a < numDof; a++) {
-          states.positions.push(TS.read("float32", data, a * 4 + numDof * 4 * 0 + 1))
+          states.positions.push(TS.read("float32", data, a * 4 + numDof * 4 * 0 + 2))
         }
         for (let a = 0; a < numDof; a++) {
-          states.velocities.push(TS.read("float32", data, a * 4 + numDof * 4 * 1 + 1))
+          states.velocities.push(TS.read("float32", data, a * 4 + numDof * 4 * 1 + 2))
         }
         for (let a = 0; a < numDof; a++) {
-          states.accelerations.push(TS.read("float32", data, a * 4 + numDof * 4 * 2 + 1))
+          states.accelerations.push(TS.read("float32", data, a * 4 + numDof * 4 * 2 + 2))
         }
         resolve(states)
       }).catch((err) => { reject(err) })
+    })
+  }
+
+  this.awaitMotionEnd = () => {
+    return new Promise((resolve, reject) => {
+      let check = () => {
+        this.getStates().then((states) => {
+          if(states.motion){
+            setTimeout(check, 5)
+          } else {
+            resolve()
+          }
+        })  
+      }
+      check()
     })
   }
 
