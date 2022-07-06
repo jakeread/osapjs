@@ -14,6 +14,7 @@ no warranty is provided, and users accept all liability.
 
 import { TS } from '../core/ts.js'
 import PK from '../core/packets.js'
+import TIME from '../core/time.js'
 import AXLMotionVM from './axlMotionVM.js'
 
 export default function AXLMotorVM(osap, route, numDof = 4) {
@@ -25,11 +26,14 @@ export default function AXLMotorVM(osap, route, numDof = 4) {
     invert: false,
     microstep: 4,
     spu: 20,
-    cscale: 0.25
+    cscale: 0.25,
+    homeRate: -100,
+    homeOffset: 100, 
   }
   // and the bonus: axis, microstep, spu...
   let settingsEP = osap.endpoint()
   settingsEP.addRoute(PK.route(route).sib(6).end())
+
   this.setup = async () => {
     try {
       // setup the local integrator settings... 
@@ -46,4 +50,26 @@ export default function AXLMotorVM(osap, route, numDof = 4) {
       throw err
     }
   }
+
+  let homeEP = osap.endpoint()
+  homeEP.addRoute(PK.route(route).sib(7).end())
+
+  this.home = async () => {
+    try {
+      await this.motion.awaitMotionEnd()
+      console.warn(`awaited motion end`)
+      let datagram = new Uint8Array(9)
+      datagram[0] = this.settings.axis
+      TS.write('float32', this.settings.homeRate, datagram, 1)
+      TS.write('float32', this.settings.homeOffset, datagram, 5)
+      await homeEP.write(datagram, "acked")
+      console.warn(`wrote to homeEP`)
+      await TIME.delay(50)
+      await this.motion.awaitMotionEnd()
+      console.warn(`motion ended`)
+    } catch (err) {
+      throw err 
+    }
+  }
+
 }
