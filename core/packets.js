@@ -105,6 +105,11 @@ PK.logPacket = (data, routeOnly = false) => {
   console.trace()
 }
 
+PK.logRoute = (route) => {
+  let pckt = PK.writeDatagram(route, new Uint8Array(0))
+  PK.logPacket(pckt)
+}
+
 PK.route = (existing) => {
   // start w/ a temp uint8 array, 
   let path = new Uint8Array(256)

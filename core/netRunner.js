@@ -170,9 +170,13 @@ export default function NetRunner(osap) {
   this.connect = async (headName, tailName) => {
     try {
       let graph = await this.sweep()
+      console.warn(graph)
       let head = await this.stringLookup(headName, graph)
       let tail = await this.stringLookup(tailName, graph)
+      //console.warn(`found the head, the tail...`, head, tail)
       let route = this.findRoute(head, tail)
+      //console.warn(`the route betwixt...`, route)
+      //PK.logRoute(route)
       // then we could do this to add the route / make the connection: 
       await osap.mvc.setEndpointRoute(head.route, route)
       return route 
@@ -254,14 +258,23 @@ export default function NetRunner(osap) {
             // as a warning... this is not loop safe ! 
             results.push(recursor(PK.route(route).sib(s).pfwd().end(), sib.reciprocal))
           }
-        } else if (sib.type == VT.VBUS && sib != from){
-          for(let d in sib.reciprocals){
-            if(sib.reciprocals[d].type != "unreachable"){
-              results.push(recursor(PK.route(route).sib(s).bfwd(d).end(), sib.reciprocals[d]))
+        } else if (sib.type == VT.VBUS){
+          if(sib.ownRxAddr == 0){ // bus-head, 
+            for(let d of sib.recirocals){
+              console.log(`WARN! Untested: from head... to ${d}, from ${from.name}`)
+              results.push(recursor(PK.route(route).sib(s).bfwd(parseInt(d)).end(), sib.reciprocals[d]))
+            }
+          } else { // drops, via bus-head, 
+            let head = sib.reciprocals[0]
+            console.log(`from drop, via head...`, head)
+            for(let d in head.reciprocals){
+              if(head.reciprocals[d].type != "unreachable" && d != sib.ownRxAddr){
+                results.push(recursor(PK.route(route).sib(s).bfwd(0).bfwd(parseInt(d)).end(), head.reciprocals[d]))
+              }
             }
           }
         }
-      } 
+      }
       // done children-sweep, now look for matches, should only be one... 
       for (let res of results) {
         if (res != null) return res
