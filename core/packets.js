@@ -62,6 +62,10 @@ PK.logPacket = (data, routeOnly = false) => {
         break;
       case PK.DEST:
         msg += `[${data[i]}] DEST, DATA LEN: ${data.length - i}`
+        while(i < data.length){
+          i ++ 
+          msg += `\n[${data[i]}]`
+        }
         break msgLoop;
       case PK.PINGREQ:
         msg += `[${data[i]}], [${data[i + 1]}] PING REQUEST: ID: ${PK.readArg(data, i)}`;

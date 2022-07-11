@@ -26,12 +26,12 @@ let RT = {
 }
 
 export default function OMVC(osap) {
-  // gets error data, 
-  this.collectContextErrors = async (route) => {
+  // gets error & debug data, 
+  this.collectContextErrorStream = async (route, debug = false) => {
     try {
       await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
       let id = getNewQueryID()
-      let payload = new Uint8Array([PK.DEST, RT.ERR_QUERY, id])
+      let payload = new Uint8Array([PK.DEST, debug ? RT.DBG_QUERY : RT.ERR_QUERY, id])
       let datagram = PK.writeDatagram(route, payload)
       await osap.handle(datagram, VT.STACK_ORIGIN)
       // setup handler, 
@@ -44,7 +44,7 @@ export default function OMVC(osap) {
           onResponse: function(data) {
             clearTimeout(this.timeout)
             resolve({
-              errorCount: TS.read("uint32", data, 0),
+              count: TS.read("uint32", data, 0),
               latest: TS.read("string", data, 4).value 
             })
           }
@@ -53,6 +53,10 @@ export default function OMVC(osap) {
     } catch (err) {
       throw err
     }
+  }
+  // or debug... 
+  this.collectContextDebugStream = async (route) => {
+    return this.collectContextErrorStream(route, true)
   }
   // collects route info for a list of endpoints... 
   this.fillRouteData = (graph) => {
