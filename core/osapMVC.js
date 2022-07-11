@@ -18,7 +18,42 @@ import PK from './packets.js'
 
 let ROUTEREQ_MAX_TIME = 1000 // ms 
 
+let RT = {
+  ERR_QUERY: 151,
+  ERR_RES: 152,
+  DBG_QUERY: 161,
+  DBG_RES: 162
+}
+
 export default function OMVC(osap) {
+  // gets error data, 
+  this.collectContextErrors = async (route) => {
+    try {
+      await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
+      let id = getNewQueryID()
+      let payload = new Uint8Array([PK.DEST, RT.ERR_QUERY, id])
+      let datagram = PK.writeDatagram(route, payload)
+      await osap.handle(datagram, VT.STACK_ORIGIN)
+      // setup handler, 
+      return new Promise((resolve, reject) => {
+        queriesAwaiting.push({
+          id: id, 
+          timeout: setTimeout(() => { // like, it'd be better if we could print a name of the thing, w/ vvt-ness
+            reject(`error collect timeout to ${route.path}`)
+          }, 1000),
+          onResponse: function(data) {
+            clearTimeout(this.timeout)
+            resolve({
+              errorCount: TS.read("uint32", data, 0),
+              latest: TS.read("string", data, 4).value 
+            })
+          }
+        })
+      })
+    } catch (err) {
+      throw err
+    }
+  }
   // collects route info for a list of endpoints... 
   this.fillRouteData = (graph) => {
     // make a list of endpoints, 
@@ -60,13 +95,13 @@ export default function OMVC(osap) {
     })
   }
   // msgs all have an ID... we just use one string of 'em, then can easily dispatch callbacks, 
-  let runningQueryID = 112 
+  let runningQueryID = 112
   let getNewQueryID = () => {
-    runningQueryID ++
+    runningQueryID++
     runningQueryID = runningQueryID & 0b11111111
     return runningQueryID
   }
-  let queriesAwaiting = [] 
+  let queriesAwaiting = []
   // get route at x indice, 
   this.getEndpointRoutes = async (route) => {
     // alright, do it in a loop until they return an empty array, 
@@ -112,13 +147,13 @@ export default function OMVC(osap) {
           clearTimeout(this.timeout)
           // make a new route object for our caller, 
           let routeMode = data[0]
-          // if mode == 0, no route exists at this indice, 
+          // if mode == 0, no route exists at this indice, resolve undefined 
           // otherwise... resolve the route... 
-          if(routeMode == 0){
+          if (routeMode == 0) {
             resolve()
           } else {
             resolve({
-              mode: routeMode, 
+              mode: routeMode,
               ttl: TS.read('uint16', data, 1),
               segSize: TS.read('uint16', data, 3),
               path: new Uint8Array(data.subarray(5))
@@ -132,7 +167,7 @@ export default function OMVC(osap) {
   // request to add a new route to an endpoint... set mode via routeFromEndpoint.mode == ... 
   this.setEndpointRoute = async (routeToEndpoint, routeFromEndpoint) => {
     // not all routes have modes, set a default, 
-    if(!routeFromEndpoint.mode){ routeFromEndpoint.mode = EP.ROUTEMODE_ACKED }
+    if (!routeFromEndpoint.mode) { routeFromEndpoint.mode = EP.ROUTEMODE_ACKED }
     // ok we dooooo
     await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
     // similar...
@@ -201,6 +236,8 @@ export default function OMVC(osap) {
       case EP.ROUTE_QUERY_RES:
       case EP.ROUTE_SET_RES:
       case EP.ROUTE_RM_RES:
+      case RT.ERR_RES:
+      case RT.DBG_RES:
         {
           // match to id, send to handler, carry on... 
           let rqid = item.data[ptr + 3]
@@ -216,7 +253,7 @@ export default function OMVC(osap) {
           break;
         }
       default:
-        console.error(`unrecognized key in osap root / mvc dest handler, ${data[ptr]}`)
+        console.error(`unrecognized key in osap root / mvc dest handler, ${item.data[ptr]}`)
     } // end switch, 
     // all mvc replies get *handled* 
     item.handled()
