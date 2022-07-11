@@ -12,7 +12,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { TS } from '../core/ts.js'
+import { TS, EP } from '../core/ts.js'
 import PK from '../core/packets.js'
 
 let AXL_MODE_ACCEL = 1
@@ -47,6 +47,34 @@ export default function AXLMotionVM(osap, route, numDof) {
         resolve()
       }).catch((err) => { reject(err) })  
     })
+  }
+
+  this.broadcastStates = (mode, vals, route, set = false) => {
+    if (vals.length != numDof) {
+      reject(`need array of len ${numDof} dofs, was given ${vals.length}`);
+      return;
+    }
+    // pack, 
+    let payload = new Uint8Array(numDof * 4 + 2 + 2)
+    let wptr = 0 
+    payload[0] = PK.DEST 
+    payload[1] = EP.SS_ACKLESS 
+    payload[2] = mode
+    // set, or target?
+    payload[3] = set ? 1 : 0;
+    // write args... 
+    for(let a = 0; a < numDof; a ++){
+      TS.write("float32", vals[a], payload, a * 4 + 2 + 2)
+    }
+    // make packet, 
+    let datagram = PK.writeDatagram(route, payload)
+    PK.logPacket(datagram)
+    // handle it?
+    osap.handle(datagram)
+  }
+
+  this.broadcastVelocity = (vels, route) => {
+    return this.broadcastStates(AXL_MODE_VELOCITY, vels, route)
   }
 
   this.setPosition = (posns) => {

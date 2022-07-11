@@ -66,7 +66,7 @@ export default class Vertex {
 
   // ------------------------------------------------------ Data Ingest 
   // this is the data uptake, 
-  handle = (data, od) => {
+  handle = (data, od = VT.STACK_ORIGIN) => {
     // no-not-buffers club, 
     if (!(data instanceof Uint8Array)) {
       console.error(`non-uint8_t ingest at handle, rejecting`)
