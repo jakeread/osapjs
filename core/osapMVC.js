@@ -19,34 +19,53 @@ import PK from './packets.js'
 let ROUTEREQ_MAX_TIME = 1000 // ms 
 
 let RT = {
-  ERR_QUERY: 151,
-  ERR_RES: 152,
-  DBG_QUERY: 161,
-  DBG_RES: 162
+  DBG_STAT: 151,
+  DBG_ERRMSG: 152,
+  DBG_DBGMSG: 153,
+  DBG_RES: 161,
 }
 
 export default function OMVC(osap) {
-  // gets error & debug data, 
-  this.collectContextErrorStream = async (route, debug = false) => {
+  // a kind of keepalive, gets runtime stats... then a debug, error, or 'none' stream 
+  this.getContextDebug = async (route, stream = "none") => {
     try {
       await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
       let id = getNewQueryID()
-      let payload = new Uint8Array([PK.DEST, debug ? RT.DBG_QUERY : RT.ERR_QUERY, id])
+      // these are all going to get more or less the same response, 
+      let payload = new Uint8Array([PK.DEST, 0, id])
+      switch (stream) {
+        case "none":
+          payload[1] = RT.DBG_STAT
+          break;
+        case "error":
+          payload[1] = RT.DBG_ERRMSG
+          break;
+        case "debug":
+          payload[1] = RT.DBG_DBGMSG
+          break;
+        default:
+          throw new Error("odd stream spec'd for getContextDebug, should be 'error' or 'debug'")
+      } // end switch 
       let datagram = PK.writeDatagram(route, payload)
-      await osap.handle(datagram, VT.STACK_ORIGIN)
-      // setup handler, 
+      osap.handle(datagram, VT.STACK_ORIGIN)
+      // handler
       return new Promise((resolve, reject) => {
         queriesAwaiting.push({
-          id: id, 
-          timeout: setTimeout(() => { // like, it'd be better if we could print a name of the thing, w/ vvt-ness
-            reject(`error collect timeout to ${route.path}`)
+          id: id,
+          timeout: setTimeout(() => {
+            reject(`debug collect timeout to ${route.path}`)
           }, 1000),
-          onResponse: function(data) {
+          onResponse: function (data) {
             clearTimeout(this.timeout)
-            resolve({
-              count: TS.read("uint32", data, 0),
-              latest: TS.read("string", data, 4).value 
-            })
+            let res = {
+              loopHighWaterMark: TS.read("uint32", data, 0),
+              errorCount: TS.read("uint32", data, 4),
+              debugCount: TS.read("uint32", data, 8)
+            }
+            if (stream != "none") {
+              res.msg = TS.read("string", data, 12).value 
+            }
+            resolve(res)
           }
         })
       })
@@ -54,10 +73,7 @@ export default function OMVC(osap) {
       throw err
     }
   }
-  // or debug... 
-  this.collectContextDebugStream = async (route) => {
-    return this.collectContextErrorStream(route, true)
-  }
+
   // collects route info for a list of endpoints... 
   this.fillRouteData = (graph) => {
     // make a list of endpoints, 

@@ -140,6 +140,10 @@ export default function NetRunner(osap) {
         if(!start) start = await this.sweep()
         // carry on w/ the string search... another lazy depth-first recursor, 
         let recursor = (root, entrance) => {
+          if(root.name == vtName){
+            resolve(root)
+            return 
+          }
           for(let child of root.children){
             if(child.name == vtName){
               resolve(child)
