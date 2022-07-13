@@ -100,6 +100,7 @@ export default class OSAP extends Vertex {
 
   // graph search tool;
   netRunner = new NetRunner(this)
+  nr = this.netRunner 
   // with handles...
   connect = this.netRunner.connect
   // mvc tool, 

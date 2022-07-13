@@ -24,7 +24,7 @@ export default function AXLMotionVM(osap, route, numDof) {
 
   // -------------------------------------------- States
 
-  let setStatesEP = osap.endpoint()
+  let setStatesEP = osap.endpoint("axlStateMirror")
   setStatesEP.addRoute(PK.route(route).sib(2).end())
 
   this.writeStates = (mode, vals, set = false) => {
@@ -50,6 +50,7 @@ export default function AXLMotionVM(osap, route, numDof) {
   }
 
   this.broadcastStates = (mode, vals, route, set = false) => {
+    console.warn(`! this needs an improvement / more thought...`)
     if (vals.length != numDof) {
       reject(`need array of len ${numDof} dofs, was given ${vals.length}`);
       return;
@@ -147,7 +148,7 @@ export default function AXLMotionVM(osap, route, numDof) {
 
   // -------------------------------------------- Halt 
 
-  let haltEP = osap.endpoint()
+  let haltEP = osap.endpoint("axlHaltMirror")
   haltEP.addRoute(PK.route(route).sib(3).end())
   this.halt = async () => {
     try {
@@ -162,7 +163,7 @@ export default function AXLMotionVM(osap, route, numDof) {
 
   // -------------------------------------------- Add Move
 
-  let addMoveEP = osap.endpoint()
+  let addMoveEP = osap.endpoint("axlMoveMirror")
   addMoveEP.addRoute(PK.route(route).sib(4).end())
   addMoveEP.setTimeoutLength(60000)
   // hackney, 
@@ -196,7 +197,7 @@ export default function AXLMotionVM(osap, route, numDof) {
     velLimits: [100, 100, 100, 100]
   }
 
-  let settingsEP = osap.endpoint()
+  let settingsEP = osap.endpoint("axlSettingsMirror")
   settingsEP.addRoute(PK.route(route).sib(5).end())
   this.setup = async () => {
     // console.log(this.settings.accelLimits)

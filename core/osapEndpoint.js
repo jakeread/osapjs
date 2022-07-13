@@ -70,7 +70,7 @@ export default class Endpoint extends Vertex {
   // onData handlers can return promises in order to enact flow control,
   onData = function (data) {
     return new Promise((resolve, reject) => {
-      console.warn('default endpoint onData')
+      console.warn(`default endpoint onData at ${this.name}, dataLen is ${data.length}`)
       resolve()
     })
   }
