@@ -14,13 +14,29 @@ no warranty is provided, and users accept all liability.
 
 import { TS, EP } from '../core/ts.js'
 import PK from '../core/packets.js'
+import { settingsDiff } from '../utes/diff.js'
 
 let AXL_MODE_ACCEL = 1
 let AXL_MODE_VELOCITY = 2
 let AXL_MODE_POSITION = 3
 let AXL_MODE_QUEUE = 4
 
-export default function AXLMotionVM(osap, route, numDof) {
+export default function AXLMotionVM(osap, route, _settings) {
+
+  // defaults, 
+  this.settings = {
+    junctionDeviation: 0.05,
+    accelLimits: [100, 100, 100, 100],
+    velLimits: [100, 100, 100, 100]
+  }
+
+  // if present, check against 
+  if (_settings) {
+    settingsDiff(this.settings, _settings, "axlMotionVM")
+    this.settings = JSON.parse(JSON.stringify(_settings))
+  }
+  
+  let numDof = this.settings.accelLimits.length 
 
   // -------------------------------------------- States
 
@@ -39,13 +55,13 @@ export default function AXLMotionVM(osap, route, numDof) {
       // set, or target?
       set ? datagram[1] = 1 : datagram[1] = 0;
       // write args... 
-      for(let a = 0; a < numDof; a ++){
+      for (let a = 0; a < numDof; a++) {
         TS.write("float32", vals[a], datagram, a * 4 + 2)
       }
       // ship it, 
       setStatesEP.write(datagram, "acked").then(() => {
         resolve()
-      }).catch((err) => { reject(err) })  
+      }).catch((err) => { reject(err) })
     })
   }
 
@@ -57,14 +73,14 @@ export default function AXLMotionVM(osap, route, numDof) {
     }
     // pack, 
     let payload = new Uint8Array(numDof * 4 + 2 + 2)
-    let wptr = 0 
-    payload[0] = PK.DEST 
-    payload[1] = EP.SS_ACKLESS 
+    let wptr = 0
+    payload[0] = PK.DEST
+    payload[1] = EP.SS_ACKLESS
     payload[2] = mode
     // set, or target?
     payload[3] = set ? 1 : 0;
     // write args... 
-    for(let a = 0; a < numDof; a ++){
+    for (let a = 0; a < numDof; a++) {
       TS.write("float32", vals[a], payload, a * 4 + 2 + 2)
     }
     // make packet, 
@@ -190,12 +206,6 @@ export default function AXLMotionVM(osap, route, numDof) {
   }
 
   // -------------------------------------------- Settings
-
-  this.settings = {
-    junctionDeviation: 0.05,
-    accelLimits: [100, 100, 100, 100],
-    velLimits: [100, 100, 100, 100]
-  }
 
   let settingsEP = osap.endpoint("axlSettingsMirror")
   settingsEP.addRoute(PK.route(route).sib(5).end())

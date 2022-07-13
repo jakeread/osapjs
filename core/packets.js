@@ -114,6 +114,16 @@ PK.logRoute = (route) => {
   PK.logPacket(pckt)
 }
 
+// idiosyncrasy related to old-style vm route-building vs... new-style route-searching algos...
+PK.VC2VMRoute = (route) => {
+  // i.e. search routines return paths from browser-root node, to the root node in the remote 
+  // object... but vms are written to go from a *child* of the browser root node, to *children* in the remote...
+  // departing from a sibling, not the parent... 
+  route.path[1] = PK.SIB
+  // and not going *up* to the parent, once traversing into the context... 
+  route.path = new Uint8Array(route.path.subarray(0, route.path.length - 2))
+}
+
 PK.route = (existing) => {
   // start w/ a temp uint8 array, 
   let path = new Uint8Array(256)
@@ -161,7 +171,7 @@ PK.route = (existing) => {
       wptr += 2
       return this
     },
-    end: function (ttl, segSize) {
+    end: function (ttl, segSize, noOpt = false) {
       // we want to absorb ttl & segSize from existing if it was used, 
       // but also *not* of ttl and segSize are used here, 
       if(existing != null && existing.ttl && existing.segSize){
@@ -170,6 +180,25 @@ PK.route = (existing) => {
       } else {
         ttl = 1000
         segSize = 128 
+      }
+      // we also want to abbreviate the non-optimal parent().child() pattern 
+      // that emerges during sweeps / etc, 
+      if(!noOpt){
+        for(let ptr = 1; ptr < path.length - 4; ptr += 2){
+          if(PK.readKey(path, ptr) == PK.PARENT && PK.readKey(path, ptr + 2) == PK.CHILD){
+            // console.log(`found non-opt at ${ptr}`, JSON.parse(JSON.stringify(path.subarray(ptr, ptr + 4))))
+            // child arg = sib arg, 
+            let sibIndice = PK.readArg(path, ptr + 2)
+            // console.log(`sib is ${sibIndice}`)
+            // insert, 
+            PK.writeKeyArgPair(path, ptr, PK.SIB, sibIndice)
+            // path is uint8array, so we have to shift back like so... 
+            wptr -= 2
+            for(let i = ptr + 2; i < wptr; i ++){
+              path[i] = path[i + 2]
+            }
+          }
+        }
       }
       // return a path object, 
       return {

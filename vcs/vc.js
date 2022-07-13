@@ -17,7 +17,7 @@ export default function VC(osap, name) {
   this.setup = async () => {
     // find self via name & netRunner lookup,
     try {
-      let vvt = await osap.nr.stringLookup(name)
+      let vvt = await osap.nr.find(name)
       this.route = vvt.route
     } catch (err) {
       console.error(`failed to setup the VC with name ${name}`)

@@ -26,7 +26,18 @@ let RT = {
 }
 
 export default function OMVC(osap) {
-  // a kind of keepalive, gets runtime stats... then a debug, error, or 'none' stream 
+  // ------------------------------------------------------ Query IDs
+  // msgs all have an ID... 
+  // we just use one string of 'em, then can easily dispatch callbacks, 
+  let runningQueryID = 112
+  let getNewQueryID = () => {
+    runningQueryID++
+    runningQueryID = runningQueryID & 0b11111111
+    return runningQueryID
+  }
+  let queriesAwaiting = []
+  
+  // ------------------------------------------------------ Context Debuggen 
   this.getContextDebug = async (route, stream = "none") => {
     try {
       await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
@@ -63,7 +74,7 @@ export default function OMVC(osap) {
               debugCount: TS.read("uint32", data, 8)
             }
             if (stream != "none") {
-              res.msg = TS.read("string", data, 12).value 
+              res.msg = TS.read("string", data, 12).value
             }
             resolve(res)
           }
@@ -74,55 +85,35 @@ export default function OMVC(osap) {
     }
   }
 
-  // collects route info for a list of endpoints... 
-  this.fillRouteData = (graph) => {
-    // make a list of endpoints, 
-    let eps = []
-    let listGenTime = TIME.getTimeStamp()
-    let contextRecursor = (vvt) => {
-      if (!vvt) {
-        console.warn('no vvt here on recurse... ?')
-        return
+  // ------------------------------------------------------ Batch Route Infill 
+
+  this.fillRouteData = async (graph) => {
+    try {
+      // we'll make lists of endpoints & vbussess, 
+      let endpoints = []
+      let busses = []
+      let vertices = osap.nr.flatten(graph)
+      for (let vt of vertices) {
+        if (vt.type == VT.ENDPOINT) endpoints.push(vt)
+        if (vt.type == VT.VBUS) busses.push(vt)
       }
-      // no upwards recurse, 
-      if (vvt.lastListGenTime && vvt.lastListGenTime == listGenTime) return;
-      vvt.lastListGenTime = listGenTime
-      // vvt is a root node in this recursor, we just stuff endpoints into the list:
-      for (let child of vvt.children) {
-        if (child.type == VT.ENDPOINT) {
-          eps.push(child)
-        } else if (child.type == VT.VPORT) {
-          if (child.reciprocal && child.reciprocal.type != "unreachable") {
-            contextRecursor(child.reciprocal.parent)
-          }
-        }
+      // then just get through 'em and collect routes 
+      for (let ep of endpoints) {
+        let routes = await this.getEndpointRoute(ep.route)
+        ep.routes = routes
       }
-    }// end context recursor, 
-    contextRecursor(graph)
-    return new Promise(async (resolve, reject) => {
-      try {
-        for (let ep of eps) {
-          let routes = await this.getEndpointRoutes(ep.route)
-          // console.warn(`for ${ep.name}, retrieved`, routes)
-          // attach those to the vvt, pretty simple, right ? 
-          ep.routes = routes
-        }
-        resolve(graph)
-      } catch (err) {
-        console.error('badness when querying for routes')
-        reject(err)
+      for (let vbus of busses) {
+        let broadcasts = await this.getVBusBroadcastChannels(vbus.route)
+        console.warn(`collected broadcasts;`, broadcasts)
       }
-    })
+      // we've been editing by reference, so the graph is now 'full' 
+      return graph
+    } catch (err) {
+      throw err
+    }
   }
-  // msgs all have an ID... we just use one string of 'em, then can easily dispatch callbacks, 
-  let runningQueryID = 112
-  let getNewQueryID = () => {
-    runningQueryID++
-    runningQueryID = runningQueryID & 0b11111111
-    return runningQueryID
-  }
-  let queriesAwaiting = []
-  // get route at x indice, 
+
+  // ------------------------------------------------------ Per-Endpoint Route List Collection 
   this.getEndpointRoutes = async (route) => {
     // alright, do it in a loop until they return an empty array, 
     // also... endpoint route objects, should *not* return the trailing three digits (?) 
@@ -145,7 +136,24 @@ export default function OMVC(osap) {
       throw (err)
     }
   }
-  // gets route info for one endpoint... arg is route-to-endpoint, 
+
+  // ------------------------------------------------------ Per-VBus Broadcast Collection 
+  this.getVBusBroadcastChannels = async (route) => {
+    // bus channels are not necessarily stacked up like broadcast channels are, 
+    // since i.e. some previosly-configured broadcast is useful on new bus drops, 
+    // so we need to first collect a kind of map, not unlike the scope's link state map:
+    throw new Error(`here is where u r at with all this...`)
+    /*
+    - in three MVC steps:
+      - 1. collect broadcast 'link-state' type map from each vbus: where are channels active?
+      - 2. for each of those, collect the channel info: it's just route fwding info
+      - 3. add functionality to request that we add those... 
+      - each is a req & a res, etc, 
+    - then carry on w/ the diffing & requesting in the osap.hl.buildBroadcastRoute
+    */
+  }
+
+  // ------------------------------------------------------ Per-Indice Route Collection 
   this.getEndpointRoute = async (route, indice) => {
     // wait for clear space, 
     await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
@@ -182,9 +190,9 @@ export default function OMVC(osap) {
         }
       })
     })
-  }// end getEndpoint Route
+  }
 
-  // request to add a new route to an endpoint... set mode via routeFromEndpoint.mode == ... 
+  // ------------------------------------------------------ Endpoint Route-Addition Request 
   this.setEndpointRoute = async (routeToEndpoint, routeFromEndpoint) => {
     // not all routes have modes, set a default, 
     if (!routeFromEndpoint.mode) { routeFromEndpoint.mode = EP.ROUTEMODE_ACKED }
@@ -222,6 +230,7 @@ export default function OMVC(osap) {
     })
   }
 
+  // ------------------------------------------------------ Endpoint Route-Delete Request 
   this.removeEndpointRoute = async (routeToEndpoint, indice) => {
     await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
     // same energy
@@ -248,6 +257,7 @@ export default function OMVC(osap) {
     })
   }
 
+  // ------------------------------------------------------ Destination Handler: Dispatching Replies 
   this.destHandler = (item, ptr) => {
     // here data[ptr] == PK.PTR, then ptr + 1 is PK.DEST, ptr + 2 is key for us, 
     // ... we could do: 

@@ -1,7 +1,7 @@
 /*
 axlMotorVM
 
-holonic motion control coordinator virtual machine
+holonic motion control motor virtual machine
 
 Jake Read at the Center for Bits and Atoms
 (c) Massachusetts Institute of Technology 2022
@@ -17,11 +17,16 @@ import PK from '../core/packets.js'
 import TIME from '../core/time.js'
 import AXLMotionVM from './axlMotionVM.js'
 
-export default function AXLMotorVM(osap, route, numDof = 4) {
+export default function AXLMotorVM(osap, route, _settings) {
   // same settings as the coordinator... 
-  this.motion = new AXLMotionVM(osap, route, numDof)
+  this.motion = new AXLMotionVM(osap, route, _settings.motion)
   // defaults,
   this.settings = {
+    motion: {
+      junctionDeviation: 0.05, 
+      accelLimits: [2500, 2500, 2500],
+      velLimits: [100, 100, 100]
+    },
     axis: 0,
     invert: false,
     microstep: 4,
@@ -71,5 +76,4 @@ export default function AXLMotorVM(osap, route, numDof = 4) {
       throw err 
     }
   }
-
 }

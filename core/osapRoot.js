@@ -24,13 +24,14 @@ import QueryMSeg from './osapQueryMSeg.js'
 import { osapLoop } from './osapLoop.js'
 import NetRunner from './netRunner.js'
 import OMVC from './osapMVC.js'
+import HighLevel from './highLevel.js'
 
 // root is also a vertex, yah 
 export default class OSAP extends Vertex {
   // yes, but !parent, indice == 0 
-  constructor(name = "unnamed root") {
+  constructor(name = "unnamed") {
     super(null, 0)
-    this.name = name 
+    this.name = "rt_" +name 
   }
 
   // ... 
@@ -39,31 +40,31 @@ export default class OSAP extends Vertex {
   // children factories 
   vPort = (name) => {
     let np = new VPort(this, this.children.length)
-    if (name) np.name = name
+    if (name) np.name = "vp_" + name
     this.children.push(np)
     return np
   }
   module = (name) => {
     let md = new Module(this, this.children.length)
-    if (name) md.name = name
+    if (name) md.name = "md_" + name
     this.children.push(md)
     return md
   }
   endpoint = (name) => {
     let ep = new Endpoint(this, this.children.length)
-    if (name) ep.name = name
+    if (name) ep.name = "ep_" + name
     this.children.push(ep)
     return ep
   }
   query = (route, retries = 2) => {
     let qr = new Query(this, this.children.length, route, retries)
-    qr.name = `query_${this.children.length}`
+    qr.name = `qr_${this.children.length}`
     this.children.push(qr)
     return qr 
   }
   queryMSeg = (route, retries = 2) => {
     let msqr = new QueryMSeg(this, this.children.length, route, retries)
-    msqr.name = `queryMSeg_${this.children.length}`
+    msqr.name = `qr_mseg_${this.children.length}`
     this.children.push(msqr)
     return msqr 
   }
@@ -107,4 +108,6 @@ export default class OSAP extends Vertex {
   mvc = new OMVC(this)
   // we ship MVC msgs from the root node, so their responses arrive here... 
   destHandler = this.mvc.destHandler
+  // we have a high level hookup, 
+  hl = new HighLevel(this)
 } // end OSAP
