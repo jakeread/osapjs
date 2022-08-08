@@ -1,7 +1,7 @@
 /*
-osapLoop.js
+loop.js
 
-common packet manipulation routines for OSAP
+osap / runtime 
 
 Jake Read at the Center for Bits and Atoms
 (c) Massachusetts Institute of Technology 2021

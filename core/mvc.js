@@ -3,6 +3,10 @@ osapMVC.js
 
 getters and setters, etc, for remote elements 
 
+so far, almost entirely to-do with route config,
+in the future, will be used more broadly: we probably want a stronger underlying type system 
+and gettings / setters that generalize on those... i.e. structs : remote structs etc, 
+
 Jake Read at the Center for Bits and Atoms
 (c) Massachusetts Institute of Technology 2022
 

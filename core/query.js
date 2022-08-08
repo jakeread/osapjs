@@ -15,7 +15,7 @@ no warranty is provided, and users accept all liability.
 import { VT, EP } from './ts.js'
 import TIME from './time.js'
 import PK from './packets.js'
-import Vertex from './osapVertex.js'
+import Vertex from './vertex.js'
 
 export default class Query extends Vertex {
   constructor(parent, indice, route, retries) {

@@ -15,7 +15,7 @@ no warranty is provided, and users accept all liability.
 import { TS, VT, EP } from './ts.js'
 import TIME from './time.js'
 import PK from './packets.js'
-import Vertex from './osapVertex.js'
+import Vertex from './vertex.js'
 
 let reverseRoute = (route) => {
   console.error(`badness, pls refactor for pk.writeReply`)

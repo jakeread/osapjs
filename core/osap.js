@@ -1,5 +1,5 @@
 /*
-osapRoot.js
+osap.js
 
 trunk osap object in context tree 
 
@@ -15,15 +15,14 @@ no warranty is provided, and users accept all liability.
 'use strict'
 
 import { VT } from './ts.js'
-import VPort from './osapVPort.js'
-import Vertex from './osapVertex.js'
-import Module from './osapModule.js'
-import Endpoint from './osapEndpoint.js'
-import Query from './osapQuery.js'
-import QueryMSeg from './osapQueryMSeg.js'
-import { osapLoop } from './osapLoop.js'
+import VPort from './vport.js'
+import Vertex from './vertex.js'
+import Endpoint from './endpoint.js'
+import Query from './query.js'
+import QueryMSeg from './queryMSeg.js'
+import { osapLoop } from './loop.js'
 import NetRunner from './netRunner.js'
-import OMVC from './osapMVC.js'
+import OMVC from './mvc.js'
 import HighLevel from './highLevel.js'
 
 // root is also a vertex, yah 

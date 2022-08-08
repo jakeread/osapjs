@@ -1,5 +1,5 @@
 /*
-osapVertex.js
+vertex.js
 
 base vertex in osap graph 
 

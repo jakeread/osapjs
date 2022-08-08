@@ -13,7 +13,7 @@ no warranty is provided, and users accept all liability.
 */
 
 import { EPMSEG, TS, EP } from './ts.js'
-import Vertex from './osapVertex.js'
+import Vertex from './vertex.js'
 
 export default class QueryMSeg extends Vertex {
   constructor(parent, indice, route, retries) {

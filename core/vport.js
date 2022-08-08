@@ -13,7 +13,7 @@ no warranty is provided, and users accept all liability.
 */
 
 import { VT } from './ts.js'
-import Vertex from './osapVertex.js'
+import Vertex from './vertex.js'
 
 export default class VPort extends Vertex {
   constructor(parent, indice) {
