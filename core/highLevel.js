@@ -65,16 +65,18 @@ export default function HighLevel(osap){
       console.warn(`BBR: got a graph image...`)
       await osap.mvc.fillRouteData(graph)
       console.warn(`BBR: reclaimed route data for the graph...`)
+      // going to test vbus ch removal... 
+      return 
       // ---------------------------------------- 1: get vvts for the transmitter, and each recipient... 
       let transmitter = await osap.nr.find(transmitterName, graph)
-      console.warn(`BBR: found ${transmitter.name}, now collecting recipients...`)
+      console.warn(`BBR: found transmitter endpoint '${transmitter.name}', now collecting recipients...`)
       let potentials = await osap.nr.findMultiple(recipientName, graph)
       // we only want those recipients that are within our named firmware, so 
       let recipients = []
       for(let rx of potentials){
         if(rx.parent.name == parentName) recipients.push(rx)
       }
-      console.warn(`BBR: found ${recipients.length}x ${recipientName}, each within a ${parentName}...`)
+      console.warn(`BBR: found ${recipients.length}x recipient endpoints '${recipientName}', each within a ${parentName}...`)
       // ---------------------------------------- 2: poke around amongst each recipient to find bus drops, 
       let drops = []
       for(let rx of recipients){

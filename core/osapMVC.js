@@ -12,7 +12,7 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { TS, VT, EP } from './ts.js'
+import { TS, VT, EP, VBUS } from './ts.js'
 import TIME from './time.js'
 import PK from './packets.js'
 
@@ -36,7 +36,7 @@ export default function OMVC(osap) {
     return runningQueryID
   }
   let queriesAwaiting = []
-  
+
   // ------------------------------------------------------ Context Debuggen 
   this.getContextDebug = async (route, stream = "none") => {
     try {
@@ -99,12 +99,29 @@ export default function OMVC(osap) {
       }
       // then just get through 'em and collect routes 
       for (let ep of endpoints) {
-        let routes = await this.getEndpointRoute(ep.route)
+        let routes = await this.fillEndpointRoutes(ep.route)
         ep.routes = routes
       }
       for (let vbus of busses) {
-        let broadcasts = await this.getVBusBroadcastChannels(vbus.route)
-        console.warn(`collected broadcasts;`, broadcasts)
+        let broadcasts = await this.fillVBusBroadcastChannels(vbus.route)
+        // append broadcasts to vbus...
+        vbus.broadcasts = broadcasts 
+        console.log('have this broadcast map', broadcasts)
+        // test vbus rm'al
+        console.warn(`testing vbus ch removal`)
+        for(let ch in vbus.broadcasts){
+          if(vbus.broadcasts[ch] != undefined){
+            console.warn(`rm'ing ${ch}`)
+            await this.removeVBusBroadcastChannel(vbus.route, parseInt(ch))
+            console.warn(`rm OK`)
+          }
+        }
+        // try a setup,
+        console.warn(`trying to setup a ch...`)
+        await this.setVBusBroadcastChannel(vbus.route, 17, PK.route().sib(5).end())
+        console.warn(`ch setup should be OK then...`)
+        broadcasts = await this.fillVBusBroadcastChannels(vbus.route)
+        console.warn(`test w/ `, broadcasts)
       }
       // we've been editing by reference, so the graph is now 'full' 
       return graph
@@ -114,7 +131,7 @@ export default function OMVC(osap) {
   }
 
   // ------------------------------------------------------ Per-Endpoint Route List Collection 
-  this.getEndpointRoutes = async (route) => {
+  this.fillEndpointRoutes = async (route) => {
     // alright, do it in a loop until they return an empty array, 
     // also... endpoint route objects, should *not* return the trailing three digits (?) 
     // or should ? the vvt .route object doesn't, 
@@ -138,25 +155,186 @@ export default function OMVC(osap) {
   }
 
   // ------------------------------------------------------ Per-VBus Broadcast Collection 
-  this.getVBusBroadcastChannels = async (route) => {
-    // bus channels are not necessarily stacked up like broadcast channels are, 
-    // since i.e. some previosly-configured broadcast is useful on new bus drops, 
-    // so we need to first collect a kind of map, not unlike the scope's link state map:
-    throw new Error(`here is where u r at with all this...`)
-    /*
-    - in three MVC steps:
-      - 1. collect broadcast 'link-state' type map from each vbus: where are channels active?
-      - 2. for each of those, collect the channel info: it's just route fwding info
-      - 3. add functionality to request that we add those... 
-      - each is a req & a res, etc, 
-    - then carry on w/ the diffing & requesting in the osap.hl.buildBroadcastRoute
-    */
+  this.fillVBusBroadcastChannels = async (route) => {
+    // bus channels are not necessarily stacked up (0-n) like broadcast channels are, 
+    // i.e they might be sparse: we can't just ask for "how many" and then query 0-n,
+    // since i.e. some previosly-configured broadcast is useful on new bus drops ...
+    // but we query 0-n, get channels at each indice, throw indice away, taking for granted
+    // that while we're querying, no one else is adding / rm'ing channel configs... 
+    // route is a route *to* the vbus, so we are making vbus mvc requests... 
+    try {
+      // this collects that map, should be an array of some fixed length, w/ 'undefined' in 
+      // empty slots, and the string literal 'exists' in channels where routes exist... 
+      // then we go through per channel and query... 
+      let map = await this.getVBusBroadcastMap(route)
+      for (let ch = 0; ch < map.length; ch++) {
+        if (map[ch] == 'exists') {
+          let channelRoute = await this.getVBusBroadcastChannel(route, ch)
+          map[ch] = channelRoute 
+        }
+      }
+      return map 
+    } catch (err) {
+      throw err
+    }
+  }
+
+  // ------------------------------------------------------ Per-VBus Broadcast Map 
+  this.getVBusBroadcastMap = async (route) => {
+    // wait for clear space, 
+    try {
+      await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
+    } catch (err) {
+      throw err
+    }
+    // payload... 
+    let id = getNewQueryID()
+    let payload = new Uint8Array([PK.DEST, VBUS.BROADCAST_MAP_REQ, id])
+    let datagram = PK.writeDatagram(route, payload)
+    osap.handle(datagram, VT.STACK_ORIGIN)
+    // handler, 
+    return new Promise((resolve, reject) => {
+      queriesAwaiting.push({
+        id: id,
+        timeout: setTimeout(() => {
+          reject(`vbus broadcast map req timeout to ${route.path}`)
+        }, 1000),
+        onResponse: function (data) {
+          // clear timer, 
+          clearTimeout(this.timeout)
+          // bytes 0, 1 are length 
+          let rptr = 0
+          let map = new Array(data[rptr ++])
+          let bitByteModulo = 0
+          for (let ch = 0; ch < map.length; ch++) {
+            map[ch] = (data[rptr] & (1 << bitByteModulo) ? 'exists' : undefined) // lol, 
+            bitByteModulo++
+            if (bitByteModulo >= 8) {
+              bitByteModulo = 0
+              rptr++
+            }
+          }
+          resolve(map)
+        }
+      })
+    })
+  }
+
+  // ------------------------------------------------------ VBus Broadcast Channel Collect
+  this.getVBusBroadcastChannel = async (route, channel) => {
+    // wait for clear space, 
+    try {
+      await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
+    } catch (err) {
+      throw err
+    }
+    // payload is pretty simple, 
+    let id = getNewQueryID()
+    let payload = new Uint8Array([PK.DEST, VBUS.BROADCAST_QUERY_REQ, id, channel])
+    let datagram = PK.writeDatagram(route, payload)
+    // ship it from the root vertex, 
+    osap.handle(datagram, VT.STACK_ORIGIN)
+    // setup handler, 
+    return new Promise((resolve, reject) => {
+      queriesAwaiting.push({
+        id: id,
+        timeout: setTimeout(() => {
+          reject(`vbus broadcast ch req timeout to ${route.path}`)
+        }, 1000),
+        onResponse: function (data) {
+          // clear timer, 
+          clearTimeout(this.timeout)
+          // make a new route object for our caller, 
+          if (data[0] == 0) {
+            // [0] here means emptiness 
+            resolve()
+          } else {
+            resolve({
+              ttl: TS.read('uint16', data, 1),
+              segSize: TS.read('uint16', data, 3),
+              path: new Uint8Array(data.subarray(5))
+            })
+          }
+        }
+      })
+    })
+  }
+
+  // ------------------------------------------------------ VBus Broadcast Channel Set 
+  this.setVBusBroadcastChannel = async (routeToVBus, channel, routeFromChannel) => {
+    try {
+      await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
+    } catch (err) {
+      throw err
+    }
+    let id = getNewQueryID()
+    // + DEST, + ROUTE_SET, + ID, + CH + Route (route.length + ttl + segsize)
+    let payload = new Uint8Array(4 + routeFromChannel.path.length + 4)
+    payload.set([PK.DEST, VBUS.BROADCAST_SET_REQ, id, channel])
+    let wptr = 4
+    // though broadcast channels don't use 'em yet, we just serialize as a 'route' type... 
+    wptr += TS.write('uint16', routeFromChannel.ttl, payload, wptr)
+    wptr += TS.write('uint16', routeFromChannel.segSize, payload, wptr)
+    payload.set(routeFromChannel.path, wptr)
+    // grams grams grams 
+    let datagram = PK.writeDatagram(routeToVBus, payload)
+    osap.handle(datagram, VT.STACK_ORIGIN)
+    // handler... 
+    return new Promise((resolve, reject) => {
+      queriesAwaiting.push({
+        id: id,
+        timeout: setTimeout(() => {
+          reject(`broadcast channel set req timeout`)
+        }, 1000),
+        onResponse: function (data) {
+          //console.warn(`ROUTE SET REPLY`)
+          if (data[0]) {
+            resolve()
+          } else {
+            reject(`badness error code ${data} from vbus, on try-to-set-new-broadcast`)
+          }
+        }
+      })
+    })
+  }
+
+  // ------------------------------------------------------ VBus Broadcast Channel Remove 
+  this.removeVBusBroadcastChannel = async (routeToVBus, channel) => {
+    try {
+      await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
+    } catch (err) {
+      throw err
+    }
+    let id = getNewQueryID()
+    let payload = new Uint8Array([PK.DEST, VBUS.BROADCAST_RM_REQ, id, channel])
+    let datagram = PK.writeDatagram(routeToVBus, payload)
+    osap.handle(datagram, VT.STACK_ORIGIN)
+    // setup handler, 
+    return new Promise((resolve, reject) => {
+      queriesAwaiting.push({
+        id: id, 
+        timeout: setTimeout(() => {
+          reject('broadcast ch rm req timeout')
+        }, 1000),
+        onResponse: function(data) {
+          if(data[0]){
+            resolve()
+          } else {
+            reject(`badness error code ${data[ptr + 1]} from endpoint, on try-to-delete-broadcast-channel`)
+          }
+        }
+      })
+    })
   }
 
   // ------------------------------------------------------ Per-Indice Route Collection 
   this.getEndpointRoute = async (route, indice) => {
     // wait for clear space, 
-    await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
+    try {
+      await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
+    } catch (err) {
+      throw err
+    }
     // payload is pretty simple, 
     let id = getNewQueryID()
     let payload = new Uint8Array([PK.DEST, EP.ROUTE_QUERY_REQ, id, indice])
@@ -266,6 +444,10 @@ export default function OMVC(osap) {
       case EP.ROUTE_QUERY_RES:
       case EP.ROUTE_SET_RES:
       case EP.ROUTE_RM_RES:
+      case VBUS.BROADCAST_MAP_RES:
+      case VBUS.BROADCAST_QUERY_RES:
+      case VBUS.BROADCAST_SET_RES:
+      case VBUS.BROADCAST_RM_RES:
       case RT.ERR_RES:
       case RT.DBG_RES:
         {
@@ -284,6 +466,7 @@ export default function OMVC(osap) {
         }
       default:
         console.error(`unrecognized key in osap root / mvc dest handler, ${item.data[ptr]}`)
+        PK.logPacket(item.data)
     } // end switch, 
     // all mvc replies get *handled* 
     item.handled()

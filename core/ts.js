@@ -43,6 +43,18 @@ let EP = {
   ROUTEMODE_ACKLESS: 168,
 }
 
+// vbus layer keys 
+let VBUS =  {
+  BROADCAST_MAP_REQ: 145,
+  BROADCAST_MAP_RES: 146,
+  BROADCAST_QUERY_REQ: 141,
+  BROADCAST_QUERY_RES: 142,
+  BROADCAST_SET_REQ: 143,
+  BROADCAST_SET_RES: 144,
+  BROADCAST_RM_REQ: 147,
+  BROADCAST_RM_RES: 148 
+}
+
 let EPMSEG = {
   QUERY: 141,
   QUERY_RES: 142,
@@ -174,5 +186,6 @@ export {
   TS,     // typeset 
   VT,     // object types 
   EP,     // endpoint keys 
-  EPMSEG,
+  EPMSEG, // mseg endpoint keys,
+  VBUS,   // vbus mvc keys 
 }
