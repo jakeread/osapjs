@@ -50,18 +50,19 @@ export default function HighLevel(osap){
     try {
       // find it, start it... 
       let list = await osap.nr.findMultiple(name)
+      if(list.length == 0) throw new Error(`can't find any instances of '${name}' in this graph...`)
       console.log(`KA: adding ${list.length}x '${name}' to the keepAlive loop`)
       for(let vvt of list){
         runKA(vvt, freshness)
       }
     } catch (err) {
-      console.error(err)
       throw err 
     }
   }
 
   // ------------------------------------------------------ Bus Broadcast Routes 
-  this.buildBroadcastRoute = async (transmitterName, parentName, recipientName, log = false) => {
+  this.buildBroadcastRoute = async (transmitterName, targetNames, recipientName, log = false) => {
+    if(!Array.isArray(targetNames)) throw new Error(`BBR: needs a list of target names, not singletons`)
     try {
       // ---------------------------------------- 1. get a local image of the graph, also configured routes 
       let graph = await osap.nr.sweep()
@@ -75,9 +76,14 @@ export default function HighLevel(osap){
       // we only want those recipients that are within our named firmware, so 
       let recipients = []
       for(let rx of potentials){
-        if(rx.parent.name == parentName) recipients.push({endpoint: rx})
+        for(let name of targetNames){
+          if(rx.parent.name == name){
+            recipients.push({endpoint: rx})
+            break 
+          }
+        }
       }
-      if(log) console.log(`BBR: found ${recipients.length}x recipient endpoints '${recipientName}', each within a ${parentName}...`)
+      if(log) console.log(`BBR: found ${recipients.length}x recipient endpoints '${recipientName}'`)
       // ---------------------------------------- 2: poke around amongst each recipient to find bus drops, 
       recipientLoop: for(let rx of recipients){
         for(let sib of rx.endpoint.parent.children){
@@ -171,7 +177,7 @@ export default function HighLevel(osap){
       // or just go back to stateless / name-finding... 
       return;
     } catch (err) {
-      console.error(`failed to build broadcast route from ${transmitterName} to all '${recipientName}'s in each ${parentName}`)
+      console.error(`failed to build broadcast route from ${transmitterName} to '${recipientName}'s`)
       throw err 
     }
   }
