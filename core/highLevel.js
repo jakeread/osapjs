@@ -26,17 +26,24 @@ export default function HighLevel(osap){
       let lastErrorCount = 0
       let lastDebugCount = 0 
       // looping KA 
+      let first = false 
       while(true){
         let stat = await osap.mvc.getContextDebug(vvt.route)
-        if(stat.errorCount > lastErrorCount){
+        if(first){
           lastErrorCount = stat.errorCount
-          stat = await osap.mvc.getContextDebug(vvt.route, "error")
-          console.error(`ERR from ${vvt.name}: ${stat.msg}`)
-        }
-        if(stat.debugCount > lastDebugCount){
-          lastDebugCount = stat.debugCount 
-          stat = await osap.mvc.getContextDebug(vvt.route, "debug")
-          console.warn(`LOG from ${vvt.name}: ${stat.msg}`)
+          lastDebugCount = stat.debugCount
+          first = false 
+        } else {
+          if(stat.errorCount > lastErrorCount){
+            lastErrorCount = stat.errorCount
+            stat = await osap.mvc.getContextDebug(vvt.route, "error")
+            console.error(`ERR from ${vvt.name}: ${stat.msg}`)
+          }
+          if(stat.debugCount > lastDebugCount){
+            lastDebugCount = stat.debugCount 
+            stat = await osap.mvc.getContextDebug(vvt.route, "debug")
+            console.warn(`LOG from ${vvt.name}: ${stat.msg}`)
+          }  
         }
         await TIME.delay(freshness)
       }

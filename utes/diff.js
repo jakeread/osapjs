@@ -13,10 +13,10 @@ no warranty is provided, and users accept all liability.
 */
 
 let settingsDiff = (a, b, name) => {
-  for(let ka in a){
+  for(let ka in a){ // for key of a in a,
     let match = false 
-    for(let kb in b){
-      if(ka == kb){
+    for(let kb in b){ // for key of b in b,
+      if(ka == kb){   // if we have matching keys, OK 
         match = true 
       }
     }

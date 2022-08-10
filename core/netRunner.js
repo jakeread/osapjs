@@ -101,7 +101,7 @@ export default function NetRunner(osap) {
               // then we can carry on to the next, 
               await this.searchContext(reciprocal.parent, reciprocal)
             } catch (err) {
-              console.warn(`${vt.name}'s reciprocal traverse error, reason:`, err)
+              console.warn(`${vt.name} at ${root.name}'s reciprocal traverse error, reason:`, err)
               reciprocal = { type: "unreachable" }
             }
             // plumb it & reverse it, 
@@ -184,18 +184,10 @@ export default function NetRunner(osap) {
   // also not loop-safe atm, 
   this.find = async (vtName, start) => {
     try {
-      // if we weren't given one, do a systems-wide lookup, 
-      if (!start) start = await this.getLatestSweep()
-      // flatten the list, 
-      let candidates = this.flatten(start)
-      // just... comb it !
-      for (let vvt of candidates) {
-        if (vvt.name == vtName) {
-          return vvt
-        }
-      }
-      // if it's not here yet, trouble !
-      throw new Error(`can't find any vertex w/ the name '${vtName}' in this graph`)
+      let list = await this.findMultiple(vtName, start)
+      if(list.length > 1) throw new Error(`found *multiple* instances of '${vtName}' !`)
+      if(list.length == 0) throw new Error(`can't find any vertex w/ the name '${vtName}' in this graph`)
+      return list[0]
     } catch (err) {
       throw err
     }

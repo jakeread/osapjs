@@ -116,12 +116,15 @@ PK.logRoute = (route) => {
 
 // idiosyncrasy related to old-style vm route-building vs... new-style route-searching algos...
 PK.VC2VMRoute = (route) => {
+  // we can't do this to caller's route object, so we make a copy, 
+  route = PK.route(route).end()
   // i.e. search routines return paths from browser-root node, to the root node in the remote 
   // object... but vms are written to go from a *child* of the browser root node, to *children* in the remote...
   // departing from a sibling, not the parent... 
   route.path[1] = PK.SIB
   // and not going *up* to the parent, once traversing into the context... 
   route.path = new Uint8Array(route.path.subarray(0, route.path.length - 2))
+  return route 
 }
 
 PK.route = (existing) => {

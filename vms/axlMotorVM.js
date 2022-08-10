@@ -16,6 +16,7 @@ import { TS } from '../core/ts.js'
 import PK from '../core/packets.js'
 import TIME from '../core/time.js'
 import AXLMotionVM from './axlMotionVM.js'
+import { settingsDiff } from '../utes/diff.js'
 
 export default function AXLMotorVM(osap, route, _settings) {
   // same settings as the coordinator... 
@@ -35,7 +36,14 @@ export default function AXLMotorVM(osap, route, _settings) {
     homeRate: -100,
     homeOffset: 100, 
   }
-  // and the bonus: axis, microstep, spu...
+
+  // we want to diff our settings... 
+  if(_settings) {
+    // this throws an error if we miss anything 
+    settingsDiff(this.settings, _settings, "axlMotorVM")
+    this.settings = JSON.parse(JSON.stringify(_settings))
+  }
+
   let settingsEP = osap.endpoint()
   settingsEP.addRoute(PK.route(route).sib(6).end())
 
