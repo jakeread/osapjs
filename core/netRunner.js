@@ -185,8 +185,8 @@ export default function NetRunner(osap) {
   this.find = async (vtName, start) => {
     try {
       let list = await this.findMultiple(vtName, start)
-      if(list.length > 1) throw new Error(`found *multiple* instances of '${vtName}' !`)
-      if(list.length == 0) throw new Error(`can't find any vertex w/ the name '${vtName}' in this graph`)
+      if (list.length > 1) throw new Error(`found *multiple* instances of '${vtName}' !`)
+      if (list.length == 0) throw new Error(`can't find any vertex w/ the name '${vtName}' in this graph`)
       return list[0]
     } catch (err) {
       throw err
@@ -199,9 +199,9 @@ export default function NetRunner(osap) {
       if (!start) start = await this.getLatestSweep()
       let candidates = this.flatten(start)
       for (let vvt of candidates) {
-        if(vvt.name == vtName) list.push(vvt)
+        if (vvt.name == vtName) list.push(vvt)
       }
-      return list 
+      return list
     } catch (err) {
       throw err
     }
@@ -265,28 +265,38 @@ export default function NetRunner(osap) {
     }
   }
 
-  // tool to add routes... head & tail should be vvts in the same graph, we want to search betwixt, 
+  // tool to find routes... head & tail should be vvts in the same graph, we want to search betwixt, 
+  // routes are returned as route objects, and are not added in this fn 
   this.findRoute = (head, tail, log = false) => {
-    if(log) console.warn('findRoute: searching between...', head.route, tail.route)
+    if (log) console.warn(`FR: searching from ${head.name} to ${tail.name}`, head.route, tail.route)
+    // we're going to poke around recursively, but in the cases where we ever exit *up* a bus-drop, 
+    // we need to not traverse back *down* that thing... this is that state, and it's a lazy soln', 
+    // and if we ever have more than one bus in a net we'll be in trouble w/ this 
+    let busDropLatch = 0
     // we... recursively poke around? this is maybe le-difficult, 
     let recursor = (route, from) => {
-      if(log) console.warn('findRoute: recurse', route)
+      if (log) console.warn(`FR: recurse from ${from.name}, logging route:`)
+      if (log) PK.logRoute(route)
       // copy...
       route = {
         ttl: route.ttl,
         segSize: route.segSize,
         path: new Uint8Array(route.path)
       }
+      // how big ? 
+      if (route.path.length > 128) {
+        throw new Error(`FR: likely excess recursion here... blocking`)
+      }
       // first... look thru siblings at this level, 
       for (let s in from.parent.children) {
         s = parseInt(s)
         let sib = from.parent.children[s]
+        if(false) console.warn(`FR: eval ${sib.name}, ${tail.name}`)
         // if that's the ticket, ship it, 
-        // if (sib == tail) {
-        if(PK.routeMatch(sib.route, tail.route)){
-          if(log) (`findRoute: found the target`)
+        if (PK.routeMatch(sib.route, tail.route)) {
+          if (log) console.warn(`FR: found the target !`)
           return PK.route(route).sib(s).end()
-        }
+        } 
       }
       // if not, find ports, 
       let results = []
@@ -301,19 +311,25 @@ export default function NetRunner(osap) {
             results.push(recursor(PK.route(route).sib(s).pfwd().end(), sib.reciprocal))
           }
         } else if (sib.type == VT.VBUS) {
-          if (sib.ownRxAddr == 0) { // bus-head, 
-            for (let d of sib.recirocals) {
-              console.log(`WARN! Untested: from head... to ${d}, from ${from.name}`)
-              results.push(recursor(PK.route(route).sib(s).bfwd(parseInt(d)).end(), sib.reciprocals[d]))
-            }
-          } else { // drops, via bus-head, 
-            let head = sib.reciprocals[0]
-            console.log(`from drop, via head...`, head)
-            for (let d in head.reciprocals) {
-              if (head.reciprocals[d].type != "unreachable" && d != sib.ownRxAddr) {
-                results.push(recursor(PK.route(route).sib(s).bfwd(0).bfwd(parseInt(d)).end(), head.reciprocals[d]))
+          if (sib.ownRxAddr == 0) { // -------------------- it's the bus head  
+            for (let d in sib.reciprocals) {
+              // don't go back down to from whence we came, 
+              if (parseInt(d) == busDropLatch) continue
+              // traverse down all other reachable drops... 
+              if(sib.reciprocals[d].type != "unreachable"){
+                results.push(recursor(PK.route(route).sib(s).bfwd(parseInt(d)).end(), sib.reciprocals[d]))
               }
             }
+          } else { // ------------------------------------- it's a bus drop, 
+            // only come back up if we haven't already come *up* from a drop once before 
+            if (busDropLatch) {
+              if(log) console.warn(`FR: latch prevented up-bus traversal`)
+              continue
+            }
+            // otherwise, we want to pop up to the head, like 
+            if (log) console.warn(`FR: popping up to the bus-head from '${sib.parent.name} / ${sib.name}' at bus addr ${sib.ownRxAddr}`)
+            busDropLatch = sib.ownRxAddr
+            results.push(recursor(PK.route(route).sib(s).bfwd(0).end(), sib.reciprocals[0]))
           }
         }
       }
