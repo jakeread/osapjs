@@ -110,22 +110,6 @@ export default function OMVC(osap) {
         let broadcasts = await this.fillVBusBroadcastChannels(vbus.route)
         // append broadcasts to vbus...
         vbus.broadcasts = broadcasts 
-        console.log('have this broadcast map', broadcasts)
-        // test vbus rm'al
-        console.warn(`testing vbus ch removal`)
-        for(let ch in vbus.broadcasts){
-          if(vbus.broadcasts[ch] != undefined){
-            console.warn(`rm'ing ${ch}`)
-            await this.removeVBusBroadcastChannel(vbus.route, parseInt(ch))
-            console.warn(`rm OK`)
-          }
-        }
-        // try a setup,
-        console.warn(`trying to setup a ch...`)
-        await this.setVBusBroadcastChannel(vbus.route, 17, PK.route().sib(5).end())
-        console.warn(`ch setup should be OK then...`)
-        broadcasts = await this.fillVBusBroadcastChannels(vbus.route)
-        console.warn(`test w/ `, broadcasts)
       }
       // we've been editing by reference, so the graph is now 'full' 
       return graph
@@ -266,6 +250,7 @@ export default function OMVC(osap) {
 
   // ------------------------------------------------------ VBus Broadcast Channel Set 
   this.setVBusBroadcastChannel = async (routeToVBus, channel, routeFromChannel) => {
+    channel = parseInt(channel)
     try {
       await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
     } catch (err) {

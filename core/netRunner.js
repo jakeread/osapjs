@@ -274,11 +274,11 @@ export default function NetRunner(osap) {
   }
 
   // tool to add routes... head & tail should be vvts in the same graph, we want to search betwixt, 
-  this.findRoute = (head, tail) => {
-    console.warn('searching between...', head.route, tail.route)
+  this.findRoute = (head, tail, log = false) => {
+    if(log) console.warn('findRoute: searching between...', head.route, tail.route)
     // we... recursively poke around? this is maybe le-difficult, 
     let recursor = (route, from) => {
-      console.warn('recurse', route)
+      if(log) console.warn('findRoute: recurse', route)
       // copy...
       route = {
         ttl: route.ttl,
@@ -292,6 +292,7 @@ export default function NetRunner(osap) {
         // if that's the ticket, ship it, 
         // if (sib == tail) {
         if(PK.routeMatch(sib.route, tail.route)){
+          if(log) (`findRoute: found the target`)
           return PK.route(route).sib(s).end()
         }
       }
