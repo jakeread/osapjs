@@ -94,7 +94,8 @@ export default function AXLMotionVM(osap, route, _settings) {
     return this.broadcastStates(AXL_MODE_VELOCITY, vels, route)
   }
 
-  this.setPosition = (posns) => {
+  this.setPosition = async (posns) => {
+    await this.awaitMotionEnd()
     return this.writeStates(AXL_MODE_POSITION, posns, true)
   }
 
