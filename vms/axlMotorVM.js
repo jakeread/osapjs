@@ -70,17 +70,17 @@ export default function AXLMotorVM(osap, route, _settings) {
   this.home = async () => {
     try {
       await this.motion.awaitMotionEnd()
-      console.warn(`motor home: awaited motion end`)
+      //console.warn(`motor home: awaited motion end`)
       let datagram = new Uint8Array(9)
       datagram[0] = this.settings.axis
-      console.warn(`setting rate, offset ${this.settings.homeRate}, ${this.settings.homeOffset}`)
+      //console.warn(`setting rate, offset ${this.settings.homeRate}, ${this.settings.homeOffset}`)
       TS.write('float32', this.settings.homeRate, datagram, 1)
       TS.write('float32', this.settings.homeOffset, datagram, 5)
       await homeEP.write(datagram, "acked")
-      console.warn(`wrote to homeEP`)
+      //console.warn(`wrote to homeEP`)
       await TIME.delay(250)
       await this.motion.awaitMotionEnd()
-      console.warn(`motion ended`)
+      //console.warn(`motion ended`)
     } catch (err) {
       throw err 
     }
