@@ -19,13 +19,12 @@ import AXLMotionVM from './axlMotionVM.js'
 
 export default function AXLMotionHeadVM(osap, route, _settings) {
   // this FW has a motion coordinator on board, 
-  console.warn(`need to bring this back for queued motion... \ncurrently fw is just bus-head for broadcasts`)
-  //this.motion = new AXLMotionVM(osap, route, _settings)
+  this.motion = new AXLMotionVM(osap, route, _settings)
 
   // and some bonus power-switching capability... 
   let powerEP = osap.endpoint("powerMirror") 
-  powerEP.addRoute(PK.route(route).sib(2).end())
-  let powerQuery = osap.query(PK.route(route).sib(2).end())
+  powerEP.addRoute(PK.route(route).sib(6).end())
+  let powerQuery = osap.query(PK.route(route).sib(6).end())
 
   this.setPowerStates = (v5, v24) => {
     // 5v on / off, 24v on / off, 

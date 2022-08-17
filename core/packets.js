@@ -35,7 +35,7 @@ let PK = {
   LLESCAPE: 112,    // pls escape this string-formatted message... 
 }
 
-PK.logPacket = (data, routeOnly = false) => {
+PK.logPacket = (data, routeOnly = false, trace = true) => {
   // uint8array-only club, 
   if (!(data instanceof Uint8Array)) {
     console.warn(`attempt to log non-uint8array packet, bailing`)
@@ -106,12 +106,12 @@ PK.logPacket = (data, routeOnly = false) => {
     }
   } // end of loop-thru, 
   console.log(msg)
-  console.trace()
+  if(trace) console.trace()
 }
 
-PK.logRoute = (route) => {
+PK.logRoute = (route, trace = true) => {
   let pckt = PK.writeDatagram(route, new Uint8Array(0))
-  PK.logPacket(pckt)
+  PK.logPacket(pckt, false, trace)
 }
 
 // idiosyncrasy related to old-style vm route-building vs... new-style route-searching algos...

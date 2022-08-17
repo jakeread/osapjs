@@ -42,7 +42,7 @@ export default function OMVC(osap) {
   let queriesAwaiting = []
 
   // ------------------------------------------------------ Context Debuggen 
-  this.getContextDebug = async (route, stream = "none") => {
+  this.getContextDebug = async (route, stream = "none", maxRetries = 3) => {
     try {
       await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
       let id = getNewQueryID()
@@ -65,13 +65,22 @@ export default function OMVC(osap) {
       osap.handle(datagram, VT.STACK_ORIGIN)
       // handler
       return new Promise((resolve, reject) => {
+        let retries = 0
+        let timeoutFn = () => {
+          if (retries > maxRetries) {
+            reject(`debug collect timeout to ${route.path}`)
+          } else {
+            retries++
+            console.warn(`CONTEXT DEBUG RETRYING... count ${retries}`)
+            osap.handle(datagram, VT.STACK_ORIGIN)
+            timeout = setTimeout(timeoutFn, 1000)
+          }
+        }
+        let timeout = null
         queriesAwaiting.push({
           id: id,
-          timeout: setTimeout(() => {
-            reject(`debug collect timeout to ${route.path}`)
-          }, 1000),
           onResponse: function (data) {
-            clearTimeout(this.timeout)
+            clearTimeout(timeout)
             let res = {
               loopHighWaterMark: TS.read("uint32", data, 0),
               errorCount: TS.read("uint32", data, 4),
@@ -83,6 +92,7 @@ export default function OMVC(osap) {
             resolve(res)
           }
         })
+        timeout = setTimeout(timeoutFn, 1000)
       })
     } catch (err) {
       throw err
@@ -109,7 +119,7 @@ export default function OMVC(osap) {
       for (let vbus of busses) {
         let broadcasts = await this.fillVBusBroadcastChannels(vbus.route)
         // append broadcasts to vbus...
-        vbus.broadcasts = broadcasts 
+        vbus.broadcasts = broadcasts
       }
       // we've been editing by reference, so the graph is now 'full' 
       return graph
@@ -158,10 +168,10 @@ export default function OMVC(osap) {
       for (let ch = 0; ch < map.length; ch++) {
         if (map[ch] == 'exists') {
           let channelRoute = await this.getVBusBroadcastChannel(route, ch)
-          map[ch] = channelRoute 
+          map[ch] = channelRoute
         }
       }
-      return map 
+      return map
     } catch (err) {
       throw err
     }
@@ -192,7 +202,7 @@ export default function OMVC(osap) {
           clearTimeout(this.timeout)
           // bytes 0, 1 are length 
           let rptr = 0
-          let map = new Array(data[rptr ++])
+          let map = new Array(data[rptr++])
           let bitByteModulo = 0
           for (let ch = 0; ch < map.length; ch++) {
             map[ch] = (data[rptr] & (1 << bitByteModulo) ? 'exists' : undefined) // lol, 
@@ -301,12 +311,12 @@ export default function OMVC(osap) {
     // setup handler, 
     return new Promise((resolve, reject) => {
       queriesAwaiting.push({
-        id: id, 
+        id: id,
         timeout: setTimeout(() => {
           reject('broadcast ch rm req timeout')
         }, 1000),
-        onResponse: function(data) {
-          if(data[0]){
+        onResponse: function (data) {
+          if (data[0]) {
             resolve()
           } else {
             reject(`badness error code ${data[ptr + 1]} from endpoint, on try-to-delete-broadcast-channel`)

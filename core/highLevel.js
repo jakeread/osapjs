@@ -14,7 +14,7 @@ no warranty is provided, and users accept all liability.
 
 import PK from './packets.js'
 import TIME from './time.js'
-import { VT } from './ts.js'
+import { VT, EP } from './ts.js'
 
 export default function HighLevel(osap) {
   // ------------------------------------------------------ KeepAlive Codes 
@@ -151,7 +151,8 @@ export default function HighLevel(osap) {
           let routeFromVBus = osap.nr.findRoute(rx.vbus, rx.endpoint)
           if (!routeFromVBus) throw new Error(`failed to find vbus-to-endpoint route...`)
           await osap.mvc.setVBusBroadcastChannel(rx.vbus.route, channelSelect, routeFromVBus)
-          if (log) console.log(`BBR: just built one new drop-route on ch ${channelSelect}`)
+          if (log) console.log(`BBR: just built one new drop-route on ch ${channelSelect} at ${rx.endpoint.parent.name}`)
+          if (log) PK.logRoute(routeFromVBus, false)
         }
       } else {
         channelSelect = existingChannel
@@ -173,14 +174,18 @@ export default function HighLevel(osap) {
       for (let rt of transmitter.routes) {
         if (PK.routeMatch(rt, routeFromTransmitter)) {
           if (log) console.log(`BBR: a route from the transmitter to the head-vbus already exists`)
+          if (log) PK.logRoute(routeFromTransmitter, false)
           prevTxRoute = true
           break
         }
       }
       // can set that up as well...
       if (!prevTxRoute) {
+        // no acks on broadcasts, 
+        routeFromTransmitter.mode = EP.ROUTEMODE_ACKLESS 
         await osap.mvc.setEndpointRoute(transmitter.route, routeFromTransmitter)
         if (log) console.log(`BBR: we've just built a new route from the transmitter to the bus head`)
+        if (log) PK.logRoute(routeFromTransmitter, false)
       }
       // now return something that we could use later to delete 'em with?
       // or just go back to stateless / name-finding... 
