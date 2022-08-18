@@ -94,6 +94,8 @@ export default class Vertex {
       if (!ok) console.error("bad stack search") //throw new Error("on handled, item not present")
     }
     this.stack[od].push(item)
+    // try this log out for a fun time / to see how inefficient / non-parallel you code can be...
+    //if(this.name == "ep_axlStateMirror") console.log(`pushed to stack ${od} size ${this.stack[od].length}`)
     this.requestLoopCycle()
   }
 

@@ -74,6 +74,8 @@ export default function LoadVM(osap, route) {
   }
 
   // assuming zero-load when we call this, sets comparator to trigger on next tap 
+  let tapOffset = 0 
+  let tapDir = 0 
   this.setupTapComparator = async (dir, offset, avgCount = 10) => {
     try {
       // we want to collect a sum of reading first, 
@@ -97,9 +99,24 @@ export default function LoadVM(osap, route) {
         throw new Error("loadcell setup direction ambiguious, pls use 'negative' or 'positive'")
       }
       // we can setup now, 
+      tapOffset = offset 
+      tapDir = dir 
       await this.setComparator(offset, dir)
     } catch (err) {
       throw err
+    }
+  }
+
+  // using previous... 
+  this.setupTapForLift = async (bonusOffsetDistance = 100000) => {
+    try {
+      if(tapDir){
+        await this.setComparator(tapOffset + bonusOffsetDistance, tapDir)
+      } else {
+        await this.setComparator(tapOffset - bonusOffsetDistance, tapDir)
+      }
+    } catch (err) {
+      throw err 
     }
   }
 

@@ -51,6 +51,7 @@ let osapLoop = (root) => {
     // handle 'em ! 
     osapItemHandler(loopItems[i])
   }
+  // console.log(`handled ${loopItems.length}`)
   // that's the end of the loop, folks 
   // items which have gone unhandled will have issued requests for new loops, 
   // this will fire again on those cycles, 

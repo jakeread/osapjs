@@ -20,7 +20,7 @@ import { TS, VT, EP, VBUS } from './ts.js'
 import TIME from './time.js'
 import PK from './packets.js'
 
-let ROUTEREQ_MAX_TIME = 1000 // ms 
+let ROUTEREQ_MAX_TIME = 2000 // ms 
 
 let RT = {
   DBG_STAT: 151,
@@ -334,39 +334,40 @@ export default function OMVC(osap) {
     } catch (err) {
       throw err
     }
-    // payload is pretty simple, 
-    let id = getNewQueryID()
-    let payload = new Uint8Array([PK.DEST, EP.ROUTE_QUERY_REQ, id, indice])
-    let datagram = PK.writeDatagram(route, payload)
-    // ship it from the root vertex, 
-    osap.handle(datagram, VT.STACK_ORIGIN)
-    // setup handler, 
-    return new Promise((resolve, reject) => {
-      queriesAwaiting.push({
-        id: id,
-        timeout: setTimeout(() => {
-          reject(`route req timeout to ${route.path}`)
-        }, ROUTEREQ_MAX_TIME),
-        onResponse: function (data) {
-          // clear timer, 
-          clearTimeout(this.timeout)
-          // make a new route object for our caller, 
-          let routeMode = data[0]
-          // if mode == 0, no route exists at this indice, resolve undefined 
-          // otherwise... resolve the route... 
-          if (routeMode == 0) {
-            resolve()
-          } else {
-            resolve({
-              mode: routeMode,
-              ttl: TS.read('uint16', data, 1),
-              segSize: TS.read('uint16', data, 3),
-              path: new Uint8Array(data.subarray(5))
-            })
+    try {
+      // payload is pretty simple, 
+      let id = getNewQueryID()
+      let payload = new Uint8Array([PK.DEST, EP.ROUTE_QUERY_REQ, id, indice])
+      let datagram = PK.writeDatagram(route, payload)
+      // ship it from the root vertex, 
+      osap.handle(datagram, VT.STACK_ORIGIN)
+      return new Promise((resolve, reject) => {
+        queriesAwaiting.push({
+          id: id,
+          timeout: setTimeout(() => {
+            reject(`route req ${id} timeout to ${route.path}`)
+          }, ROUTEREQ_MAX_TIME),
+          onResponse: function (data) {
+            // make a new route object for our caller, 
+            let routeMode = data[0]
+            // if mode == 0, no route exists at this indice, resolve undefined 
+            // otherwise... resolve the route... 
+            if (routeMode == 0) {
+              resolve()
+            } else {
+              resolve({
+                mode: routeMode,
+                ttl: TS.read('uint16', data, 1),
+                segSize: TS.read('uint16', data, 3),
+                path: new Uint8Array(data.subarray(5))
+              })
+            }
           }
-        }
-      })
-    })
+        }) // end push 
+      }) // end promise-return, 
+    } catch (err) {
+      console.error(err)
+    }
   }
 
   // ------------------------------------------------------ Endpoint Route-Addition Request 
@@ -452,10 +453,11 @@ export default function OMVC(osap) {
         {
           // match to id, send to handler, carry on... 
           let rqid = item.data[ptr + 3]
-          for (let rqa of queriesAwaiting) {
-            if (rqa.id == rqid) {
+          for (let rq in queriesAwaiting) {
+            if (queriesAwaiting[rq].id == rqid) {
               // do onResponse w/ reply-specific payload... 
-              rqa.onResponse(new Uint8Array(item.data.subarray(ptr + 4)))
+              queriesAwaiting[rq].onResponse(new Uint8Array(item.data.subarray(ptr + 4)))
+              queriesAwaiting.splice(rq, 1)
               break keySwitch;
             }
           }
