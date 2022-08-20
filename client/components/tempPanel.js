@@ -49,9 +49,9 @@ export default function TempPanel(vm, xPlace, yPlace, init, name, pidDisplay = f
     })
   })
 
-  let tempPlot = new AutoPlot(xPlace + 100, yPlace - 50, 300, 230,
+  let tempPlot = new AutoPlot(xPlace + 100, yPlace - 50, 400, 230,
     `${name} temp`, { top: 40, right: 20, bottom: 30, left: 40 })
-  tempPlot.setHoldCount(500)
+  tempPlot.setHoldCount(1000)
   tempPlot.setYDomain(0, init + 20)
   tempPlot.redraw()
 
@@ -92,7 +92,7 @@ export default function TempPanel(vm, xPlace, yPlace, init, name, pidDisplay = f
         tempLpBtn.red('temp update err, see console', 500)
       }
     }
-    setTimeout(tempLpRun, 200)
+    setTimeout(tempLpRun, 250)
   }
   tempLpBtn.onClick(() => {
     if (tempLp) {

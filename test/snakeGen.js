@@ -31,6 +31,7 @@ export default function snakeGen(width, depth, height, trackWidth, trackHeight, 
       while(x > 0){
         path.push([x, y, z, e])
         x -= segmentLength
+        e += trackWidth * trackHeight * segmentLength // cubic units,
       }
       y += trackWidth
       e += trackWidth * trackHeight * trackWidth
@@ -40,4 +41,11 @@ export default function snakeGen(width, depth, height, trackWidth, trackHeight, 
     y = 0 
   }
   return path
+}
+
+// should add to this thing, do `gennies.js`
+let getCircleCoordinates = (theta, scalar) => {
+  let tc = [Math.sin(theta) * scalar, Math.cos(theta) * scalar, 0, 0]
+  console.log(tc)
+  return tc
 }

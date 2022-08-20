@@ -15,12 +15,12 @@ no warranty is provided, and users accept all liability.
 'use strict'
 
 import { Button } from '../interface/basics.js'
-import { AutoPlot } from '../../client/components/autoPlot.js'
+import AutoPlot from '../../client/components/autoPlot.js'
 
 export default function LoadPanel(vm, xPlace, yPlace, name) {
   let title = new Button(xPlace, yPlace, 104, 34, name)
-  let loadPlot = new AutoPlot(xPlace + 120, yPlace, 420, 200)
-  loadPlot.setHoldCount(500)
+  let loadPlot = new AutoPlot(xPlace + 120, yPlace, 700, 400)
+  loadPlot.setHoldCount(1000)
   loadPlot.redraw()
 
   let lpBtn = new Button(xPlace, yPlace + 50, 104, 14, 'plot load')
@@ -35,7 +35,7 @@ export default function LoadPanel(vm, xPlace, yPlace, name) {
         if(!lp) return;
         vm.getReading().then((reading) => {
           lpCount ++ 
-          loadPlot.pushPt([lpCount, reading])
+          loadPlot.pushPt([lpCount, reading[0]])
           loadPlot.redraw() 
           setTimeout(poll, 100)
         }).catch((err) => {
@@ -45,7 +45,7 @@ export default function LoadPanel(vm, xPlace, yPlace, name) {
         })
       }
       lp = true 
-      poll()
+      setTimeout(poll, 250)
     }
   })
 }
