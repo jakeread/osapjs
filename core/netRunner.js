@@ -207,6 +207,24 @@ export default function NetRunner(osap) {
     }
   }
 
+  this.findWithin = async (vtName, parentName, start) => {
+    try {
+      let list = []
+      if (!start) start = await this.getLatestSweep()
+      let candidates = this.flatten(start)
+      for (let vvt of candidates) {
+        if (vvt.name == parentName){
+          for(let child of vvt.children){
+            if(child.name == vtName) return child 
+          }
+        }
+      }
+      throw new Error(`no vertex ${vtName} found within any ${parentName}`)
+    } catch (err) {
+      throw err
+    }
+  }
+
   this.connect = async (headName, tailName) => {
     try {
       let graph = await this.sweep()

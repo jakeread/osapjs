@@ -91,7 +91,7 @@ export default function HighLevel(osap) {
         }
       }
       // we probably want one endpoint per target-device supplied, so 
-      if(recipients.length != targetNames.length) throw new Error(`BBR: suspecting recipients & targets should be equal length...`)
+      if(recipients.length > targetNames.length) throw new Error(`BBR: likely that we missed an endpoint...`)
       if (log) console.log(`BBR: found ${recipients.length}x recipient endpoints '${recipientName}'`)
       // ---------------------------------------- 2: poke around amongst each recipient to find bus drops, 
       recipientLoop: for (let rx of recipients) {
