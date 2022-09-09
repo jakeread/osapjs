@@ -68,11 +68,11 @@ export default function HighLevel(osap) {
   }
 
   // ------------------------------------------------------ Bus Broadcast Routes 
-  this.buildBroadcastRoute = async (transmitterName, targetNames, recipientName, log = false) => {
+  this.buildBroadcastRoute = async (transmitterName, targetNames, recipientName, log = false, graph) => {
     if (!Array.isArray(targetNames)) throw new Error(`BBR: needs a list of target names, not singletons`)
     try {
       // ---------------------------------------- 1. get a local image of the graph, also configured routes 
-      let graph = await osap.nr.sweep()
+      if(!graph) graph = await osap.nr.sweep()
       if (log) console.log(`BBR: got a graph image...`)
       await osap.mvc.fillRouteData(graph)
       if (log) console.log(`BBR: reclaimed route data for the graph...`)
