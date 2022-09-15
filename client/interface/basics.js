@@ -59,7 +59,12 @@ function EZButton(xPlace, yPlace, width, height, text) {
 }
 
 // for more complex / set button state yourself 
-function Button(xPlace, yPlace, width, height, defaultText, justify) {
+function Button(settings, justify) {
+  let xPlace = settings.xPlace 
+  let yPlace = settings.yPlace 
+  let width = settings.width 
+  let height = settings.height 
+  let defaultText = settings.defaultText 
   let elem = $('<div>').addClass('button')
     .text(defaultText)
     .get(0)
@@ -67,8 +72,9 @@ function Button(xPlace, yPlace, width, height, defaultText, justify) {
     $(elem).css('justify-content', 'left').css('padding-left', '10px')
     width -= 7
   }
-  DT.placeField(elem, width, height, xPlace, yPlace)
+  DT.placeField(elem, width -6, height - 6, xPlace, yPlace)
   let btn = {}
+  btn.elem = elem 
   btn.onClick = (fn) => {
     $(elem).off('click')
     $(elem).on('click', (evt) => { fn(evt) })
@@ -97,6 +103,9 @@ function Button(xPlace, yPlace, width, height, defaultText, justify) {
   btn.grey = (text) => {
     if (text) $(elem).text(text)
     $(elem).css('background-color', style.grey)
+  }
+  btn.remove = () => {
+    $(elem).remove()
   }
   return btn
 }
