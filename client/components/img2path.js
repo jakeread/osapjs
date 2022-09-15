@@ -13,19 +13,29 @@ no warranty is provided, and users accept all liability.
 import distanceTransform from './distancetransform.js'
 import imgOffset from './imgoffset.js'
 
-export default function ImgToPath2D(imgdata, width, offset, zUp, zDown, passDepth) {
+export default function ImgToPath2D(args) {
+  let imgdata = args.imageData
+  let width = args.realWidth
+  let offset = args.toolOffset
+  let zUp = args.zUp
+  let zDown = args.zDown
+  let passDepth = args.passDepth
   // ok, we'll work on inputs, this will take some time,
   // we'll store outputs, wait for them to clear
   let store = null
-
+  console.log(`thresholding...`)
   let threshold = thresholdRGBA(imgdata, 0.5)
+  console.log(`distance tf...`)
   let distance = distanceTransform(threshold)
   let pixelOffset = (imgdata.width / width) * offset
-  console.warn(`pixel offset is ${pixelOffset}`)
+  console.log(`pixel offset is ${pixelOffset}, offsetting...`)
   let offsetImg = imgOffset(distance, pixelOffset, imgdata.width, imgdata.height)
+  console.log(`edge detecting...`)
   let edges = edgeDetectHelper(offsetImg)
+  console.log(`edge orienting...`)
   let oriented = orientEdgesHelper(edges)
   // ahn worker for this one, 
+  console.log(`vectorizing...`)
   let blob = new Blob(["(" + vectorWorker.toString() + "())"])
   let url = window.URL.createObjectURL(blob)
   let worker = new Worker(url)
@@ -36,7 +46,7 @@ export default function ImgToPath2D(imgdata, width, offset, zUp, zDown, passDept
     // now, this has done path-to-array in pixel space. we want those in
     // to be related to the width of our image,
     // and we want to add those jog features,
-    result = unfPath(e.data, imgdata.width, width, zUp, zDown, passDepth)
+    result = pixToPath(e.data, imgdata.width, width, zUp, zDown, passDepth, args.feedRate, args.jogRate)
   }
   // lazy, 
   worker.postMessage(oriented)
@@ -50,6 +60,53 @@ export default function ImgToPath2D(imgdata, width, offset, zUp, zDown, passDept
     }
     check()
   })
+}
+
+const pixToPath = (path, pwidth, mmwidth, zu, zd, pd, feed, jog) => {
+  // RIP oldboy
+  let newPath = []
+  // expansion,
+  let scale = mmwidth / pwidth
+  // first move is to 0,0,clearance
+  newPath.push({
+    target: [0, 0, zu],
+    rate: jog
+  })
+  // flatten, adding z-moves
+  for (let leg of path) {
+    // start each leg up top, above the first point,
+    newPath.push({
+      target: [scale * leg[0][0], scale * leg[0][1], zu],
+      rate: jog,
+    })
+    // fill in first passes, 
+    if (pd && zd / pd > 1) {
+      let passes = Math.ceil(zd / pd)
+      console.warn(`making ${passes} passes`)
+      for (let p = 0; p < passes - 1; p++) {
+        for (let point of leg) {
+          newPath.push({
+            target: [scale * point[0], scale * point[1], pd * (p + 1)],
+            rate: feed
+          })
+        }
+      }
+    }
+    // fill in last (or only) pass 
+    for (let point of leg) {
+      newPath.push({
+        target: [scale * point[0], scale * point[1], zd],
+        rate: feed
+      })
+    }
+    // and the lift, to tail
+    let last = leg[leg.length - 1]
+    newPath.push({
+      target: [scale * last[0], scale * last[1], zu],
+      rate: jog
+    })
+  }
+  return newPath
 }
 
 // Helper Functions
@@ -877,36 +934,4 @@ function vectorWorker() {
     const newOut = vectorizeHelper(e.data);
     self.postMessage(newOut);
   };
-}
-
-const unfPath = (path, pwidth, mmwidth, zu, zd, pd) => {
-  // RIP oldboy
-  let unfp = []
-  // expansion,
-  let scale = mmwidth / pwidth
-  // first move is to 0,0,clearance
-  unfp.push([0, 0, zu])
-  // flatten, adding z-moves
-  for (let leg of path) {
-    // start each leg up top, above the first point,
-    unfp.push([scale * leg[0][0], scale * leg[0][1], zu])
-    // fill in first passes, 
-    if (pd && zd / pd > 1) {
-      let passes = Math.ceil(zd / pd)
-      console.warn(`making ${passes} passes`)
-      for (let p = 0; p < passes - 1; p++) {
-        for (let point of leg) {
-          unfp.push([scale * point[0], scale * point[1], pd * (p + 1)])
-        }
-      }
-    }
-    // fill in last (or only) pass 
-    for (let point of leg) {
-      unfp.push([scale * point[0], scale * point[1], zd])
-    }
-    // and the lift, to tail
-    let last = leg[leg.length - 1]
-    unfp.push([scale * last[0], scale * last[1], zu])
-  }
-  return unfp
 }

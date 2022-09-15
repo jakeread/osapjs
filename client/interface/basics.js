@@ -136,12 +136,20 @@ function Slider(settings){
 }
 
 // text blocks 
-function TextBlock(xPlace, yPlace, width, height, text, justify) {
+function TextBlock(settings, justify = false) {
+  let xPlace = settings.xPlace 
+  let yPlace = settings.yPlace 
+  let width = settings.width 
+  let height = settings.height 
+  let text = settings.defaultText 
   let elem = $('<div>').addClass('inputwrap')
     .text(text)
     .get(0)
   if (justify) {
-    $(elem).css('justify-content', 'left').css('padding-left', '10px')
+    $(elem)
+      .css('justify-content', 'left')
+      .css('padding-left', '10px')
+      .css('padding-top', '10px')
     width -= 7
   }
   DT.placeField(elem, width, height, xPlace, yPlace)
