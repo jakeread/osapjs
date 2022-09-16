@@ -81,7 +81,7 @@ export default function MachineBed(settings, machine) {
   // we keep a stack of layers... in a job object, 
   let job = {
     position: [0, 0],
-    layers: [],
+    layers: {},
     elem: $('<div>')
       .attr('id', 'jobtainer')
       .css('position', 'absolute')  // it's abs-position 
@@ -118,16 +118,30 @@ export default function MachineBed(settings, machine) {
       virtualCanvas.height = layer.imageData.height
       // we load our imageData there, 
       virtualCanvas.getContext('2d').putImageData(layer.imageData, 0, 0) 
-      // now we make another, which is scaled as we'd like, 
+      // now we make another, which is scaled as we'd like, this what we'll actually render, 
       let canvas = document.createElement('canvas')
+      $(canvas).css('position', 'absolute')
       canvas.width = layer.imageData.width * scale
       canvas.height = layer.imageData.height * scale
       // now we draw from one to the other, 
       let context = canvas.getContext('2d')
+      // top layer should render at 50% opacity, 
+      if(layer.name == 'top') context.globalAlpha = 0.5
       context.drawImage(virtualCanvas, 0, 0, canvas.width, canvas.height)
       // append that... 
-      $(job.elem).append(canvas)
-      job.layers.push(layer)
+      layer.elem = canvas 
+      $(job.elem).append(layer.elem)
+      job.layers[layer.name] = layer 
+      // if that was the bottom layer and the top already exists...
+      if(layer.name == 'outline' && job.layers.top){
+        console.warn(`rearranging layers... sending outline to back`)
+        // rm both... 
+        $(job.layers.outline.elem).remove()
+        $(job.layers.top.elem).remove()
+        // add back in,
+        $(job.elem).append(job.layers.outline.elem)
+        $(job.elem).append(job.layers.top.elem)
+      }
     } catch (err) {
       console.error(err)
     }
