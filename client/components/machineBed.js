@@ -48,7 +48,7 @@ export default function MachineBed(settings, machine) {
     .get(0)
   $(dom).append(this.elem)
 
-  let colX = settings.xPlace 
+  let colX = settings.xPlace
   let colY = settings.yPlace + Math.ceil(rDims[1] / 10) * 10 + 10
 
   // build a reporting block, 
@@ -59,23 +59,6 @@ export default function MachineBed(settings, machine) {
     height: 30,
     defaultText: `...`
   }, true)
-  
-  // and a mill-traces box,
-  let tracesBtn = new Button({
-    xPlace: colX, 
-    yPlace: colY += 50, 
-    width: 200, 
-    height: 30, 
-    defaultText: `mill traces`
-  })
-
-  let outlineBtn = new Button({
-    xPlace: colX,
-    yPlace: colY += 40, 
-    width: 200, 
-    height: 30, 
-    defaultText: `mill outline`
-  })
 
   // -------------------------------------------- Ingest Layers 
   // we keep a stack of layers... in a job object, 
@@ -117,7 +100,7 @@ export default function MachineBed(settings, machine) {
       virtualCanvas.width = layer.imageData.width
       virtualCanvas.height = layer.imageData.height
       // we load our imageData there, 
-      virtualCanvas.getContext('2d').putImageData(layer.imageData, 0, 0) 
+      virtualCanvas.getContext('2d').putImageData(layer.imageData, 0, 0)
       // now we make another, which is scaled as we'd like, this what we'll actually render, 
       let canvas = document.createElement('canvas')
       $(canvas).css('position', 'absolute')
@@ -126,21 +109,21 @@ export default function MachineBed(settings, machine) {
       // now we draw from one to the other, 
       let context = canvas.getContext('2d')
       // top layer should render at 50% opacity, 
-      if(layer.name == 'top') context.globalAlpha = 0.5
+      if (layer.name == 'topTraces') context.globalAlpha = 0.25
       context.drawImage(virtualCanvas, 0, 0, canvas.width, canvas.height)
       // append that... 
-      layer.elem = canvas 
+      layer.elem = canvas
       $(job.elem).append(layer.elem)
-      job.layers[layer.name] = layer 
+      job.layers[layer.name] = layer
       // if that was the bottom layer and the top already exists...
-      if(layer.name == 'outline' && job.layers.top){
+      if (layer.name == 'outline' && job.layers.topTraces) {
         console.warn(`rearranging layers... sending outline to back`)
         // rm both... 
         $(job.layers.outline.elem).remove()
-        $(job.layers.top.elem).remove()
+        $(job.layers.topTraces.elem).remove()
         // add back in,
         $(job.elem).append(job.layers.outline.elem)
-        $(job.elem).append(job.layers.top.elem)
+        $(job.elem).append(job.layers.topTraces.elem)
       }
     } catch (err) {
       console.error(err)
@@ -160,7 +143,23 @@ export default function MachineBed(settings, machine) {
       ct.y += drag.movementY
       dt.writeTransform(job.elem, ct)
     }, (up) => {
+      // add this back in, 
       this.elem.addEventListener('mousemove', reportMousePosn)
+      if(!job.layers.outline || !job.layers.topTraces) return 
+      // update the job position, given new pad position... 
+      let ct = dt.readTransform(job.elem)
+      let mx = ct.x * renderToMachineScale 
+      let my = (rDims[1] - ct.y - job.layers.outline.elem.height) * renderToMachineScale
+      console.log(`mx, my,`, mx, my)
+      job.position[0] = mx 
+      job.position[1] = my 
+      if(machine.available){
+        machine.gotoPosition([mx, my, 10]).then(() => {
+          // ok, 
+        }).catch((err) => {
+          console.error(err)
+        })
+      }
     })
   })
 
@@ -171,34 +170,153 @@ export default function MachineBed(settings, machine) {
 
   this.elem.addEventListener('mousemove', reportMousePosn)
 
+  // -------------------------------------------- Bed Click Events
+
+  this.elem.addEventListener('click', async (evt) => {
+    if (evt.target != this.elem) return
+    // console.log('xy...', evt.layerX * renderToMachineScale, evt.layerY * renderToMachineScale)
+    try{
+      if(machine.available){
+        let mx = evt.layerX * renderToMachineScale
+        let my = (rDims[1] - evt.layerY) * renderToMachineScale
+        await machine.gotoPosition([mx, my, 15])
+        let pos = await machine.getPosition()
+        // console.log(`went to`, [mx, my, 15])
+        // console.log(`retrieved`, pos)
+      }
+    } catch (err) {
+      console.error(err)
+    }
+  })
+
+  // -------------------------------------------- Genny & Mill Buttons 
+
+  let genTracesBtn = new Button({
+    xPlace: colX,
+    yPlace: colY += 50,
+    width: 200,
+    height: 30,
+    defaultText: `generate traces plan`
+  })
+
+  let runTracesBtn = new Button({
+    xPlace: colX + 210,
+    yPlace: colY,
+    width: 200,
+    height: 30,
+    defaultText: 'run traces plan'
+  })
+
+  let genOutlineBtn = new Button({
+    xPlace: colX,
+    yPlace: colY += 40,
+    width: 200,
+    height: 30,
+    defaultText: `generate outline plan`
+  })
+
+  let runOutlineBtn = new Button({
+    xPlace: colX + 210,
+    yPlace: colY,
+    width: 200,
+    height: 30,
+    defaultText: 'run outline plan'
+  })
+
   // let's add the button fns, 
-  tracesBtn.onClick(async () => {
+  genTracesBtn.onClick(async () => {
     try {
-      tracesBtn.yellow(`calculating path...`)
+      genTracesBtn.yellow(`calculating path...`)
       // should be layers.topTraces 
       let path = await ImgToPath2D({
-        imageData: job.layers[0].imageData,
-        realWidth: job.layers[0].imageData.width / job.layers[0].dpi * 25.4,
-        toolOffset: 1/64 * 0.5 * 25.4,  
+        imageData: job.layers.topTraces.imageData,
+        realWidth: job.layers.topTraces.imageData.width / job.layers.topTraces.dpi * 25.4,
+        toolOffset: 1 / 64 * 0.5 * 25.4,
         zUp: 2,
         zDown: -0.1,
         passDepth: 0.1,
         feedRate: 20,
-        jogRate: 100, 
+        jogRate: 100,
       })
-      tracesBtn.yellow(`offsetting path...`)
-      for(let move of path){
+      genTracesBtn.yellow(`offsetting path...`)
+      for (let move of path) {
         move.target[0] += job.position[0]
         move.target[1] += job.position[1]
       }
-      // now ingest to machine... 
-      for(let m in path){
-        tracesBtn.yellow(`sending ${m} / ${path.length-1}`)
-        await machine.addMoveToQueue(path[m])
-      }
-      tracesBtn.green(`done`)
+      genTracesBtn.green(`traces gennie'd`)
+      job.layers.topTraces.path = path
     } catch (err) {
-      tracesBtn.red(`error, see console...`)
+      genTracesBtn.red(`error, see console...`)
+      console.error(err)
+    }
+  })
+
+  runTracesBtn.onClick(async () => {
+    try {
+      if (job.layers.topTraces && job.layers.topTraces.path) {
+        for (let p in job.layers.topTraces.path) {
+          runTracesBtn.yellow(`sending ${p} / ${job.layers.topTraces.path.length - 1}`)
+          await machine.addMoveToQueue(job.layers.topTraces.path[p])
+        }
+        runTracesBtn.green(`done`)
+      } else {
+        runTracesBtn.yellow(`please gen plan first... `)
+        setTimeout(() => {
+          runTracesBtn.resetText()
+          runTracesBtn.grey()
+        }, 1000)
+      }
+    } catch (err) {
+      runTracesBtn.red(`error, see console...`)
+      console.error(err)
+    }
+  })
+
+  // let's add the button fns, 
+  genOutlineBtn.onClick(async () => {
+    try {
+      genOutlineBtn.yellow(`calculating path...`)
+      // should be layers.topTraces 
+      let path = await ImgToPath2D({
+        imageData: job.layers.outline.imageData,
+        realWidth: job.layers.outline.imageData.width / job.layers.outline.dpi * 25.4,
+        toolOffset: 1 / 32 * 0.5 * 25.4,  // in mm, 
+        zUp: 2,
+        zDown: -1.7,
+        passDepth: 0.15,
+        feedRate: 15,
+        jogRate: 100,
+      })
+      genOutlineBtn.yellow(`offsetting path...`)
+      for (let move of path) {
+        move.target[0] += job.position[0]
+        move.target[1] += job.position[1]
+      }
+      genOutlineBtn.green(`outline gennie'd`)
+      job.layers.outline.path = path
+    } catch (err) {
+      genOutlineBtn.red(`error, see console...`)
+      console.error(err)
+    }
+  })
+
+  runOutlineBtn.onClick(async () => {
+    try {
+      if (job.layers.outline && job.layers.outline.path) {
+        for (let p in job.layers.outline.path) {
+          runOutlineBtn.yellow(`sending ${p} / ${job.layers.outline.path.length - 1}`)
+          await machine.addMoveToQueue(job.layers.outline.path[p])
+        }
+        runOutlineBtn.green(`done`)
+      } else {
+        runOutlineBtn.yellow(`please gen plan first... `)
+        setTimeout(() => {
+          runOutlineBtn.resetText()
+          runOutlineBtn.grey()
+        }, 1000)
+      }
+    } catch (err) {
+      runOutlineBtn.red(`error, see console...`)
       console.error(err)
     }
   })

@@ -82,6 +82,9 @@ function Button(settings, justify) {
   btn.setText = (text) => {
     $(elem).text(text)
   }
+  btn.resetText = () => {
+    $(elem).text(defaultText)
+  }
   btn.getText = () => {
     return $(elem).text()
   }
