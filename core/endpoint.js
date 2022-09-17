@@ -307,6 +307,8 @@ export default class Endpoint extends Vertex {
             this.acksResolve = null
             resolve()
           }
+          // erp, 
+          if(this.routes.length == 0) resolve() 
         })
       } else {
         throw new Error(`endpoint ${this.name} written to w/ bad mode argument ${mode}, should be "acked" or "ackless"`)

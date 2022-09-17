@@ -17,9 +17,9 @@ import PK from '../core/packets.js'
 import TIME from '../core/time.js'
 import AXLMotionVM from './axlMotionVM.js'
 
-export default function AXLMotionHeadVM(osap, route, _settings) {
+export default function AXLMotionHeadVM(osap, route, _settings, useMiddleFifo = false) {
   // this FW has a motion coordinator on board, 
-  this.motion = new AXLMotionVM(osap, route, _settings)
+  this.motion = new AXLMotionVM(osap, route, _settings, useMiddleFifo)
 
   // and some bonus power-switching capability... 
   let powerEP = osap.endpoint("powerMirror") 

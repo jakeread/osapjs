@@ -55,6 +55,7 @@ export default function ImgToPath2D(args) {
       if (!result) {
         setTimeout(check, 10)
       } else {
+        console.log('img2path done...')
         resolve(result)
       }
     }

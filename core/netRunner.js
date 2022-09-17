@@ -65,6 +65,18 @@ export default function NetRunner(osap) {
     }
   }
 
+  this.forceSweepUpdate = async () => {
+    try {
+      let graph = await this.sweep()
+      latestSweep = {
+        runTime: TIME.getTimeStamp(),
+        graph: graph
+      }
+    } catch (err) {
+      throw err
+    }
+  }
+
   this.searchContext = async (root, entrance) => {
     try {
       let contextScanTime = TIME.getTimeStamp()
@@ -213,9 +225,9 @@ export default function NetRunner(osap) {
       if (!start) start = await this.getLatestSweep()
       let candidates = this.flatten(start)
       for (let vvt of candidates) {
-        if (vvt.name == parentName){
-          for(let child of vvt.children){
-            if(child.name == vtName) return child 
+        if (vvt.name == parentName) {
+          for (let child of vvt.children) {
+            if (child.name == vtName) return child
           }
         }
       }
@@ -283,7 +295,7 @@ export default function NetRunner(osap) {
     }
   }
 
-  // tool to find routes... head & tail should be vvts in the same graph, we want to search betwixt, 
+  // tool to find routes *between* two obj... head & tail should be vvts in the same graph, we want to search betwixt, 
   // routes are returned as route objects, and are not added in this fn 
   this.findRoute = (head, tail, log = false) => {
     if (log) console.warn(`FR: searching from ${head.name} to ${tail.name}`, head.route, tail.route)
@@ -309,12 +321,12 @@ export default function NetRunner(osap) {
       for (let s in from.parent.children) {
         s = parseInt(s)
         let sib = from.parent.children[s]
-        if(false) console.warn(`FR: eval ${sib.name}, ${tail.name}`)
+        if (false) console.warn(`FR: eval ${sib.name}, ${tail.name}`)
         // if that's the ticket, ship it, 
         if (PK.routeMatch(sib.route, tail.route)) {
           if (log) console.warn(`FR: found the target !`)
           return PK.route(route).sib(s).end()
-        } 
+        }
       }
       // if not, find ports, 
       let results = []
@@ -334,14 +346,14 @@ export default function NetRunner(osap) {
               // don't go back down to from whence we came, 
               if (parseInt(d) == busDropLatch) continue
               // traverse down all other reachable drops... 
-              if(sib.reciprocals[d].type != "unreachable"){
+              if (sib.reciprocals[d].type != "unreachable") {
                 results.push(recursor(PK.route(route).sib(s).bfwd(parseInt(d)).end(), sib.reciprocals[d]))
               }
             }
           } else { // ------------------------------------- it's a bus drop, 
             // only come back up if we haven't already come *up* from a drop once before 
             if (busDropLatch) {
-              if(log) console.warn(`FR: latch prevented up-bus traversal`)
+              if (log) console.warn(`FR: latch prevented up-bus traversal`)
               continue
             }
             // otherwise, we want to pop up to the head, like 

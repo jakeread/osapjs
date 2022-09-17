@@ -21,7 +21,7 @@ let AXL_MODE_VELOCITY = 2
 let AXL_MODE_POSITION = 3
 let AXL_MODE_QUEUE = 4
 
-export default function AXLMotionVM(osap, route, _settings) {
+export default function AXLMotionVM(osap, route, _settings, useMiddleFifo = false) {
 
   // defaults, 
   this.settings = {
@@ -181,7 +181,8 @@ export default function AXLMotionVM(osap, route, _settings) {
   // -------------------------------------------- Add Move
 
   let addMoveEP = osap.endpoint("axlMoveMirror")
-  addMoveEP.addRoute(PK.route(route).sib(4).end())
+  console.log(addMoveEP)
+  if(!useMiddleFifo) addMoveEP.addRoute(PK.route(route).sib(4).end())
   addMoveEP.setTimeoutLength(60000)
   // hackney, 
   let lastPos = [0, 0, 0, 0]
@@ -220,6 +221,26 @@ export default function AXLMotionVM(osap, route, _settings) {
     }
     //console.warn('gram', datagram)
     try {
+      // if we need to find the fifo,
+      if(useMiddleFifo){
+        // awkwardly, we have to trigger a re-sweep here because 
+        console.warn(`with this setup-speed problem, the sweep-after-setup is a good start`)
+        await osap.nr.forceSweepUpdate()
+        console.log(`finding the fifo...`)
+        let moveVVT = await osap.nr.find("ep_axlMoveMirror")
+        let inVVT = await osap.nr.find("ep_fifoInput")
+        let upperLink = await osap.nr.findRoute(moveVVT, inVVT)
+        PK.logRoute(upperLink)
+        addMoveEP.addRoute(upperLink)
+        console.log(`found route from ourself and the fifo input...`)
+        // now look for the other end, 
+        let outVVT = await osap.nr.find("ep_fifoOutput")
+        let headVVT = await osap.nr.findWithin("ep_moves", "rt_motion-head")
+        let lowerLink = await osap.nr.findRoute(outVVT, headVVT)
+        PK.logRoute(lowerLink)
+        await osap.mvc.setEndpointRoute(outVVT.route, lowerLink)
+        console.log(`plumbed from fifo-out to head-in, I think`)
+      }
       await settingsEP.write(datagram, "acked")
     } catch (err) {
       throw err
