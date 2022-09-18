@@ -127,6 +127,17 @@ PK.VC2VMRoute = (route) => {
   return route 
 }
 
+PK.VC2EPRoute = (route) => {
+  // we can't do this to caller's route object, so we make a copy, 
+  route = PK.route(route).end()
+  // i.e. search routines return paths from browser-root node, to the root node in the remote 
+  // object... but vms are written to go from a *child* of the browser root node, to *children* in the remote...
+  // departing from a sibling, not the parent... 
+  route.path[1] = PK.SIB
+  // that's it for these, 
+  return route 
+}
+
 PK.route = (existing) => {
   // start w/ a temp uint8 array, 
   let path = new Uint8Array(256)

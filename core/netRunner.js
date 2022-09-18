@@ -237,6 +237,7 @@ export default function NetRunner(osap) {
     }
   }
 
+  // mmmm, this would be in "highLevel" and could include options to find-within for each... 
   this.connect = async (headName, tailName) => {
     try {
       let graph = await this.sweep()
