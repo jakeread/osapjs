@@ -62,7 +62,7 @@ export default function AXLActuator(osap, route, _settings) {
   // we could do a states-ep write w/ a mirror here, but normally do this with a broadcast anyways... 
 
   let motorSettingsEP = osap.endpoint("motorSettingsMirror")
-  motorSettingsEP.addRoute(PK.route(route).sib(8).end())
+  motorSettingsEP.addRoute(PK.route(route).sib(9).end())
 
   this.setupMotor = async () => {
     try {
