@@ -42,6 +42,18 @@ export default function AXLCore(osap, _settings, _actuators) {
   if (_settings) {
     settingsDiff(this.settings, _settings, "AXLCore")
     this.settings = JSON.parse(JSON.stringify(_settings))
+  }  
+
+  // we do a little spu-per-second guarding, 
+  let maxTickPerSecond = 10000
+  for(let actu of _actuators){
+    let maxRate = maxTickPerSecond / actu.spu 
+    let setVMax = this.settings.velocityLimits[actu.axis]
+    if(setVMax > maxRate){
+      throw new Error(`given maximum ticks / second of ${maxTickPerSecond}, ${actu.name} velocity limit should be below ${maxRate} but is set to ${setVMax}`)
+    } else {
+      console.warn(`${actu.name} has tick-limit allowable maxRate of ${maxRate}, is set to ${setVMax} vMax`)
+    }
   }
 
   // internal offset stash... 
@@ -52,7 +64,7 @@ export default function AXLCore(osap, _settings, _actuators) {
     vals = JSON.parse(JSON.stringify(vals))
     if (position) {
       for (let a = 0; a < numDof; a++) {
-        vals[a] -= posnOffset[a]
+        vals[a] -= positionOffset[a]
       }
     }
     // do the transform... 
@@ -63,7 +75,7 @@ export default function AXLCore(osap, _settings, _actuators) {
     tfVals[1] = vals[0] - vals[1]
     tfVals[2] = vals[2]
     // return the new, 
-    return tfVals 
+    return tfVals
   }
 
   this.actuatorToCartesianTransform = (vals, position = false) => {
@@ -76,16 +88,121 @@ export default function AXLCore(osap, _settings, _actuators) {
     if (position) {
       for (let a = 0; a < numDof; a++) {
         // add back offset, 
-        tfVals[a] += posnOffset[a]
+        tfVals[a] += positionOffset[a]
       }
     }
     // return new 
-    return tfVals 
+    return tfVals
   }
-
 
   // we have actuators, which we'll fill in on setup, 
   let actuators = []
+
+  // ------------------------------------------------------ Plumbing
+
+  this.setup = async () => {
+    // first we want a graph... 
+    try {
+      // ---------------------------------------- Get a Graph Object 
+      console.log(`SETUP: collecting a graph...`)
+      let graph = await osap.nr.sweep()
+      // ---------------------------------------- Find and build Actuators 
+      for (let actu of _actuators) {
+        console.log(`SETUP: looking for ${actu.name}...`)
+        let vvt = await osap.nr.find(actu.name, graph)
+        // these have settings, some of which are inherited from us, others from the list... 
+        let actuSettings = {
+          name: actu.name,
+          accelLimits: JSON.parse(JSON.stringify((this.settings.accelLimits))),
+          velocityLimits: JSON.parse(JSON.stringify((this.settings.velocityLimits))),
+          queueStartDelay: this.settings.queueStartDelay,
+          actuatorID: actuators.length,
+          axis: actu.axis,
+          invert: actu.invert,
+          microstep: actu.microstep,
+          spu: actu.spu,
+          cscale: actu.cscale
+        }
+        actuators.push(new AXLActuator(osap, PK.VC2VMRoute(vvt.route), actuSettings))
+        console.log(`SETUP: found and built ${actu.name}...`)
+      }
+      // then set 'em up, 
+      for (let actu of actuators) {
+        console.warn(`SETUP: initializing ${actu.settings.name}... is num ${actu.settings.actuatorID}`)
+        await actu.setup()
+        console.log(`SETUP: init ${actu.settings.name} OK`)
+      }
+      // throw new Error('halt')
+      // we want a string-list of our actuator names, 
+      let actuatorNames = []
+      for (let actu of actuators) {
+        actuatorNames.push(actu.settings.name)
+      }
+      // ---------------------------------------- Plumb planned moves -> queue ingestion 
+      console.log(`SETUP: building a broadcast route for planned moves...`)
+      let plannedMoveChannel = await osap.hl.buildBroadcastRoute("ep_segmentsOut", actuatorNames, "ep_segmentsIn", false, graph)
+      console.log(`SETUP: broadcast route for planned moves on ${plannedMoveChannel} OK`)
+      // ---------------------------------------- Plumb state requests from us -> actuators 
+      console.log(`SETUP: building a broadcast route for state-request moves...`)
+      let stateRequestChannel = await osap.hl.buildBroadcastRoute("ep_stateRequestsOut", actuatorNames, "ep_stateRequests", false, graph)
+      console.log(`SETUP: broadcast route for state-request moves on ${stateRequestChannel} OK`)
+      // ---------------------------------------- Plumb halt signals from us down to actuators 
+      console.log(`SETUP: building a broadcast route for halt signals...`)
+      let haltChannel = await osap.hl.buildBroadcastRoute("ep_haltOutJS", actuatorNames, "ep_haltIn", false, graph)
+      console.log(`SETUP: broadcast route for planned moves on ${haltChannel} OK`)
+      // ---------------------------------------- Plumb halt signals from actuators back to us, 
+      console.log(`SETUP: linking remote halts back to us...`)
+      let haltInVVT = await osap.nr.find("ep_haltInJS", graph)
+      for (let actu of actuators) {
+        let haltOutVVT = await osap.nr.findWithin("ep_haltOut", actu.settings.name, graph)
+        let haltConnectRoute = await osap.nr.findRoute(haltOutVVT, haltInVVT)
+        // this should be high(er) priority than queue acks... set time-to-live low-ish 
+        haltConnectRoute.ttl = 500
+        haltConnectRoute.mode = EP.ROUTEMODE_ACKLESS
+        await osap.mvc.setEndpointRoute(haltOutVVT.route, haltConnectRoute)
+        console.log(`SETUP: connected ${actu.settings.name} haltOut to JS`)
+      }
+      console.warn(`SETUP: TODO: link remote halts to the broadcast as well !`)
+      // ---------------------------------------- Plumb actuator queue-acks to us... 
+      console.log(`SETUP: linking remote segmentAck signals back to us...`)
+      let segmentAckInVVT = await osap.nr.find("ep_segmentAckIn", graph)
+      for (let actu of actuators) {
+        let segmentAckOutVVT = await osap.nr.findWithin("ep_segmentAckOut", actu.settings.name, graph)
+        let connectRoute = await osap.nr.findRoute(segmentAckOutVVT, segmentAckInVVT)
+        // lower priority than halt signals, but higher than general purpose 
+        connectRoute.ttl = 750
+        connectRoute.mode = EP.ROUTEMODE_ACKLESS
+        await osap.mvc.setEndpointRoute(segmentAckOutVVT.route, connectRoute)
+        console.log(`SETUP: connected ${actu.settings.name} segmentAck to JS`)
+      }
+      console.log(`SETUP: queue signals are piped...`)
+      // ---------------------------------------- Plumb actuator queue-move-complete to us...
+      console.log(`SETUP: linking remote segmentComplete signals back to us...`)
+      let segmentCompleteInVVT = await osap.nr.find("ep_segmentCompleteIn", graph)
+      for (let actu of actuators) {
+        let segmentCompletOutVVT = await osap.nr.findWithin("ep_segmentCompleteOut", actu.settings.name, graph)
+        let connectRoute = await osap.nr.findRoute(segmentCompletOutVVT, segmentCompleteInVVT)
+        // lower priority than halt signals, but higher than general purpose 
+        connectRoute.ttl = 750
+        connectRoute.mode = EP.ROUTEMODE_ACKLESS
+        await osap.mvc.setEndpointRoute(segmentCompletOutVVT.route, connectRoute)
+        console.log(`SETUP: connected ${actu.settings.name} segmentComplete to JS`)
+      }
+      console.log(`SETUP: queue complete are piped...`)
+      // ---------------------------------------- END 
+      console.warn(`THIS should go elsewhere...`)
+      this.available = true 
+    } catch (err) {
+      throw err
+    }
+    /* 
+    (1) setup each actuator, right? 
+    (2) setup check SPU & over-ticking... or is that motor responsibility ? 
+    (3) plumb our moveOutEP to broadcast to actuator inputs, 
+    (4) plumb state update request EP likewise... 
+    (5) plumb our stateOutEP likewise... 
+    */
+  } // ------------------------------------------ End of Setup 
 
   // ------------------------------------------------------ Inputs and Outputs 
   // ingest moves, 
@@ -164,6 +281,7 @@ export default function AXLCore(osap, _settings, _actuators) {
     let msgActuatorID = TS.read('uint8', data, 4)
     // console.log(`segNum; ${msgSegmentNumber}, actuID; ${msgActuatorID}`)
     // find eeeet, and it should always be the most recent, right?
+    console.warn(`segmentComplete from ${msgActuatorID}, segNum ${msgSegmentNumber}`)
     if (queue[0].segmentNumber != msgSegmentNumber) {
       throw new Error(`! retrieved out-of-order segmentComplete msg, probable failure?`)
     } else {
@@ -204,114 +322,63 @@ export default function AXLCore(osap, _settings, _actuators) {
     console.warn(`received actuator data`, data)
   }
 
-  // ------------------------------------------------------ Plumbing
+  // our state output...
+  let stateRequestsOutEP = osap.endpoint("stateRequestsOut")
 
-  this.setup = async () => {
-    // first we want a graph... 
+  // ------------------------------------------------------ Modal / State 
+
+  let AXL_MODE_ACCEL = 1
+  let AXL_MODE_VELOCITY = 2
+  let AXL_MODE_POSITION = 3
+  let AXL_MODE_QUEUE = 4
+
+  this.writeStateBroadcast = async (vals, mode, set) => {
     try {
-      // ---------------------------------------- Get a Graph Object 
-      console.log(`SETUP: collecting a graph...`)
-      let graph = await osap.nr.sweep()
-      // ---------------------------------------- Find and build Actuators 
-      for (let actu of _actuators) {
-        console.log(`SETUP: looking for ${actu.name}...`)
-        let vvt = await osap.nr.find(actu.name, graph)
-        // these have settings, some of which are inherited from us, others from the list... 
-        let actuSettings = {
-          name: actu.name,
-          accelLimits: JSON.parse(JSON.stringify((this.settings.accelLimits))),
-          velocityLimits: JSON.parse(JSON.stringify((this.settings.velocityLimits))),
-          queueStartDelay: this.settings.queueStartDelay,
-          actuatorID: actuators.length,
-          axis: actu.axis,
-          invert: actu.invert,
-          microstep: actu.microstep,
-          spu: actu.spu,
-          cscale: actu.cscale
-        }
-        actuators.push(new AXLActuator(osap, PK.VC2VMRoute(vvt.route), actuSettings))
-        console.log(`SETUP: found and built ${actu.name}...`)
+      // pack 'em up, 
+      let datagram = new Uint8Array(numDof * 4 + 2)
+      let wptr = 0
+      datagram[wptr++] = mode 
+      datagram[wptr++] = set  
+      for (let a = 0; a < numDof; a++) {
+        wptr += TS.write("float32", vals[a], datagram, wptr)
       }
-      // then set 'em up, 
-      for (let actu of actuators) {
-        console.log(`SETUP: initializing ${actu.settings.name}...`)
-        await actu.setup()
-        console.log(`SETUP: init ${actu.settings.name} OK`)
-      }
-      // ---------------------------------------- Plumb planned moves -> queue ingestion 
-      console.log(`SETUP: building a broadcast route for planned moves...`)
-      let plannedMoveChannel = await osap.hl.buildBroadcastRoute(
-        "ep_segmentsOut",
-        [
-          "rt_axl-stepper_z"
-        ],
-        "ep_segmentsIn",
-        false,
-        graph
-      )
-      console.log(`SETUP: broadcast route for planned moves on ${plannedMoveChannel} OK`)
-      // ---------------------------------------- Plumb halt signals from us down to actuators 
-      console.log(`SETUP: building a broadcast route for halt signals...`)
-      let haltChannel = await osap.hl.buildBroadcastRoute(
-        "ep_haltOutJS",
-        [
-          "rt_axl-stepper_z"
-        ],
-        "ep_haltIn",
-        false,
-        graph
-      )
-      console.log(`SETUP: broadcast route for planned moves on ${haltChannel} OK`)
-      // ---------------------------------------- Plumb halt signals from actuators back to us, 
-      console.log(`SETUP: linking remote halts back to us...`)
-      let haltInVVT = await osap.nr.find("ep_haltInJS", graph)
-      for (let actu of actuators) {
-        let haltOutVVT = await osap.nr.findWithin("ep_haltOut", actu.settings.name, graph)
-        let haltConnectRoute = await osap.nr.findRoute(haltOutVVT, haltInVVT)
-        // this should be high(er) priority than queue acks... set time-to-live low-ish 
-        haltConnectRoute.ttl = 500
-        haltConnectRoute.mode = EP.ROUTEMODE_ACKLESS
-        await osap.mvc.setEndpointRoute(haltOutVVT.route, haltConnectRoute)
-        console.log(`SETUP: connected ${actu.settings.name} haltOut to JS`)
-      }
-      console.warn(`SETUP: TODO: link remote halts to the broadcast as well !`)
-      // ---------------------------------------- Plumb actuator queue-acks to us... 
-      console.log(`SETUP: linking remote segmentAck signals back to us...`)
-      let segmentAckInVVT = await osap.nr.find("ep_segmentAckIn", graph)
-      for (let actu of actuators) {
-        let segmentAckOutVVT = await osap.nr.findWithin("ep_segmentAckOut", actu.settings.name, graph)
-        let connectRoute = await osap.nr.findRoute(segmentAckOutVVT, segmentAckInVVT)
-        // lower priority than halt signals, but higher than general purpose 
-        connectRoute.ttl = 750
-        connectRoute.mode = EP.ROUTEMODE_ACKLESS
-        await osap.mvc.setEndpointRoute(segmentAckOutVVT.route, connectRoute)
-        console.log(`SETUP: connected ${actu.settings.name} segmentAck to JS`)
-      }
-      console.log(`SETUP: queue signals are piped...`)
-      // ---------------------------------------- Plumb actuator queue-move-complete to us...
-      console.log(`SETUP: linking remote segmentComplete signals back to us...`)
-      let segmentCompleteInVVT = await osap.nr.find("ep_segmentCompleteIn", graph)
-      for (let actu of actuators) {
-        let segmentCompletOutVVT = await osap.nr.findWithin("ep_segmentCompleteOut", actu.settings.name, graph)
-        let connectRoute = await osap.nr.findRoute(segmentCompletOutVVT, segmentCompleteInVVT)
-        // lower priority than halt signals, but higher than general purpose 
-        connectRoute.ttl = 750
-        connectRoute.mode = EP.ROUTEMODE_ACKLESS
-        await osap.mvc.setEndpointRoute(segmentCompletOutVVT.route, connectRoute)
-        console.log(`SETUP: connected ${actu.settings.name} segmentComplete to JS`)
-      }
-      console.log(`SETUP: queue complete are piped...`)
-      // ---------------------------------------- END 
+      // and send it along on our broadcast channel, 
+      await stateRequestsOutEP.write(datagram, "ackless")
     } catch (err) {
       throw err
     }
-    /* 
-    (1) setup each actuator, right? 
-    (2) setup check SPU & over-ticking... or is that motor responsibility ? 
-    (3) plumb our moveOutEP to broadcast to actuator inputs, 
-    (4) plumb state update request EP likewise... 
-    (5) plumb our stateOutEP likewise... 
-    */
+  }
+
+  this.gotoVelocity = async (vel) => {
+    try {
+      vel = this.cartesianToActuatorTransform(vel)
+      await this.writeStateBroadcast(vel, AXL_MODE_VELOCITY, false)
+    } catch (err) {
+      throw err
+    }
+  }
+
+  this.gotoPosition = async (pos) => {
+    try {
+      // transform posn vals, 
+      pos = this.cartesianToActuatorTransform(pos, true)
+      await this.writeStateBroadcast(pos, AXL_MODE_POSITION, false)
+    } catch (err) {
+      throw err
+    }
+  }
+
+  this.setPosition = async (pos) => {
+    try {
+      await this.awaitMotionEnd()
+      throw new Error("also unsure here: do we just update our internal offsets ? ")
+    } catch (err) {
+      throw err
+    }
+  }
+
+  this.awaitMotionEnd = async () => {
+    throw new Error("want / need this fn... actuators have a .isMoving thing, we could use or delete that...")
   }
 
   // ------------------------------------------------------ Queue Updates 
@@ -329,21 +396,26 @@ export default function AXLCore(osap, _settings, _actuators) {
   let jsQueueStartDelay = 1000
   let queueState = QUEUE_STATE_EMPTY
   let nextSegmentNumber = 0
-  let nextReturnActuator = 0 
+  let nextReturnActuator = 0
 
   this.addMoveToQueue = async (unplannedMove) => {
     return new Promise((resolve, reject) => {
       let check = async () => {
         if (queue.length < maxQueueLength) {
           // transform the target pos... 
-          let actuPos = this.cartesianToActuatorTransform(unplannedMove.target)
+          let actuPos = this.cartesianToActuatorTransform(unplannedMove.target, true)
+          // the hack, 
+          let hackCornerVel = unplannedMove.rate * 0.25 > 15 ? unplannedMove.rate * 0.25 : 15;
+          let hackMaxVel = unplannedMove.rate > 15 ? unplannedMove.rate : 15;
+          // this would mean that I whiffed it;
+          if (hackCornerVel > hackMaxVel) throw new Error(`cmon man, ${hackCornerVel}, ${hackMaxVel}`)
           // ingest it here... 
           let segment = {
             endPos: actuPos,                                  // where togo (upfront transform)
-            vi: Math.max(unplannedMove.rate * 0.25, 15),      // start... 
-            accel: 500,                                       // accel-rate 
-            vmax: unplannedMove.rate,                         // max-rate
-            vf: Math.max(unplannedMove.rate * 0.25, 15),      // end-rate 
+            vi: hackCornerVel,                                // start... 
+            accel: 750,                                       // accel-rate 
+            vmax: hackMaxVel,                                 // max-rate
+            vf: hackCornerVel,                                // end-rate 
             segmentNumber: nextSegmentNumber,                 // # in infinite queue
             isLastSegment: false,                             // is it the end of queue ? remotes use to figure if starvation is starvation
             returnActuator: nextReturnActuator,               // which actuator should ack us... this should be rolling as well, 
@@ -352,7 +424,7 @@ export default function AXLCore(osap, _settings, _actuators) {
           // increment this... 
           nextSegmentNumber++
           // and that 
-          nextReturnActuator ++; if(nextReturnActuator >= actuators.length) nextReturnActuator = 0;
+          nextReturnActuator++; if (nextReturnActuator >= actuators.length) nextReturnActuator = 0;
           // we need a distance and unit vector, so we need to know previous, 
           let previous = {}
           if (queue[queue.length - 1]) {
@@ -448,7 +520,7 @@ export default function AXLCore(osap, _settings, _actuators) {
       // write that, ackless, to the pmo
       await segmentsOutEP.write(datagram)
       seg.transmitTime = TIME.getTimeStamp()
-      console.warn(`TX'd ${seg.segmentNumber} at ${seg.transmitTime} with last ? ${seg.isLastSegment} vf ${seg.vf}, vi ${seg.vi}`)
+      console.warn(`TX'd ${seg.segmentNumber} at ${seg.transmitTime} with last ? ${seg.isLastSegment} vf ${seg.vf}, vi ${seg.vi}, return from ${seg.returnActuator}`)
       // HERE is an OSAP TODO, which causes us to loose ~ ms of performance: because 
       // time stamps in packets are ms-based, we can't send multiple packets in the same `ms` 
       // while also retaining FIFO-ness. We should rather have ns, us, and ms in the transport layer timestamps... 

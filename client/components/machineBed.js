@@ -262,8 +262,9 @@ export default function MachineBed(settings, machine) {
       if(machine.available){
         let mx = evt.layerX * renderToMachineScale
         let my = (rDims[1] - evt.layerY) * renderToMachineScale
+        console.warn(`GOTO ${mx}, ${my} ...`)
         await machine.gotoPosition([mx, my, 15])
-        let pos = await machine.getPosition()
+        // let pos = await machine.getPosition()
         // console.log(`went to`, [mx, my, 15])
         // console.log(`retrieved`, pos)
       }

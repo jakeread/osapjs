@@ -49,13 +49,13 @@ export default function AXLActuator(osap, route, _settings) {
       let wptr = 0 
       for (let a = 0; a < numDof; a++) {
         wptr += TS.write("float32", this.settings.accelLimits[a], datagram, wptr)
-        wptr += TS.write("float32", this.settings.velLimits[a], datagram, wptr)
+        wptr += TS.write("float32", this.settings.velocityLimits[a], datagram, wptr)
       }
       wptr += TS.write("uint32", this.settings.queueStartDelay, datagram, wptr)
       wptr += TS.write("uint8", this.settings.actuatorID, datagram, wptr)
       await axlSettingsEP.write(datagram, "acked")
     } catch (err) {
-
+      throw err 
     }
   }
 

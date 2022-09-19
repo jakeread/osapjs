@@ -368,7 +368,8 @@ export default function NetRunner(osap) {
       for (let res of results) {
         if (res != null) return res
       }
-      console.log('returning null...')
+      // these are dead-ends in the recursion 
+      // console.log('returning null...')
       return null
     } // end recursor 
     // start recursor w/ initial route-to-self, 
