@@ -189,8 +189,70 @@ export default function AXLCore(osap, _settings, _actuators) {
         console.log(`SETUP: connected ${actu.settings.name} segmentComplete to JS`)
       }
       console.log(`SETUP: queue complete are piped...`)
+      // ---------------------------------------- Let's home it just here... 
+      console.warn(`------------------------------------------`)
+      console.log(`SETUP: homing ! `)
+      // TODO: z-home first (!) 
+      let zLimitOutputVVT = await osap.nr.findWithin("ep_limitSwitchState", "rt_axl-stepper_z", graph)
+      // and I think since we know the broadcast channel, we can just dooo this... 
+      let limitToHaltChRoute = PK.route().sib(1).bfwd(0).bbrd(haltChannel).end(500, 128)
+      limitToHaltChRoute.mode = EP.ROUTEMODE_ACKLESS 
+      let limitOutRouteIndice = await osap.mvc.setEndpointRoute(zLimitOutputVVT.route, limitToHaltChRoute)
+      // if z is already hit... just don't home it, 
+      if(await actuators[2].getLimitState()){
+        console.warn(`z-home omitted, switch already hit`)
+      } else {
+        await this.gotoVelocity([0,0,75])
+        await this.awaitMotionEnd()
+        await osap.mvc.removeEndpointRoute(zLimitOutputVVT.route, limitOutRouteIndice)  
+      }
+      // if right limit is triggered, move left, 
+      if(await actuators[1].getLimitState()){
+        console.warn(`LIMIT correcting, coming left...`)
+        await this.gotoVelocity([-100, 0, 0])
+        await TIME.delay(500)
+        await this.gotoVelocity([0,0,0])
+        await TIME.delay(10)
+        await this.awaitMotionEnd()
+        console.warn(`DONE`)
+      }
+      // if left is triggered, pull up:
+      if(await actuators[0].getLimitState()){
+        console.warn(`LIMIT correcting, pulling back...`)
+        await this.gotoVelocity([0, -100, 0])
+        await TIME.delay(500)
+        await this.gotoVelocity([0,0,0])
+        await TIME.delay(10)
+        await this.awaitMotionEnd()
+      }
+      // eeeerp get the right left's limit output, 
+      let rlLimitOutputVVT = await osap.nr.findWithin("ep_limitSwitchState", "rt_axl-stepper_rl", graph)
+      // then attach that to the limit output, 
+      limitOutRouteIndice = await osap.mvc.setEndpointRoute(rlLimitOutputVVT.route, limitToHaltChRoute)
+      // tap back, 
+      await this.gotoVelocity([0, 75, 0])
+      await this.awaitMotionEnd()
+      // rm that flag, 
+      await osap.mvc.removeEndpointRoute(rlLimitOutputVVT.route, limitOutRouteIndice)
+      // add this one, 
+      let rrLimitOutputVVT = await osap.nr.findWithin("ep_limitSwitchState", "rt_axl-stepper_rr", graph)
+      limitOutRouteIndice = await osap.mvc.setEndpointRoute(rrLimitOutputVVT.route, limitToHaltChRoute)
+      await this.gotoVelocity([75, 0, 0])
+      await this.awaitMotionEnd()
+      // and rm again, 
+      await osap.mvc.removeEndpointRoute(rrLimitOutputVVT.route, limitOutRouteIndice)
+      // I'm unsure if everything will be in the same spot after all of these halts... so let's do this:
+      await this.setPosition([0,0,0], true)
+      // that sets us up w/r/t offsets / transforms... and our initial setup puts us in the top-right corner, so,
+      positionOffset = JSON.parse(JSON.stringify(this.settings.bounds))
+      // then let's see if it rings true,
+      await this.gotoPosition([130, 130, 10])
+      console.warn(`------------------------------------------`)
+      console.warn(`DONE`)
+      // -> get into embedded, reply to setEndpointRoute calls with the indice of the route's location 
+      // -> also, update the halt-codes-to-string list in this file.js 
+      // -> then... setup a global .awaitMotionEnd() and try this homeing code out... you're very nearly there, keep it up  
       // ---------------------------------------- END 
-      console.warn(`THIS should go elsewhere...`)
       this.available = true 
     } catch (err) {
       throw err
@@ -221,44 +283,31 @@ export default function AXLCore(osap, _settings, _actuators) {
 
   // ingest halt signals, 
   /*
-  #define AXL_HALT_REQUEST 1 
-  #define AXL_HALT_CASCADE 2 
-  #define AXL_HALT_ACK_NOT_PICKED 3 
-  #define AXL_HALT_MOVE_COMPLETE_NOT_PICKED 4
-  #define AXL_HALT_BUFFER_STARVED 5
-  #define AXL_HALT_OUT_OF_ORDER_ARRIVAL 6
+  #define AXL_HALT_NONE 0 
+  #define AXL_HALT_SOFT 1 
+  #define AXL_HALT_CASCADE 3 
+  #define AXL_HALT_ACK_NOT_PICKED 4
+  #define AXL_HALT_MOVE_COMPLETE_NOT_PICKED 5
+  #define AXL_HALT_BUFFER_STARVED 6
+  #define AXL_HALT_OUT_OF_ORDER_ARRIVAL 7 
   */
   let haltInEP = osap.endpoint("haltInJS")
   let haltOutEP = osap.endpoint("haltOutJS")
+  let haltCodes = [
+    "none",
+    "soft",
+    "cascade",
+    "ack not picked",
+    "move complete not picked", 
+    "buffer starved", 
+    "out of order arrival"
+  ]
   haltInEP.onData = (data) => {
     // TODO here: ingest string halting-reason-message, 
     // then mirror-out, 
-    let message = ""
-    switch (data[0]) {
-      case 1:
-        message = "on request"
-        break;
-      case 2:
-        message = "on cascade"
-        break;
-      case 3:
-        message = "on missed remote ack tx"
-        break;
-      case 4:
-        message = "on missed remote move complete tx"
-        break;
-      case 5:
-        message = "on remote buffer starvation"
-        break;
-      case 6:
-        message = "on out of order arrival"
-        break;
-      default:
-        message = "on uknown halt code (!)"
-        break;
-    }
+    let message = haltCodes[data[0]]
     let str = TS.read("string", data, 1).value
-    console.error(`HALT! ${message} ${str}`)
+    console.error(`HALT! ${message}, with message: ${str}`)
     queueState = QUEUE_STATE_HALTED
     //haltOutEP.write("_") // if !halted already, send a pozi edge, if halted, donot repeat msg 
   }
@@ -363,22 +412,32 @@ export default function AXLCore(osap, _settings, _actuators) {
       // transform posn vals, 
       pos = this.cartesianToActuatorTransform(pos, true)
       await this.writeStateBroadcast(pos, AXL_MODE_POSITION, false)
+      await this.awaitMotionEnd()
     } catch (err) {
       throw err
     }
   }
 
-  this.setPosition = async (pos) => {
+  this.setPosition = async (pos, override) => {
     try {
       await this.awaitMotionEnd()
-      throw new Error("also unsure here: do we just update our internal offsets ? ")
+      if(override){
+        await this.writeStateBroadcast(pos, AXL_MODE_POSITION, true)
+      } else {
+
+      }
     } catch (err) {
       throw err
     }
   }
 
   this.awaitMotionEnd = async () => {
-    throw new Error("want / need this fn... actuators have a .isMoving thing, we could use or delete that...")
+    // each actuator should have one... 
+    let promises = []
+    for(let actu of actuators){
+      promises.push(actu.awaitMotionEnd())
+    }
+    await Promise.all(promises)
   }
 
   // ------------------------------------------------------ Queue Updates 

@@ -399,7 +399,8 @@ export default function OMVC(osap) {
         onResponse: function (data) {
           //console.warn(`ROUTE SET REPLY`)
           if (data[0]) {
-            resolve()
+            // ep's reply with the indice where they stuffed the route... 
+            resolve(data[1])
           } else {
             reject(`badness error code ${data} from endpoint, on try-to-set-new-route`)
           }

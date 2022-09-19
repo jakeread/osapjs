@@ -25,20 +25,20 @@ export default function AXLActuator(osap, route, _settings) {
     accelLimits: [100, 100, 100],
     velocityLimits: [100, 100, 100],
     queueStartDelay: 500,
-    actuatorID: 0,        
+    actuatorID: 0,
     axis: 0,            // this & below are ~ motor-type specific, which we can bust out later 
-    invert: false,          
-    microstep: 4, 
-    spu: 20, 
-    cscale: 0.25, 
+    invert: false,
+    microstep: 4,
+    spu: 20,
+    cscale: 0.25,
   }
   // diff for extra or missing keys 
-  if(_settings) {
+  if (_settings) {
     settingsDiff(this.settings, _settings, "AXLActuator")
     this.settings = JSON.parse(JSON.stringify(_settings))
   }
   // count DOF 
-  let numDof = this.settings.accelLimits.length 
+  let numDof = this.settings.accelLimits.length
 
   let axlSettingsEP = osap.endpoint("axlSettingsMirror")
   axlSettingsEP.addRoute(PK.route(route).sib(2).end())
@@ -46,7 +46,7 @@ export default function AXLActuator(osap, route, _settings) {
   this.setupAxl = async () => {
     try {
       let datagram = new Uint8Array(numDof * 4 * 2 + 4 + 1)
-      let wptr = 0 
+      let wptr = 0
       for (let a = 0; a < numDof; a++) {
         wptr += TS.write("float32", this.settings.accelLimits[a], datagram, wptr)
         wptr += TS.write("float32", this.settings.velocityLimits[a], datagram, wptr)
@@ -55,7 +55,7 @@ export default function AXLActuator(osap, route, _settings) {
       wptr += TS.write("uint8", this.settings.actuatorID, datagram, wptr)
       await axlSettingsEP.write(datagram, "acked")
     } catch (err) {
-      throw err 
+      throw err
     }
   }
 
@@ -74,12 +74,52 @@ export default function AXLActuator(osap, route, _settings) {
       TS.write('float32', this.settings.cscale, datagram, 8)
       await motorSettingsEP.write(datagram, "acked")
     } catch (err) {
+      throw err
+    }
+  }
+
+  let motionStateQuery = null
+
+  this.awaitMotionEnd = async () => {
+    try {
+      if (!motionStateQuery) throw new Error("on awaitMotionEnd, query isn't yet setup")
+      return new Promise((resolve, reject) => {
+        let check = async () => {
+          let state = await motionStateQuery.pull()
+          // console.log(state)
+          if (state[0] == 0) {
+            resolve()
+          } else {
+            setTimeout(check, 0)
+          }
+        }
+        check()
+      })
+    } catch (err) {
+      throw err
+    }
+  }
+
+  let limitStateQuery = null 
+
+  this.getLimitState = async () => {
+    try {
+      if (!limitStateQuery) throw new Error("on getLimitState, query isn't yet setup")
+      let data = await limitStateQuery.pull()
+      return (data[0] > 0)
+    } catch (err) {
       throw err 
     }
   }
 
   this.setup = async () => {
     try {
+      // find the motion state endpoint... 
+      let motionStateVVT = await osap.nr.findWithin("ep_motionState", this.settings.name)
+      motionStateQuery = osap.query(PK.VC2EPRoute(motionStateVVT.route))
+      // and the limit state endpoint... 
+      let limitStateVVT = await osap.nr.findWithin("ep_limitSwitchState", this.settings.name)
+      limitStateQuery = osap.query(PK.VC2EPRoute(limitStateVVT.route))
       await this.setupAxl()
       await this.setupMotor()
     } catch (err) {
