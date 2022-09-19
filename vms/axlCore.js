@@ -44,6 +44,46 @@ export default function AXLCore(osap, _settings, _actuators) {
     this.settings = JSON.parse(JSON.stringify(_settings))
   }
 
+  // internal offset stash... 
+  let positionOffset = [0, 0, 0]
+
+  // we have some transforms, 
+  this.cartesianToActuatorTransform = (vals, position = false) => {
+    vals = JSON.parse(JSON.stringify(vals))
+    if (position) {
+      for (let a = 0; a < numDof; a++) {
+        vals[a] -= posnOffset[a]
+      }
+    }
+    // do the transform... 
+    let tfVals = new Array(numDof)
+    // tfVals[0] = 0.5 * (vals[0] + vals[1])
+    // tfVals[1] = 0.5 * (vals[0] - vals[1])
+    tfVals[0] = vals[0] + vals[1]
+    tfVals[1] = vals[0] - vals[1]
+    tfVals[2] = vals[2]
+    // return the new, 
+    return tfVals 
+  }
+
+  this.actuatorToCartesianTransform = (vals, position = false) => {
+    // inverts the above transform 
+    let tfVals = new Array(numDof)
+    tfVals[0] = 0.5 * (vals[0] + vals[1])
+    tfVals[1] = 0.5 * (vals[0] - vals[1])
+    tfVals[2] = vals[2]
+    // hmmm 
+    if (position) {
+      for (let a = 0; a < numDof; a++) {
+        // add back offset, 
+        tfVals[a] += posnOffset[a]
+      }
+    }
+    // return new 
+    return tfVals 
+  }
+
+
   // we have actuators, which we'll fill in on setup, 
   let actuators = []
 
@@ -106,8 +146,16 @@ export default function AXLCore(osap, _settings, _actuators) {
     //haltOutEP.write("_") // if !halted already, send a pozi edge, if halted, donot repeat msg 
   }
 
+  // handler to replace, 
+  this.onNetInfoUpdate = (info) => { }
+  let netInfo = {
+    rtt: 0,
+    rttMin: Infinity,
+    rttMax: 0,
+  }
+
   // planned-move outputs, 
-  let plannedMovesOutEP = osap.endpoint("plannedMovesOut")
+  let segmentsOutEP = osap.endpoint("segmentsOut")
   // segment complete back 
   let segmentCompleteInEP = osap.endpoint("segmentCompleteIn")
   segmentCompleteInEP.onData = (data) => {
@@ -116,13 +164,13 @@ export default function AXLCore(osap, _settings, _actuators) {
     let msgActuatorID = TS.read('uint8', data, 4)
     // console.log(`segNum; ${msgSegmentNumber}, actuID; ${msgActuatorID}`)
     // find eeeet, and it should always be the most recent, right?
-    if(queue[0].segmentNumber != msgSegmentNumber){
+    if (queue[0].segmentNumber != msgSegmentNumber) {
       throw new Error(`! retrieved out-of-order segmentComplete msg, probable failure?`)
     } else {
       // get stats... 
-      let outTime = TIME.getTimeStamp() - queue[0].transmitTime 
-      console.warn(`segmentComplete ${msgSegmentNumber}, outTime was ${outTime}ms`)
-      queue.shift() 
+      let outTime = TIME.getTimeStamp() - queue[0].transmitTime
+      // console.warn(`segmentComplete ${msgSegmentNumber}, outTime was ${outTime}ms`)
+      queue.shift()
       checkQueueState()
     }
   }
@@ -136,11 +184,15 @@ export default function AXLCore(osap, _settings, _actuators) {
     // or / we should combine current state w/ these... i.e. some policy like:
     // at-least once / 10ms we (1) get state from a drop or (2) rx one of these messages, which includes state... 
     // which is this ?
-    for(let m in queue){
-      if(queue[m].segmentNumber == msgSegmentNumber){
-        let rtt = TIME.getTimeStamp() - queue[m].transmitTime 
-        console.warn(`segmentAck ${msgSegmentNumber}, rtt was ${rtt}ms`)
-        return 
+    for (let m in queue) {
+      if (queue[m].segmentNumber == msgSegmentNumber) {
+        let rtt = TIME.getTimeStamp() - queue[m].transmitTime
+        netInfo.rtt = netInfo.rtt * 0.975 + rtt * 0.025
+        if (rtt < netInfo.rttMin) netInfo.rttMin = rtt
+        if (rtt > netInfo.rttMax) netInfo.rttMax = rtt
+        this.onNetInfoUpdate(JSON.parse(JSON.stringify(netInfo)))
+        // console.warn(`segmentAck ${msgSegmentNumber}, rtt was ${rtt}ms`)
+        return
       }
     }
     throw new Error(`apparently no match for ${msgSegmentNumber}`)
@@ -189,11 +241,11 @@ export default function AXLCore(osap, _settings, _actuators) {
       // ---------------------------------------- Plumb planned moves -> queue ingestion 
       console.log(`SETUP: building a broadcast route for planned moves...`)
       let plannedMoveChannel = await osap.hl.buildBroadcastRoute(
-        "ep_plannedMovesOut",
+        "ep_segmentsOut",
         [
           "rt_axl-stepper_z"
         ],
-        "ep_plannedMovesIn",
+        "ep_segmentsIn",
         false,
         graph
       )
@@ -218,7 +270,7 @@ export default function AXLCore(osap, _settings, _actuators) {
         let haltConnectRoute = await osap.nr.findRoute(haltOutVVT, haltInVVT)
         // this should be high(er) priority than queue acks... set time-to-live low-ish 
         haltConnectRoute.ttl = 500
-        haltConnectRoute.mode = EP.ROUTEMODE_ACKLESS 
+        haltConnectRoute.mode = EP.ROUTEMODE_ACKLESS
         await osap.mvc.setEndpointRoute(haltOutVVT.route, haltConnectRoute)
         console.log(`SETUP: connected ${actu.settings.name} haltOut to JS`)
       }
@@ -231,7 +283,7 @@ export default function AXLCore(osap, _settings, _actuators) {
         let connectRoute = await osap.nr.findRoute(segmentAckOutVVT, segmentAckInVVT)
         // lower priority than halt signals, but higher than general purpose 
         connectRoute.ttl = 750
-        connectRoute.mode = EP.ROUTEMODE_ACKLESS 
+        connectRoute.mode = EP.ROUTEMODE_ACKLESS
         await osap.mvc.setEndpointRoute(segmentAckOutVVT.route, connectRoute)
         console.log(`SETUP: connected ${actu.settings.name} segmentAck to JS`)
       }
@@ -244,7 +296,7 @@ export default function AXLCore(osap, _settings, _actuators) {
         let connectRoute = await osap.nr.findRoute(segmentCompletOutVVT, segmentCompleteInVVT)
         // lower priority than halt signals, but higher than general purpose 
         connectRoute.ttl = 750
-        connectRoute.mode = EP.ROUTEMODE_ACKLESS 
+        connectRoute.mode = EP.ROUTEMODE_ACKLESS
         await osap.mvc.setEndpointRoute(segmentCompletOutVVT.route, connectRoute)
         console.log(`SETUP: connected ${actu.settings.name} segmentComplete to JS`)
       }
@@ -277,24 +329,30 @@ export default function AXLCore(osap, _settings, _actuators) {
   let jsQueueStartDelay = 1000
   let queueState = QUEUE_STATE_EMPTY
   let nextSegmentNumber = 0
+  let nextReturnActuator = 0 
 
   this.addMoveToQueue = async (unplannedMove) => {
     return new Promise((resolve, reject) => {
       let check = async () => {
         if (queue.length < maxQueueLength) {
+          // transform the target pos... 
+          let actuPos = this.cartesianToActuatorTransform(unplannedMove.target)
           // ingest it here... 
           let segment = {
-            endPos: unplannedMove.target,     // where togo 
-            vi: 1.0,                          // start... 
-            accel: 500,                       // accel-rate 
-            vmax: unplannedMove.rate,         // max-rate
-            vf: 1.0,                          // end-rate 
-            segmentNumber: nextSegmentNumber, // # in infinite queue
-            returnActuator: 0,                // which actuator should ack us... this should be rolling as well, 
-            transmitTime: 0,                  // when did it depart... (for JS, not serialized)
+            endPos: actuPos,                                  // where togo (upfront transform)
+            vi: Math.max(unplannedMove.rate * 0.25, 15),      // start... 
+            accel: 500,                                       // accel-rate 
+            vmax: unplannedMove.rate,                         // max-rate
+            vf: Math.max(unplannedMove.rate * 0.25, 15),      // end-rate 
+            segmentNumber: nextSegmentNumber,                 // # in infinite queue
+            isLastSegment: false,                             // is it the end of queue ? remotes use to figure if starvation is starvation
+            returnActuator: nextReturnActuator,               // which actuator should ack us... this should be rolling as well, 
+            transmitTime: 0,                                  // when did it depart... (for JS, not serialized)
           }
           // increment this... 
           nextSegmentNumber++
+          // and that 
+          nextReturnActuator ++; if(nextReturnActuator >= actuators.length) nextReturnActuator = 0;
           // we need a distance and unit vector, so we need to know previous, 
           let previous = {}
           if (queue[queue.length - 1]) {
@@ -310,6 +368,8 @@ export default function AXLCore(osap, _settings, _actuators) {
           // console.log(`from `, previous.endPos, `to `, segment.endPos, `dist ${dist.toFixed(2)}`, unit)
           // can calculate distance, deltas, and unit vector... 
           queue.push(segment)
+          // do a "re-plan" which for now is very simple... 
+          runQueueOptimization()
           // console.warn(`AXL Core ingests ${queue.length} / ${maxQueueLength}`)
           // this is async because it transmits out the other end... 
           checkQueueState().then(() => {
@@ -343,14 +403,15 @@ export default function AXLCore(osap, _settings, _actuators) {
           break;
         case QUEUE_STATE_RUNNING:
           // can we publish, do we have unplanned, etc?
-          console.warn(`QUEUE RUNNING...`)
+          // console.warn(`QUEUE RUNNING...`)
           // so we'll try to transmit up to 32 ? and just stuff 'em unapologetically into the buffer, leggo: 
           for (let m = 0; m < AXL_REMOTE_QUEUE_MAX_LENGTH - 1; m++) {
             if (!queue[m]) {
-              console.warn(`breaking because not-even-32-items here...`)
+              // console.warn(`breaking because not-even-32-items here...`)
+              break;
             }
             if (queue[m].transmitTime == 0) {
-              console.log(`tx'd item at ${m}, segment ${queue[m].segmentNumber}`)
+              // console.log(`tx'd item at ${m}, segment ${queue[m].segmentNumber}`)
               await transmitSegment(queue[m])
             }
           }
@@ -370,11 +431,12 @@ export default function AXLCore(osap, _settings, _actuators) {
   let transmitSegment = async (seg) => {
     try {
       // then... serialize and transmit it, right?
-      let datagram = new Uint8Array(4 + 1 + numDof * 4 + 5 * 4)
+      let datagram = new Uint8Array(4 + 1 + 1 + numDof * 4 + 5 * 4)
       let wptr = 0
       // segnum, return actuator, unit vect, vi, accel, vmax, vf, distance, done 
       wptr += TS.write("uint32", seg.segmentNumber, datagram, wptr)
       wptr += TS.write("uint8", seg.returnActuator, datagram, wptr)
+      wptr += TS.write("boolean", seg.isLastSegment, datagram, wptr)
       for (let a = 0; a < numDof; a++) {
         wptr += TS.write("float32", seg.unitVector[a], datagram, wptr)
       }
@@ -384,9 +446,9 @@ export default function AXLCore(osap, _settings, _actuators) {
       wptr += TS.write("float32", seg.vf, datagram, wptr)
       wptr += TS.write("float32", seg.distance, datagram, wptr)
       // write that, ackless, to the pmo
-      await plannedMovesOutEP.write(datagram)
+      await segmentsOutEP.write(datagram)
       seg.transmitTime = TIME.getTimeStamp()
-      console.warn(`TX'd ${seg.segmentNumber} at ${seg.transmitTime}`)
+      console.warn(`TX'd ${seg.segmentNumber} at ${seg.transmitTime} with last ? ${seg.isLastSegment} vf ${seg.vf}, vi ${seg.vi}`)
       // HERE is an OSAP TODO, which causes us to loose ~ ms of performance: because 
       // time stamps in packets are ms-based, we can't send multiple packets in the same `ms` 
       // while also retaining FIFO-ness. We should rather have ns, us, and ms in the transport layer timestamps... 
@@ -398,8 +460,20 @@ export default function AXLCore(osap, _settings, _actuators) {
     }
   }
 
+  // this is dirt simple for now, we simply ensure that end velocities are 0... 
   let runQueueOptimization = () => {
-
+    for (let m = 0; m < queue.length; m++) {
+      // for anything which hasn't yet transmitted, 
+      if (queue[m].transmitTime == 0) {
+        if (m == queue.length - 1) {
+          // queue[m].vf = 0.0
+          queue[m].isLastSegment = true
+        } else {
+          // queue[m].vf = 50.0 // do "fixed-bang-at-corner" junction deviation ?
+          queue[m].isLastSegment = false
+        }
+      }
+    }
   }
 
 }

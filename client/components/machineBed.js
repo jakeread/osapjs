@@ -26,8 +26,11 @@ let pixelToMM = 1 / mmToPixel
 export default function MachineBed(settings, machine) {
   // -------------------------------------------- Build the Pad... 
   // stash machine, render sizes, 
-  let mDims = [settings.machineSize[0], settings.machineSize[1]]
+  let mDims = [machine.settings.bounds[0], machine.settings.bounds[1]]
   let rDims = [settings.renderWidth, mDims[1] / mDims[0] * settings.renderWidth]
+  this.getRenderDims = () => {
+    return JSON.parse(JSON.stringify(rDims))
+  }
   let machineToRenderScale = rDims[0] / mDims[0]
   let renderToMachineScale = mDims[0] / rDims[0]
   // trash warning
@@ -60,6 +63,85 @@ export default function MachineBed(settings, machine) {
     defaultText: `...`
   }, true)
 
+  // -------------------------------------------- Drag 'n Drop 
+
+  $(this.elem).on('dragover', (evt) => {
+    // console.log('dragover', evt)
+    evt.preventDefault()
+  })
+  
+  $(this.elem).on('drop', (evt) => {
+    // walk over jquery's bottle 
+    evt = evt.originalEvent
+    evt.preventDefault()
+    // rm our old layers... eventually we could check-guard against rm'ing stateful things here, 
+    // for (let layer of layers) {
+    //   layer.btn.remove()
+    //   layer.remove()
+    // }
+    // get for-items... 
+    if (evt.dataTransfer.items) {
+      [...evt.dataTransfer.items].forEach((item, i) => {
+        if (item.kind === 'file') {
+          // ~ to use the File API 
+          let file = item.getAsFile()
+          console.log(`… file[${i}].name = ${file.name}`)
+          // filter for names... 
+          let layerName = ''
+          if (file.name.includes('trace') || file.name.includes('copper_top')) {
+            layerName = 'topTraces'
+          } else if (file.name.includes('interior') || file.name.includes('profile')) {
+            layerName = 'outline'
+          } else {
+            console.error(`no known layer type for ${file.name}, bailing...`)
+          }
+          // ok, now switch-import on types, 
+          if (file.name.includes('.gbr')) {
+            throw new Error('need to rework')
+            // this should convert the layer to PNG, 
+          } else if (file.name.includes('.png')) {
+            // use a fileReaderto get the data, 
+            // this could be a ute... 
+            let reader = new FileReader()
+            reader.addEventListener('load', () => {
+              // console.log(reader.result)
+              // we want to collect an ImageData from this thing, 
+              let image = new Image()
+              image.onload = () => {
+                console.log(image)
+                let canvas = document.createElement('canvas')
+                canvas.width = image.width
+                canvas.height = image.height
+                let context = canvas.getContext('2d')
+                context.drawImage(image, 0, 0, image.width, image.height)
+                let imageData = context.getImageData(0, 0, image.width, image.height)
+                console.log(imageData)
+                bed.addLayer({
+                  name: layerName,
+                  imageData: imageData,
+                  dpi: 1000,
+                })
+              } // end image onload 
+              image.onerror = (err) => {
+                console.error(err)
+              }
+              image.src = reader.result
+            })
+            reader.addEventListener('error', (err) => {
+              console.error(err)
+            })
+            reader.readAsDataURL(file)
+          } else { // end .png case 
+            console.error(`unknown file type encountered ${file.name}`)
+          }
+        }
+      })
+    } else {
+      console.error(`jake hasn't handled this case...`)
+      // see https://developer.mozilla.org/en-US/docs/Web/API/HTML_Drag_and_Drop_API/File_drag_and_drop 
+    }
+  })
+
   // -------------------------------------------- Ingest Layers 
   // we keep a stack of layers... in a job object, 
   let job = {
@@ -73,6 +155,7 @@ export default function MachineBed(settings, machine) {
       .css('top', `0px`)
       .get(0)
   }
+
   $(this.elem).append(job.elem)
   /* layers are like... 
   { 
