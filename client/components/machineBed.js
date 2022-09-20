@@ -116,7 +116,7 @@ export default function MachineBed(settings, machine) {
                 context.drawImage(image, 0, 0, image.width, image.height)
                 let imageData = context.getImageData(0, 0, image.width, image.height)
                 console.log(imageData)
-                bed.addLayer({
+                this.addLayer({
                   name: layerName,
                   imageData: imageData,
                   dpi: 1000,
@@ -263,7 +263,7 @@ export default function MachineBed(settings, machine) {
         let mx = evt.layerX * renderToMachineScale
         let my = (rDims[1] - evt.layerY) * renderToMachineScale
         console.warn(`GOTO ${mx}, ${my} ...`)
-        await machine.gotoPosition([mx, my, 15])
+        await machine.gotoPosition([mx, my, 5])
         // let pos = await machine.getPosition()
         // console.log(`went to`, [mx, my, 15])
         // console.log(`retrieved`, pos)

@@ -144,7 +144,7 @@ export default function AXLCore(osap, _settings, _actuators) {
       console.log(`SETUP: broadcast route for planned moves on ${plannedMoveChannel} OK`)
       // ---------------------------------------- Plumb state requests from us -> actuators 
       console.log(`SETUP: building a broadcast route for state-request moves...`)
-      let stateRequestChannel = await osap.hl.buildBroadcastRoute("ep_stateRequestsOut", actuatorNames, "ep_stateRequests", false, graph)
+      let stateRequestChannel = await osap.hl.buildBroadcastRoute("ep_stateRequestsOut", actuatorNames, "ep_axlState", false, graph)
       console.log(`SETUP: broadcast route for state-request moves on ${stateRequestChannel} OK`)
       // ---------------------------------------- Plumb halt signals from us down to actuators 
       console.log(`SETUP: building a broadcast route for halt signals...`)
@@ -170,7 +170,7 @@ export default function AXLCore(osap, _settings, _actuators) {
         let segmentAckOutVVT = await osap.nr.findWithin("ep_segmentAckOut", actu.settings.name, graph)
         let connectRoute = await osap.nr.findRoute(segmentAckOutVVT, segmentAckInVVT)
         // lower priority than halt signals, but higher than general purpose 
-        connectRoute.ttl = 750
+        connectRoute.ttl = 1000
         connectRoute.mode = EP.ROUTEMODE_ACKLESS
         await osap.mvc.setEndpointRoute(segmentAckOutVVT.route, connectRoute)
         console.log(`SETUP: connected ${actu.settings.name} segmentAck to JS`)
@@ -183,7 +183,7 @@ export default function AXLCore(osap, _settings, _actuators) {
         let segmentCompletOutVVT = await osap.nr.findWithin("ep_segmentCompleteOut", actu.settings.name, graph)
         let connectRoute = await osap.nr.findRoute(segmentCompletOutVVT, segmentCompleteInVVT)
         // lower priority than halt signals, but higher than general purpose 
-        connectRoute.ttl = 750
+        connectRoute.ttl = 1000
         connectRoute.mode = EP.ROUTEMODE_ACKLESS
         await osap.mvc.setEndpointRoute(segmentCompletOutVVT.route, connectRoute)
         console.log(`SETUP: connected ${actu.settings.name} segmentComplete to JS`)
@@ -201,6 +201,7 @@ export default function AXLCore(osap, _settings, _actuators) {
       // if z is already hit... just don't home it, 
       if(await actuators[2].getLimitState()){
         console.warn(`z-home omitted, switch already hit`)
+        await osap.mvc.removeEndpointRoute(zLimitOutputVVT.route, limitOutRouteIndice)  
       } else {
         await this.gotoVelocity([0,0,75])
         await this.awaitMotionEnd()
@@ -302,6 +303,7 @@ export default function AXLCore(osap, _settings, _actuators) {
     "buffer starved", 
     "out of order arrival"
   ]
+
   haltInEP.onData = (data) => {
     // TODO here: ingest string halting-reason-message, 
     // then mirror-out, 
@@ -314,6 +316,7 @@ export default function AXLCore(osap, _settings, _actuators) {
 
   // handler to replace, 
   this.onNetInfoUpdate = (info) => { }
+
   let netInfo = {
     rtt: 0,
     rttMin: Infinity,
@@ -411,8 +414,14 @@ export default function AXLCore(osap, _settings, _actuators) {
     try {
       // transform posn vals, 
       pos = this.cartesianToActuatorTransform(pos, true)
+      // console.warn(`gotoPosition`, JSON.parse(JSON.stringify(pos)))
       await this.writeStateBroadcast(pos, AXL_MODE_POSITION, false)
+      await TIME.delay(10)
       await this.awaitMotionEnd()
+      // TODO: for some reason this doesn't get all the way to the target, 
+      // the first time we call it ? something something transforms, maybe ? 
+      // let res = await this.getPosition()
+      // console.log(`wentTo`, res)
     } catch (err) {
       throw err
     }
@@ -438,6 +447,62 @@ export default function AXLCore(osap, _settings, _actuators) {
       promises.push(actu.awaitMotionEnd())
     }
     await Promise.all(promises)
+  }
+
+  this.getPosition = async () => {
+    try {
+      // let actuState = await actuators[0].getStates()
+      let actuatorStates = await Promise.all([actuators[0].getStates(), actuators[1].getStates(), actuators[2].getStates()])
+      let posEst = new Array(numDof)
+      for(let a = 0; a < numDof; a ++){
+        let sum = 0
+        for(let state of actuatorStates){
+          sum += state.positions[a]
+        }
+        posEst[a] = sum/numDof
+      }
+      // pls tell jake if this fires, 
+      for(let a = 0; a < numDof; a ++){
+        for(let state of actuatorStates){
+          if(Math.abs(state.positions[a] - posEst[a]) > 0.1){
+            throw new Error("heyo, states are drifting, please inspect")
+          }
+        }
+      }
+      // do inverse... 
+      return this.actuatorToCartesianTransform(posEst, true)
+    } catch (err) {
+      throw err 
+    }
+  }
+
+  // I think we just set our own internal offsets ? 
+  this.setZPosition = async (zPos) => {
+    try {
+      let pos = await this.getPosition()
+      pos = JSON.parse(JSON.stringify(pos))
+      console.log(`pos est, `, pos)
+      // uuuh, we take the difference between ... 
+      console.warn(`prev z-offset \t${positionOffset[2]}`)
+      positionOffset[2] += zPos - pos[2]
+      console.warn(`new z-offset \t${positionOffset[2]}`)
+    } catch (err) {
+      throw err 
+    }
+  }
+
+  // deltas: [<x>, <y>, <z>]
+  this.moveRelative = async (deltas) => {
+    try {
+      await this.awaitMotionEnd()
+      let current = await this.getPosition()
+      for(let axis in deltas){
+        current[axis] += deltas[axis]
+      }
+      await this.gotoPosition(current)
+    } catch (err) {
+      throw err 
+    }
   }
 
   // ------------------------------------------------------ Queue Updates 

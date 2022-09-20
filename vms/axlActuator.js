@@ -79,7 +79,6 @@ export default function AXLActuator(osap, route, _settings) {
   }
 
   let motionStateQuery = null
-
   this.awaitMotionEnd = async () => {
     try {
       if (!motionStateQuery) throw new Error("on awaitMotionEnd, query isn't yet setup")
@@ -101,12 +100,63 @@ export default function AXLActuator(osap, route, _settings) {
   }
 
   let limitStateQuery = null 
-
   this.getLimitState = async () => {
     try {
       if (!limitStateQuery) throw new Error("on getLimitState, query isn't yet setup")
       let data = await limitStateQuery.pull()
       return (data[0] > 0)
+    } catch (err) {
+      throw err 
+    }
+  }
+
+  let stateQuery = null 
+    this.getStates = async () => {
+    try {
+      if(!stateQuery) throw new Error("on getState, query isn't yet setup")
+      let data = await stateQuery.pull()
+      let rptr = 0 
+      let state = {
+        positions: [],
+        velocities: [],
+        accelerations: [],
+        target: []
+      }
+      for(let a = 0; a < numDof; a ++){
+        state.positions.push(TS.read('float32', data, rptr + 0))
+        state.velocities.push(TS.read('float32', data, rptr + 4))
+        state.accelerations.push(TS.read('float32', data, rptr + 8))
+        state.target.push(TS.read('float32', data, rptr + 12))
+        rptr += 16
+      }
+      state.segDistance = TS.read('float32', data, rptr += 4)
+      state.segVel = TS.read('float32', data, rptr += 4)
+      state.segAccel = TS.read('float32', data, rptr += 4)
+      state.mode = data[rptr ++]
+      state.haltState = data[rptr ++]
+      state.queueState = data[rptr ++]
+      state.headIndice = data[rptr ++]
+      state.tailIndice = data[rptr ++]
+      return state 
+      /*
+        // vect_t's 
+        for(uint8_t a = 0; a < AXL_NUM_DOF; a ++){
+          ts_writeFloat32(state.positions.axis[a], data, &wptr);
+          ts_writeFloat32(state.velocities.axis[a], data, &wptr);
+          ts_writeFloat32(state.accelerations.axis[a], data, &wptr);
+          ts_writeFloat32(state.target.axis[a], data, &wptr);
+        }
+        // inter-segment state, 
+        ts_writeFloat32(state.segDistance, data, &wptr);
+        ts_writeFloat32(state.segVel, data, &wptr);
+        ts_writeFloat32(state.segAccel, data, &wptr);
+        // mode, halt state, queue state, and queue pointer positions 
+        ts_writeUint8(state.mode, data, &wptr);
+        ts_writeUint8(state.haltState, data, &wptr);
+        ts_writeUint8(state.queueState, data, &wptr);
+        ts_writeUint8(state.head->indice, data, &wptr);
+        ts_writeUint16(state.tail->indice, data, &wptr);
+      */
     } catch (err) {
       throw err 
     }
@@ -120,6 +170,9 @@ export default function AXLActuator(osap, route, _settings) {
       // and the limit state endpoint... 
       let limitStateVVT = await osap.nr.findWithin("ep_limitSwitchState", this.settings.name)
       limitStateQuery = osap.query(PK.VC2EPRoute(limitStateVVT.route))
+      // and the *state* endpoint... 
+      let stateVVT = await osap.nr.findWithin("ep_axlState", this.settings.name)
+      stateQuery = osap.query(PK.VC2EPRoute(stateVVT.route))
       await this.setupAxl()
       await this.setupMotor()
     } catch (err) {

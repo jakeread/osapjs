@@ -24,7 +24,7 @@ let VT = {
   STACK_DEST: 1
 }
 
-VT.defaultStackSize = 3
+VT.defaultStackSize = 5
 
 // endpoint layer types & keys 
 let EP = {
