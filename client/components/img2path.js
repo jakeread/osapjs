@@ -80,9 +80,11 @@ const pixToPath = (path, pwidth, mmwidth, zu, zd, pd, feed, jog) => {
       target: [scale * leg[0][0], scale * leg[0][1], zu],
       rate: jog,
     })
+    // pass depth should always be negative... 
+    pd = (pd > 0) ? - pd : pd;
     // fill in first passes, 
-    if (pd && zd / pd > 1) {
-      let passes = Math.ceil(zd / pd)
+    if (pd && Math.abs(zd / pd) > 1) {
+      let passes = Math.abs(Math.ceil(zd / pd))
       console.warn(`making ${passes} passes`)
       for (let p = 0; p < passes - 1; p++) {
         for (let point of leg) {

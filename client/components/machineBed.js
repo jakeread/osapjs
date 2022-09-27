@@ -14,6 +14,8 @@ no warranty is provided, and users accept all liability.
 
 'use strict'
 
+import TIME from '../../core/time.js'
+
 import { Button, TextBlock } from '../interface/basics.js'
 import dt from '../interface/domTools.js'
 import gerberConverter from './gerberConverter.js'
@@ -69,7 +71,7 @@ export default function MachineBed(settings, machine) {
     // console.log('dragover', evt)
     evt.preventDefault()
   })
-  
+
   $(this.elem).on('drop', (evt) => {
     // walk over jquery's bottle 
     evt = evt.originalEvent
@@ -228,16 +230,19 @@ export default function MachineBed(settings, machine) {
     }, (up) => {
       // add this back in, 
       this.elem.addEventListener('mousemove', reportMousePosn)
-      if(!job.layers.outline || !job.layers.topTraces) return 
+      if (!job.layers.outline || !job.layers.topTraces) return
       // update the job position, given new pad position... 
       let ct = dt.readTransform(job.elem)
-      let mx = ct.x * renderToMachineScale 
+      let mx = ct.x * renderToMachineScale
       let my = (rDims[1] - ct.y - job.layers.outline.elem.height) * renderToMachineScale
       console.log(`mx, my,`, mx, my)
-      job.position[0] = mx 
-      job.position[1] = my 
-      if(machine.available){
-        machine.gotoPosition([mx, my, 10]).then(() => {
+      job.position[0] = mx
+      job.position[1] = my
+      if (machine.available) {
+        machine.getPosition().then((pos) => {
+          return machine.gotoPosition([mx, my, pos[2]])
+        }).then(() => {
+          console.log(`on job drag, moved machine to ${mx.toFixed(2)}, ${my.toFixed(2)}`)
           // ok, 
         }).catch((err) => {
           console.error(err)
@@ -258,15 +263,16 @@ export default function MachineBed(settings, machine) {
   this.elem.addEventListener('click', async (evt) => {
     if (evt.target != this.elem) return
     // console.log('xy...', evt.layerX * renderToMachineScale, evt.layerY * renderToMachineScale)
-    try{
-      if(machine.available){
+    try {
+      if (machine.available) {
         let mx = evt.layerX * renderToMachineScale
         let my = (rDims[1] - evt.layerY) * renderToMachineScale
         console.warn(`GOTO ${mx}, ${my} ...`)
-        await machine.gotoPosition([mx, my, 5])
-        // let pos = await machine.getPosition()
-        // console.log(`went to`, [mx, my, 15])
-        // console.log(`retrieved`, pos)
+        let pos = await machine.getPosition()
+        await machine.gotoPosition([mx, my, pos[2]])
+        pos = await machine.getPosition()
+        console.log(`went to ${mx.toFixed(2)}, ${my.toFixed(2)}`)
+        console.log(`retrieved ${pos[0].toFixed(2)}, ${pos[1].toFixed(2)}`)
       }
     } catch (err) {
       console.error(err)
@@ -310,23 +316,25 @@ export default function MachineBed(settings, machine) {
   // let's add the button fns, 
   genTracesBtn.onClick(async () => {
     try {
+      if (!job.layers.outline) {
+        genTracesBtn.yellow(`please add files first...`)
+        setTimeout(() => {
+          genTracesBtn.resetText()
+          genTracesBtn.grey()
+        }, 1000)
+        return 
+      }
       genTracesBtn.yellow(`calculating path...`)
-      // should be layers.topTraces 
       let path = await ImgToPath2D({
         imageData: job.layers.topTraces.imageData,
         realWidth: job.layers.topTraces.imageData.width / job.layers.topTraces.dpi * 25.4,
-        toolOffset: 1 / 64 * 0.5 * 25.4,
+        toolOffset: (1 / 64) * 0.5 * 25.4,
         zUp: 2,
-        zDown: -0.1,
-        passDepth: 0.1,
-        feedRate: 20,
+        zDown: -0.15,
+        passDepth: 0.15,
+        feedRate: 10,
         jogRate: 100,
       })
-      genTracesBtn.yellow(`offsetting path...`)
-      for (let move of path) {
-        move.target[0] += job.position[0]
-        move.target[1] += job.position[1]
-      }
       genTracesBtn.green(`traces gennie'd`)
       job.layers.topTraces.path = path
     } catch (err) {
@@ -335,13 +343,58 @@ export default function MachineBed(settings, machine) {
     }
   })
 
+  // let's add the button fns, 
+  genOutlineBtn.onClick(async () => {
+    try {
+      if (!job.layers.outline) {
+        genOutlineBtn.yellow(`please add files first...`)
+        setTimeout(() => {
+          genOutlineBtn.resetText()
+          genOutlineBtn.grey()
+        }, 1000)
+        return 
+      }
+      genOutlineBtn.yellow(`calculating path...`)
+      let path = await ImgToPath2D({
+        imageData: job.layers.outline.imageData,
+        realWidth: job.layers.outline.imageData.width / job.layers.outline.dpi * 25.4,
+        toolOffset: (1 / 32) * 0.5 * 25.4,  // in mm, 
+        zUp: 2,
+        zDown: -1.7,
+        passDepth: 0.3,
+        feedRate: 8,
+        jogRate: 100,
+      })
+      genOutlineBtn.green(`outline gennie'd`)
+      job.layers.outline.path = path
+      for(let move of path){
+        console.log(move.target)
+      }
+    } catch (err) {
+      genOutlineBtn.red(`error, see console...`)
+      console.error(err)
+    }
+  })
+
   runTracesBtn.onClick(async () => {
     try {
       if (job.layers.topTraces && job.layers.topTraces.path) {
+        // offset 'em 
+        for (let move of job.layers.topTraces.path) {
+          move.target[0] += job.position[0]
+          move.target[1] += job.position[1]
+        }  
+        // spindle on, and wait for spool 
+        await machine.spindleVM.setDuty(0.30)
+        await TIME.delay(500)
+        // send each... 
         for (let p in job.layers.topTraces.path) {
           runTracesBtn.yellow(`sending ${p} / ${job.layers.topTraces.path.length - 1}`)
           await machine.addMoveToQueue(job.layers.topTraces.path[p])
         }
+        await machine.awaitMotionEnd()
+        await machine.spindleVM.setDuty(0)
+        await machine.park()
         runTracesBtn.green(`done`)
       } else {
         runTracesBtn.yellow(`please gen plan first... `)
@@ -356,41 +409,26 @@ export default function MachineBed(settings, machine) {
     }
   })
 
-  // let's add the button fns, 
-  genOutlineBtn.onClick(async () => {
-    try {
-      genOutlineBtn.yellow(`calculating path...`)
-      // should be layers.topTraces 
-      let path = await ImgToPath2D({
-        imageData: job.layers.outline.imageData,
-        realWidth: job.layers.outline.imageData.width / job.layers.outline.dpi * 25.4,
-        toolOffset: 1 / 32 * 0.5 * 25.4,  // in mm, 
-        zUp: 2,
-        zDown: -1.7,
-        passDepth: 0.15,
-        feedRate: 15,
-        jogRate: 100,
-      })
-      genOutlineBtn.yellow(`offsetting path...`)
-      for (let move of path) {
-        move.target[0] += job.position[0]
-        move.target[1] += job.position[1]
-      }
-      genOutlineBtn.green(`outline gennie'd`)
-      job.layers.outline.path = path
-    } catch (err) {
-      genOutlineBtn.red(`error, see console...`)
-      console.error(err)
-    }
-  })
-
   runOutlineBtn.onClick(async () => {
     try {
       if (job.layers.outline && job.layers.outline.path) {
+        // offset 'em 
+        for (let move of job.layers.outline.path) {
+          move.target[0] += job.position[0]
+          move.target[1] += job.position[1]
+        }
+        // spindle on, and wait for spool 
+        await machine.spindleVM.setDuty(0.30)
+        await TIME.delay(500)       
+        // run 'em 
         for (let p in job.layers.outline.path) {
           runOutlineBtn.yellow(`sending ${p} / ${job.layers.outline.path.length - 1}`)
+          console.log(`send move... ${job.layers.outline.path[p].target[0].toFixed(2)}, ${job.layers.outline.path[p].target[1].toFixed(2)}`)
           await machine.addMoveToQueue(job.layers.outline.path[p])
         }
+        await machine.awaitMotionEnd()
+        await machine.spindleVM.setDuty(0)
+        await machine.park()
         runOutlineBtn.green(`done`)
       } else {
         runOutlineBtn.yellow(`please gen plan first... `)

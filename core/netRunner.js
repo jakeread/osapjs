@@ -211,6 +211,7 @@ export default function NetRunner(osap) {
       if (!start) start = await this.getLatestSweep()
       let candidates = this.flatten(start)
       for (let vvt of candidates) {
+        // if(vvt.name.includes("rt_")) console.log(vvt.name)
         if (vvt.name == vtName) list.push(vvt)
       }
       return list

@@ -20,6 +20,9 @@ import { settingsDiff } from '../utes/diff.js'
 
 import AXLActuator from './axlActuator.js'
 
+// this... should probably be elsewhere, actually 
+import ESCDropVM from './escDropVM.js'
+
 let numDof = 0
 
 // settings... an obj, and _actuators, a list of names & axis-maps... 
@@ -58,6 +61,7 @@ export default function AXLCore(osap, _settings, _actuators) {
 
   // internal offset stash... 
   let positionOffset = [0, 0, 0]
+  let parkPosition = [0, 0, 0]
 
   // we have some transforms, 
   this.cartesianToActuatorTransform = (vals, position = false) => {
@@ -97,6 +101,8 @@ export default function AXLCore(osap, _settings, _actuators) {
 
   // we have actuators, which we'll fill in on setup, 
   let actuators = []
+  this.actuators = actuators 
+  this.spindleVM = {}
 
   // ------------------------------------------------------ Plumbing
 
@@ -106,6 +112,9 @@ export default function AXLCore(osap, _settings, _actuators) {
       // ---------------------------------------- Get a Graph Object 
       console.log(`SETUP: collecting a graph...`)
       let graph = await osap.nr.sweep()
+      // let's plumb up the esc... thing:
+      let r2esc = await PK.VC2VMRoute((await osap.nr.find("rt_esc-drop", graph)).route)
+      this.spindleVM = new ESCDropVM(osap, r2esc)
       // ---------------------------------------- Find and build Actuators 
       for (let actu of _actuators) {
         console.log(`SETUP: looking for ${actu.name}...`)
@@ -246,8 +255,11 @@ export default function AXLCore(osap, _settings, _actuators) {
       await this.setPosition([0,0,0], true)
       // that sets us up w/r/t offsets / transforms... and our initial setup puts us in the top-right corner, so,
       positionOffset = JSON.parse(JSON.stringify(this.settings.bounds))
+      parkPosition = JSON.parse(JSON.stringify(this.settings.bounds))
+      parkPosition[0] = 130 
+      parkPosition[1] = 130 
       // then let's see if it rings true,
-      await this.gotoPosition([130, 130, 10])
+      await this.park()
       console.warn(`------------------------------------------`)
       console.warn(`DONE`)
       // -> get into embedded, reply to setEndpointRoute calls with the indice of the route's location 
@@ -413,11 +425,13 @@ export default function AXLCore(osap, _settings, _actuators) {
   this.gotoPosition = async (pos) => {
     try {
       // transform posn vals, 
-      pos = this.cartesianToActuatorTransform(pos, true)
+      let actuPos = this.cartesianToActuatorTransform(pos, true)
+      console.warn(`pos -> actuators: ${pos[0].toFixed(2)} ${pos[1].toFixed(2)}  -> ${actuPos[0].toFixed(2)} ${actuPos[1].toFixed(2)}`)
       // console.warn(`gotoPosition`, JSON.parse(JSON.stringify(pos)))
-      await this.writeStateBroadcast(pos, AXL_MODE_POSITION, false)
+      await this.writeStateBroadcast(actuPos, AXL_MODE_POSITION, false)
       await TIME.delay(10)
       await this.awaitMotionEnd()
+      mostRecentPosition = JSON.parse(JSON.stringify(actuPos))
       // TODO: for some reason this doesn't get all the way to the target, 
       // the first time we call it ? something something transforms, maybe ? 
       // let res = await this.getPosition()
@@ -427,13 +441,24 @@ export default function AXLCore(osap, _settings, _actuators) {
     }
   }
 
+  this.park = async () => {
+    try {
+      let pos = await this.getPosition()
+      await this.gotoPosition([pos[0], pos[1], parkPosition[2]])
+      await this.gotoPosition(parkPosition)
+    } catch (err) {
+      throw err 
+    }
+  }
+
   this.setPosition = async (pos, override) => {
     try {
       await this.awaitMotionEnd()
       if(override){
         await this.writeStateBroadcast(pos, AXL_MODE_POSITION, true)
       } else {
-
+        // we... might not have to do anything here ? or is just todo with the stored offsets... 
+        throw new Error(`y'all haven't written this yet ?`)
       }
     } catch (err) {
       throw err
@@ -485,6 +510,7 @@ export default function AXLCore(osap, _settings, _actuators) {
       // uuuh, we take the difference between ... 
       console.warn(`prev z-offset \t${positionOffset[2]}`)
       positionOffset[2] += zPos - pos[2]
+      parkPosition[2] = positionOffset[2]
       console.warn(`new z-offset \t${positionOffset[2]}`)
     } catch (err) {
       throw err 
@@ -516,6 +542,7 @@ export default function AXLCore(osap, _settings, _actuators) {
 
   // we have a queue of moves... 
   let queue = []
+  let mostRecentPosition = []
   let maxQueueLength = 128
   let jsQueueStartDelay = 1000
   let queueState = QUEUE_STATE_EMPTY
@@ -528,11 +555,17 @@ export default function AXLCore(osap, _settings, _actuators) {
         if (queue.length < maxQueueLength) {
           // transform the target pos... 
           let actuPos = this.cartesianToActuatorTransform(unplannedMove.target, true)
+          console.warn(`move -> actuators: ${unplannedMove.target[0].toFixed(2)} ${unplannedMove.target[1].toFixed(2)}  -> ${actuPos[0].toFixed(2)} ${actuPos[1].toFixed(2)}`)
           // the hack, 
           let hackCornerVel = unplannedMove.rate * 0.25 > 15 ? unplannedMove.rate * 0.25 : 15;
           let hackMaxVel = unplannedMove.rate > 15 ? unplannedMove.rate : 15;
+          if(unplannedMove.rate < 15){
+            hackCornerVel = unplannedMove.rate 
+            hackMaxVel = unplannedMove.rate 
+          }
           // this would mean that I whiffed it;
           if (hackCornerVel > hackMaxVel) throw new Error(`cmon man, ${hackCornerVel}, ${hackMaxVel}`)
+          // console.log(`vels: ${hackCornerVel}, ${hackMaxVel}`)
           // ingest it here... 
           let segment = {
             endPos: actuPos,                                  // where togo (upfront transform)
@@ -555,10 +588,11 @@ export default function AXLCore(osap, _settings, _actuators) {
             previous = queue[queue.length - 1]
           } else {
             previous = {
-              endPos: [0, 0, 0],  // just... dummy for now, 
+              endPos: JSON.parse(JSON.stringify(mostRecentPosition)),  // wherever we were last, 
               vf: 0.0
             }
           }
+          mostRecentPosition = JSON.parse(JSON.stringify(segment.endPos))
           segment.distance = distance(previous.endPos, segment.endPos)
           segment.unitVector = unitVector(previous.endPos, segment.endPos)
           // console.log(`from `, previous.endPos, `to `, segment.endPos, `dist ${dist.toFixed(2)}`, unit)
