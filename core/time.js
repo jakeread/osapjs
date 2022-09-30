@@ -38,4 +38,17 @@ TIME.delay = (ms) => {
   })
 }
 
+TIME.awaitFutureTime = (systemMs) => {
+  return new Promise((resolve, reject) => {
+    let check = () => {
+      if(TIME.getTimeStamp() >= systemMs){
+        resolve()
+      } else {
+        setTimeout(check, 0)
+      }
+    } 
+    check()
+  })
+}
+
 export default TIME 

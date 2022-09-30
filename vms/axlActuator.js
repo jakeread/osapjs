@@ -78,6 +78,42 @@ export default function AXLActuator(osap, route, _settings) {
     }
   }
 
+  // write state requests direct to this motor, 
+  let stateRequestsOutEP = osap.endpoint("motorStateMirror")
+  stateRequestsOutEP.addRoute(PK.route(route).sib(3).end())
+
+  let AXL_MODE_ACCEL = 1
+  let AXL_MODE_VELOCITY = 2
+  let AXL_MODE_POSITION = 3
+  let AXL_MODE_QUEUE = 4
+
+  this.writeStateBroadcast = async (vals, mode, set) => {
+    try {
+      if(vals.length != numDof) throw new Error(`state-write request with ${vals.length} DOF, actuator should have ${numDof}`)
+      // pack 'em up, 
+      let datagram = new Uint8Array(numDof * 4 + 2)
+      let wptr = 0
+      datagram[wptr++] = mode 
+      datagram[wptr++] = set  
+      for (let a = 0; a < numDof; a++) {
+        wptr += TS.write("float32", vals[a], datagram, wptr)
+      }
+      // and send it along on our broadcast channel, 
+      await stateRequestsOutEP.write(datagram, "ackless")
+    } catch (err) {
+      throw err
+    }
+  }
+
+  this.gotoVelocity = async (vel) => {
+    try {
+      // vel = this.cartesianToActuatorTransform(vel)
+      await this.writeStateBroadcast(vel, AXL_MODE_VELOCITY, false)
+    } catch (err) {
+      throw err
+    }
+  }
+
   let motionStateQuery = null
   this.awaitMotionEnd = async () => {
     try {
