@@ -24,12 +24,14 @@ export default function PowerSwitchVM(osap) {
   // powerEP.addRoute(PK.route(route).sib(6).end())
   // let powerQuery = osap.query(PK.route(route).sib(6).end())
 
-  this.setPowerStates = (v5, v24) => {
+  this.setPowerStates = (bus5v, bus24v, pogo5v, pogo24v) => {
     // 5v on / off, 24v on / off, 
     let wptr = 0;
-    let datagram = new Uint8Array(2)
-    wptr += TS.write('boolean', v5, datagram, wptr, true)
-    wptr += TS.write('boolean', v24, datagram, wptr, true)
+    let datagram = new Uint8Array(4)
+    wptr += TS.write('boolean', bus5v, datagram, wptr, true)
+    wptr += TS.write('boolean', bus24v, datagram, wptr, true)
+    wptr += TS.write('boolean', pogo5v, datagram, wptr, true)
+    wptr += TS.write('boolean', pogo24v, datagram, wptr, true)
     return new Promise((resolve, reject) => {
       powerEP.write(datagram, "acked").then(() => {
         resolve()
