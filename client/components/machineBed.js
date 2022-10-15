@@ -25,7 +25,7 @@ import ImgToPath2D from './img2path.js'
 let mmToPixel = 3 / 0.79375
 let pixelToMM = 1 / mmToPixel
 
-export default function MachineBed(settings, machine) {
+export default function MachineBed(settings, machine, spindle) {
   // -------------------------------------------- Build the Pad... 
   // stash machine, render sizes, 
   let mDims = [machine.settings.bounds[0], machine.settings.bounds[1]]
@@ -279,6 +279,21 @@ export default function MachineBed(settings, machine) {
     }
   })
 
+  // -------------------------------------------- Machine Posn Update Events
+
+  machine.onSegmentComplete = (pos) => {
+    // rm old dots, draw new dots ?
+    $(this.elem).children('#ptagID').remove()
+    $(this.elem).append(dt.svgLine(
+      pos[0] * machineToRenderScale, // ax
+      rDims[1] - pos[1] * machineToRenderScale, // ay
+      10, // dx 
+      10, // dy 
+      1, // stroke 
+      'ptagID'
+    ))
+  }
+
   // -------------------------------------------- Genny & Mill Buttons 
 
   let genTracesBtn = new Button({
@@ -322,18 +337,18 @@ export default function MachineBed(settings, machine) {
           genTracesBtn.resetText()
           genTracesBtn.grey()
         }, 1000)
-        return 
+        return
       }
       genTracesBtn.yellow(`calculating path...`)
       let path = await ImgToPath2D({
         imageData: job.layers.topTraces.imageData,
         realWidth: job.layers.topTraces.imageData.width / job.layers.topTraces.dpi * 25.4,
         toolOffset: (1 / 64) * 0.5 * 25.4,
-        zUp: 2,
-        zDown: -0.15,
-        passDepth: 0.15,
-        feedRate: 10,
-        jogRate: 100,
+        zUp: 1.5,
+        zDown: -0.1,
+        passDepth: 0.1,
+        feedRate: 4,
+        jogRate: 50,
       })
       genTracesBtn.green(`traces gennie'd`)
       job.layers.topTraces.path = path
@@ -352,7 +367,7 @@ export default function MachineBed(settings, machine) {
           genOutlineBtn.resetText()
           genOutlineBtn.grey()
         }, 1000)
-        return 
+        return
       }
       genOutlineBtn.yellow(`calculating path...`)
       let path = await ImgToPath2D({
@@ -361,13 +376,13 @@ export default function MachineBed(settings, machine) {
         toolOffset: (1 / 32) * 0.5 * 25.4,  // in mm, 
         zUp: 2,
         zDown: -1.7,
-        passDepth: 0.3,
-        feedRate: 8,
-        jogRate: 100,
+        passDepth: 0.35,
+        feedRate: 6,
+        jogRate: 50,
       })
       genOutlineBtn.green(`outline gennie'd`)
       job.layers.outline.path = path
-      for(let move of path){
+      for (let move of path) {
         console.log(move.target)
       }
     } catch (err) {
@@ -383,9 +398,9 @@ export default function MachineBed(settings, machine) {
         for (let move of job.layers.topTraces.path) {
           move.target[0] += job.position[0]
           move.target[1] += job.position[1]
-        }  
+        }
         // spindle on, and wait for spool 
-        await machine.spindleVM.setDuty(0.30)
+        await spindle.setDuty(0.30)
         await TIME.delay(500)
         // send each... 
         for (let p in job.layers.topTraces.path) {
@@ -393,7 +408,7 @@ export default function MachineBed(settings, machine) {
           await machine.addMoveToQueue(job.layers.topTraces.path[p])
         }
         await machine.awaitMotionEnd()
-        await machine.spindleVM.setDuty(0)
+        await spindle.setDuty(0)
         await machine.park()
         runTracesBtn.green(`done`)
       } else {
@@ -418,8 +433,8 @@ export default function MachineBed(settings, machine) {
           move.target[1] += job.position[1]
         }
         // spindle on, and wait for spool 
-        await machine.spindleVM.setDuty(0.30)
-        await TIME.delay(500)       
+        await spindle.setDuty(0.30)
+        await TIME.delay(500)
         // run 'em 
         for (let p in job.layers.outline.path) {
           runOutlineBtn.yellow(`sending ${p} / ${job.layers.outline.path.length - 1}`)
@@ -427,7 +442,7 @@ export default function MachineBed(settings, machine) {
           await machine.addMoveToQueue(job.layers.outline.path[p])
         }
         await machine.awaitMotionEnd()
-        await machine.spindleVM.setDuty(0)
+        await spindle.setDuty(0)
         await machine.park()
         runOutlineBtn.green(`done`)
       } else {

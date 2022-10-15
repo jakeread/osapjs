@@ -41,6 +41,13 @@ export default function AXLCore(osap, _settings, _actuators) {
     velocityLimits: [100, 100, 100]
   }
 
+  // get 2x spindles to toolswap easy 
+  // to 4mm, 3mm feedrate on traces, 5-6mm on cutouts 
+  // easier on accels, esp. z ?
+  // what's jog rate ? 
+  // park posn update 
+  // wtf relative offset between traces and outline ?
+
   // if present, check against 
   if (_settings) {
     settingsDiff(this.settings, _settings, "AXLCore")
@@ -256,8 +263,8 @@ export default function AXLCore(osap, _settings, _actuators) {
       // that sets us up w/r/t offsets / transforms... and our initial setup puts us in the top-right corner, so,
       positionOffset = JSON.parse(JSON.stringify(this.settings.bounds))
       parkPosition = JSON.parse(JSON.stringify(this.settings.bounds))
-      parkPosition[0] = 130
-      parkPosition[1] = 130
+      parkPosition[0] = parkPosition[0] - 10
+      parkPosition[1] = parkPosition[1] - 10
       // then let's see if it rings true,
       await this.park()
       console.warn(`------------------------------------------`)
@@ -328,6 +335,7 @@ export default function AXLCore(osap, _settings, _actuators) {
 
   // handler to replace, 
   this.onNetInfoUpdate = (info) => { }
+  this.onSegmentComplete = (pos) => { }
 
   let netInfo = {
     rtt: 0,
@@ -352,6 +360,12 @@ export default function AXLCore(osap, _settings, _actuators) {
       // get stats... 
       let outTime = TIME.getTimeStamp() - queue[0].transmitTime
       // console.warn(`segmentComplete ${msgSegmentNumber}, outTime was ${outTime}ms`)
+      // handles for UIs, etc, 
+      // we want to un-transform this position also, 
+      let endPos = JSON.parse(JSON.stringify(queue[0].endPos))
+      endPos = this.actuatorToCartesianTransform(endPos, true)
+      this.onSegmentComplete(endPos)
+      // rm from our queue, and push new
       queue.shift()
       checkQueueState()
     }
