@@ -235,18 +235,23 @@ export default function MachineBed(settings, machine, spindle) {
       let ct = dt.readTransform(job.elem)
       let mx = ct.x * renderToMachineScale
       let my = (rDims[1] - ct.y - job.layers.outline.elem.height) * renderToMachineScale
-      console.log(`mx, my,`, mx, my)
-      job.position[0] = mx
-      job.position[1] = my
-      if (machine.available) {
-        machine.getPosition().then((pos) => {
-          return machine.gotoPosition([mx, my, pos[2]])
-        }).then(() => {
-          console.log(`on job drag, moved machine to ${mx.toFixed(2)}, ${my.toFixed(2)}`)
-          // ok, 
-        }).catch((err) => {
-          console.error(err)
-        })
+      // console.log(`mx, my,`, mx, my)
+      if (job.position[0] == mx && job.position[1] == my) {
+        console.warn(`would've doubled..`)
+      } else {
+        job.position[0] = mx
+        job.position[1] = my
+        console.warn(`job to ${mx}, ${my}`)
+        if (machine.available) {
+          machine.getPosition().then((pos) => {
+            return machine.gotoPosition([mx, my, pos[2]])
+          }).then(() => {
+            console.log(`on job drag, moved machine to ${mx.toFixed(2)}, ${my.toFixed(2)}`)
+            // ok, 
+          }).catch((err) => {
+            console.error(err)
+          })
+        }
       }
     })
   })
@@ -267,12 +272,12 @@ export default function MachineBed(settings, machine, spindle) {
       if (machine.available) {
         let mx = evt.layerX * renderToMachineScale
         let my = (rDims[1] - evt.layerY) * renderToMachineScale
-        console.warn(`GOTO ${mx}, ${my} ...`)
+        // console.warn(`GOTO ${mx}, ${my} ...`)
         let pos = await machine.getPosition()
         await machine.gotoPosition([mx, my, pos[2]])
         pos = await machine.getPosition()
-        console.log(`went to ${mx.toFixed(2)}, ${my.toFixed(2)}`)
-        console.log(`retrieved ${pos[0].toFixed(2)}, ${pos[1].toFixed(2)}`)
+        // console.log(`went to ${mx.toFixed(2)}, ${my.toFixed(2)}`)
+        // console.log(`retrieved ${pos[0].toFixed(2)}, ${pos[1].toFixed(2)}`)
       }
     } catch (err) {
       console.error(err)
@@ -375,15 +380,16 @@ export default function MachineBed(settings, machine, spindle) {
         realWidth: job.layers.outline.imageData.width / job.layers.outline.dpi * 25.4,
         toolOffset: (1 / 32) * 0.5 * 25.4,  // in mm, 
         zUp: 2,
-        zDown: -1.7,
-        passDepth: 0.35,
-        feedRate: 6,
+        zDown: -1.7,  // -1.7
+        passDepth: 0.35, // 0.35
+        feedRate: 6, // 6
         jogRate: 50,
       })
       genOutlineBtn.green(`outline gennie'd`)
       job.layers.outline.path = path
       for (let move of path) {
         console.log(move.target)
+
       }
     } catch (err) {
       genOutlineBtn.red(`error, see console...`)
@@ -394,8 +400,9 @@ export default function MachineBed(settings, machine, spindle) {
   runTracesBtn.onClick(async () => {
     try {
       if (job.layers.topTraces && job.layers.topTraces.path) {
-        // offset 'em 
-        for (let move of job.layers.topTraces.path) {
+        // offset 'em, but **don't store the offset gd**
+        let path = JSON.parse(JSON.stringify(job.layers.topTraces.path))
+        for (let move of path) {
           move.target[0] += job.position[0]
           move.target[1] += job.position[1]
         }
@@ -403,9 +410,9 @@ export default function MachineBed(settings, machine, spindle) {
         await spindle.setDuty(0.30)
         await TIME.delay(500)
         // send each... 
-        for (let p in job.layers.topTraces.path) {
-          runTracesBtn.yellow(`sending ${p} / ${job.layers.topTraces.path.length - 1}`)
-          await machine.addMoveToQueue(job.layers.topTraces.path[p])
+        for (let p in path) {
+          runTracesBtn.yellow(`sending ${p} / ${path.length - 1}`)
+          await machine.addMoveToQueue(path[p])
         }
         await machine.awaitMotionEnd()
         await spindle.setDuty(0)
@@ -428,7 +435,8 @@ export default function MachineBed(settings, machine, spindle) {
     try {
       if (job.layers.outline && job.layers.outline.path) {
         // offset 'em 
-        for (let move of job.layers.outline.path) {
+        let path = JSON.parse(JSON.stringify(job.layers.outline.path))
+        for (let move of path) {
           move.target[0] += job.position[0]
           move.target[1] += job.position[1]
         }
@@ -436,10 +444,10 @@ export default function MachineBed(settings, machine, spindle) {
         await spindle.setDuty(0.30)
         await TIME.delay(500)
         // run 'em 
-        for (let p in job.layers.outline.path) {
-          runOutlineBtn.yellow(`sending ${p} / ${job.layers.outline.path.length - 1}`)
-          console.log(`send move... ${job.layers.outline.path[p].target[0].toFixed(2)}, ${job.layers.outline.path[p].target[1].toFixed(2)}`)
-          await machine.addMoveToQueue(job.layers.outline.path[p])
+        for (let p in path) {
+          runOutlineBtn.yellow(`sending ${p} / ${path.length - 1}`)
+          // console.log(`send move... ${job.layers.outline.path[p].target[0].toFixed(2)}, ${job.layers.outline.path[p].target[1].toFixed(2)}`)
+          await machine.addMoveToQueue(path[p])
         }
         await machine.awaitMotionEnd()
         await spindle.setDuty(0)

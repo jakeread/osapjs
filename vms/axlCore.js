@@ -353,7 +353,7 @@ export default function AXLCore(osap, _settings, _actuators) {
     let msgActuatorID = TS.read('uint8', data, 4)
     // console.log(`segNum; ${msgSegmentNumber}, actuID; ${msgActuatorID}`)
     // find eeeet, and it should always be the most recent, right?
-    console.warn(`segmentComplete from ${msgActuatorID}, segNum ${msgSegmentNumber}`)
+    // console.warn(`segmentComplete from ${msgActuatorID}, segNum ${msgSegmentNumber}`)
     if (queue[0].segmentNumber != msgSegmentNumber) {
       throw new Error(`! retrieved out-of-order segmentComplete msg, probable failure?`)
     } else {
@@ -364,7 +364,7 @@ export default function AXLCore(osap, _settings, _actuators) {
       // we want to un-transform this position also, 
       let endPos = JSON.parse(JSON.stringify(queue[0].endPos))
       endPos = this.actuatorToCartesianTransform(endPos, true)
-      this.onSegmentComplete(endPos)
+      // this.onSegmentComplete(endPos)
       // rm from our queue, and push new
       queue.shift()
       checkQueueState()
@@ -440,16 +440,13 @@ export default function AXLCore(osap, _settings, _actuators) {
     try {
       // transform posn vals, 
       let actuPos = this.cartesianToActuatorTransform(pos, true)
-      console.warn(`pos -> actuators: ${pos[0].toFixed(2)} ${pos[1].toFixed(2)}  -> ${actuPos[0].toFixed(2)} ${actuPos[1].toFixed(2)}`)
+      // console.warn(`pos -> actuators: ${pos[0].toFixed(2)} ${pos[1].toFixed(2)}  -> ${actuPos[0].toFixed(2)} ${actuPos[1].toFixed(2)}`)
       // console.warn(`gotoPosition`, JSON.parse(JSON.stringify(pos)))
       await this.writeStateBroadcast(actuPos, AXL_MODE_POSITION, false)
       await TIME.delay(10)
       await this.awaitMotionEnd()
       mostRecentPosition = JSON.parse(JSON.stringify(actuPos))
-      // TODO: for some reason this doesn't get all the way to the target, 
-      // the first time we call it ? something something transforms, maybe ? 
-      // let res = await this.getPosition()
-      // console.log(`wentTo`, res)
+      console.warn(`MRP: ${mostRecentPosition[0].toFixed(2)}, ${mostRecentPosition[1].toFixed(2)}, ${mostRecentPosition[2].toFixed(2)}`)
     } catch (err) {
       throw err
     }
@@ -479,7 +476,17 @@ export default function AXLCore(osap, _settings, _actuators) {
     }
   }
 
+  let awaitQueueEnd = () => {
+    return new Promise((resolve, reject) => {
+      // onQueueComplete = resolve 
+    })
+  }
+
   this.awaitMotionEnd = async () => {
+    // just... IDK, safety, we should be able to rm this 
+    await TIME.delay(10)
+    // first if we have anything in the queue... ? 
+    if(queue.length > 0) await TIME.delay(jsQueueStartDelay + 250)
     // each actuator should have one... 
     let promises = []
     for (let actu of actuators) {
@@ -569,7 +576,8 @@ export default function AXLCore(osap, _settings, _actuators) {
         if (queue.length < maxQueueLength) {
           // transform the target pos... 
           let actuPos = this.cartesianToActuatorTransform(unplannedMove.target, true)
-          console.warn(`move -> actuators: ${unplannedMove.target[0].toFixed(2)} ${unplannedMove.target[1].toFixed(2)}  -> ${actuPos[0].toFixed(2)} ${actuPos[1].toFixed(2)}`)
+          console.warn(`TARG: ${actuPos[0].toFixed(2)}, ${actuPos[1].toFixed(2)}, ${actuPos[2].toFixed(2)}`)
+          // console.warn(`move -> actuators: ${unplannedMove.target[0].toFixed(2)} ${unplannedMove.target[1].toFixed(2)}  -> ${actuPos[0].toFixed(2)} ${actuPos[1].toFixed(2)}`)
           // the hack, 
           let hackCornerVel = unplannedMove.rate * 0.25 > 15 ? unplannedMove.rate * 0.25 : 15;
           let hackMaxVel = unplannedMove.rate > 15 ? unplannedMove.rate : 15;
@@ -599,14 +607,18 @@ export default function AXLCore(osap, _settings, _actuators) {
           // we need a distance and unit vector, so we need to know previous, 
           let previous = {}
           if (queue[queue.length - 1]) {
+            console.warn(`collecting prev`)
             previous = queue[queue.length - 1]
           } else {
+            console.warn(`collecting mrp`)
             previous = {
               endPos: JSON.parse(JSON.stringify(mostRecentPosition)),  // wherever we were last, 
               vf: 0.0
             }
           }
           mostRecentPosition = JSON.parse(JSON.stringify(segment.endPos))
+          console.warn(`MRP: ${mostRecentPosition[0].toFixed(2)}, ${mostRecentPosition[1].toFixed(2)}, ${mostRecentPosition[2].toFixed(2)}`)
+          // calculate dist and uv from prev to end, 
           segment.distance = distance(previous.endPos, segment.endPos)
           segment.unitVector = unitVector(previous.endPos, segment.endPos)
           // console.log(`from `, previous.endPos, `to `, segment.endPos, `dist ${dist.toFixed(2)}`, unit)
@@ -692,7 +704,7 @@ export default function AXLCore(osap, _settings, _actuators) {
       // write that, ackless, to the pmo
       await segmentsOutEP.write(datagram)
       seg.transmitTime = TIME.getTimeStamp()
-      console.warn(`TX'd ${seg.segmentNumber} at ${seg.transmitTime} with last ? ${seg.isLastSegment} vf ${seg.vf}, vi ${seg.vi}, return from ${seg.returnActuator}`)
+      // console.warn(`TX'd ${seg.segmentNumber} at ${seg.transmitTime} with last ? ${seg.isLastSegment} vf ${seg.vf}, vi ${seg.vi}, return from ${seg.returnActuator}`)
       // HERE is an OSAP TODO, which causes us to loose ~ ms of performance: because 
       // time stamps in packets are ms-based, we can't send multiple packets in the same `ms` 
       // while also retaining FIFO-ness. We should rather have ns, us, and ms in the transport layer timestamps... 

@@ -72,9 +72,9 @@ let collectRecursor = (vt) => {
 
 let osapItemHandler = (item) => {
   LOGLOOP(`handling at ${item.vt.name}`, item.data)
-  // kill deadies 
-  if (item.timeToDeath < 0) {
-    LOGLOOP(`LP: item at ${item.vt.name} times out`, null, true)
+  // kill deadies, use 500ms javascript grace period
+  if (item.timeToDeath < -500) {
+    LOGLOOP(`LP: item at ${item.vt.name} times out, ttd ${item.timeToDeath}`, null, true)
     item.handled(); return
   }
   // find ptrs, 
