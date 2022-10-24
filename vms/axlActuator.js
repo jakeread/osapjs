@@ -198,16 +198,17 @@ export default function AXLActuator(osap, route, _settings) {
     }
   }
 
-  this.setup = async () => {
+  this.setup = async (graph) => {
     try {
+      if(!graph) graph = await osap.nr.sweep()
       // find the motion state endpoint... 
-      let motionStateVVT = await osap.nr.findWithin("ep_motionState", this.settings.name)
+      let motionStateVVT = await osap.nr.findWithin("ep_motionState", this.settings.name, graph)
       motionStateQuery = osap.query(PK.VC2EPRoute(motionStateVVT.route))
       // and the limit state endpoint... 
-      let limitStateVVT = await osap.nr.findWithin("ep_limitSwitchState", this.settings.name)
+      let limitStateVVT = await osap.nr.findWithin("ep_limitSwitchState", this.settings.name, graph)
       limitStateQuery = osap.query(PK.VC2EPRoute(limitStateVVT.route))
       // and the *state* endpoint... 
-      let stateVVT = await osap.nr.findWithin("ep_axlState", this.settings.name)
+      let stateVVT = await osap.nr.findWithin("ep_axlState", this.settings.name, graph)
       stateQuery = osap.query(PK.VC2EPRoute(stateVVT.route))
       await this.setupAxl()
       await this.setupMotor()

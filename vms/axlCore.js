@@ -20,9 +20,6 @@ import { settingsDiff } from '../utes/diff.js'
 
 import AXLActuator from './axlActuator.js'
 
-// this... should probably be elsewhere, actually 
-import ESCDropVM from './escDropVM.js'
-
 let numDof = 0
 
 // settings... an obj, and _actuators, a list of names & axis-maps... 
@@ -45,14 +42,14 @@ export default function AXLCore(osap, _settings, _actuators) {
   if (_settings) {
     settingsDiff(this.settings, _settings, "AXLCore")
     this.settings = JSON.parse(JSON.stringify(_settings))
-  }  
+  }
 
   // we do a little spu-per-second guarding, 
   let maxTickPerSecond = 10000
-  for(let actu of _actuators){
-    let maxRate = maxTickPerSecond / actu.spu 
+  for (let actu of _actuators) {
+    let maxRate = maxTickPerSecond / actu.spu
     let setVMax = this.settings.velocityLimits[actu.axis]
-    if(setVMax > maxRate){
+    if (setVMax > maxRate) {
       throw new Error(`given maximum ticks / second of ${maxTickPerSecond}, ${actu.name} velocity limit should be below ${maxRate} but is set to ${setVMax}`)
     } else {
       console.warn(`${actu.name} has tick-limit allowable maxRate of ${maxRate}, is set to ${setVMax} vMax`)
@@ -60,8 +57,8 @@ export default function AXLCore(osap, _settings, _actuators) {
   }
 
   // internal offset stash... 
-  let positionOffset = [0, 0, 0]
-  let parkPosition = [0, 0, 0]
+  let positionOffset = [0, 0, 0, 0]
+  let parkPosition = [0, 0, 0, 0]
 
   // we have some transforms, 
   this.cartesianToActuatorTransform = (vals, position = false) => {
@@ -101,20 +98,17 @@ export default function AXLCore(osap, _settings, _actuators) {
 
   // we have actuators, which we'll fill in on setup, 
   let actuators = []
-  this.actuators = actuators 
+  this.actuators = actuators
   this.spindleVM = {}
 
   // ------------------------------------------------------ Plumbing
 
-  this.setup = async () => {
+  this.setup = async (graph) => {
     // first we want a graph... 
     try {
       // ---------------------------------------- Get a Graph Object 
       console.log(`SETUP: collecting a graph...`)
-      let graph = await osap.nr.sweep()
-      // let's plumb up the esc... thing:
-      let r2esc = await PK.VC2VMRoute((await osap.nr.find("rt_esc-drop", graph)).route)
-      this.spindleVM = new ESCDropVM(osap, r2esc)
+      if (!graph) graph = await osap.nr.sweep()
       // ---------------------------------------- Find and build Actuators 
       for (let actu of _actuators) {
         console.log(`SETUP: looking for ${actu.name}...`)
@@ -138,7 +132,7 @@ export default function AXLCore(osap, _settings, _actuators) {
       // then set 'em up, 
       for (let actu of actuators) {
         console.warn(`SETUP: initializing ${actu.settings.name}... is num ${actu.settings.actuatorID}`)
-        await actu.setup()
+        await actu.setup(graph)
         console.log(`SETUP: init ${actu.settings.name} OK`)
       }
       // throw new Error('halt')
@@ -198,75 +192,8 @@ export default function AXLCore(osap, _settings, _actuators) {
         console.log(`SETUP: connected ${actu.settings.name} segmentComplete to JS`)
       }
       console.log(`SETUP: queue complete are piped...`)
-      // ---------------------------------------- Let's home it just here... 
-      console.warn(`------------------------------------------`)
-      console.log(`SETUP: homing ! `)
-      // TODO: z-home first (!) 
-      let zLimitOutputVVT = await osap.nr.findWithin("ep_limitSwitchState", "rt_axl-stepper_z", graph)
-      // and I think since we know the broadcast channel, we can just dooo this... 
-      let limitToHaltChRoute = PK.route().sib(1).bfwd(0).bbrd(haltChannel).end(500, 128)
-      limitToHaltChRoute.mode = EP.ROUTEMODE_ACKLESS 
-      let limitOutRouteIndice = await osap.mvc.setEndpointRoute(zLimitOutputVVT.route, limitToHaltChRoute)
-      // if z is already hit... just don't home it, 
-      if(await actuators[2].getLimitState()){
-        console.warn(`z-home omitted, switch already hit`)
-        await osap.mvc.removeEndpointRoute(zLimitOutputVVT.route, limitOutRouteIndice)  
-      } else {
-        await this.gotoVelocity([0,0,75])
-        await this.awaitMotionEnd()
-        await osap.mvc.removeEndpointRoute(zLimitOutputVVT.route, limitOutRouteIndice)  
-      }
-      // if right limit is triggered, move left, 
-      if(await actuators[1].getLimitState()){
-        console.warn(`LIMIT correcting, coming left...`)
-        await this.gotoVelocity([-100, 0, 0])
-        await TIME.delay(500)
-        await this.gotoVelocity([0,0,0])
-        await TIME.delay(10)
-        await this.awaitMotionEnd()
-        console.warn(`DONE`)
-      }
-      // if left is triggered, pull up:
-      if(await actuators[0].getLimitState()){
-        console.warn(`LIMIT correcting, pulling back...`)
-        await this.gotoVelocity([0, -100, 0])
-        await TIME.delay(500)
-        await this.gotoVelocity([0,0,0])
-        await TIME.delay(10)
-        await this.awaitMotionEnd()
-      }
-      // eeeerp get the right left's limit output, 
-      let rlLimitOutputVVT = await osap.nr.findWithin("ep_limitSwitchState", "rt_axl-stepper_rl", graph)
-      // then attach that to the limit output, 
-      limitOutRouteIndice = await osap.mvc.setEndpointRoute(rlLimitOutputVVT.route, limitToHaltChRoute)
-      // tap back, 
-      await this.gotoVelocity([0, 75, 0])
-      await this.awaitMotionEnd()
-      // rm that flag, 
-      await osap.mvc.removeEndpointRoute(rlLimitOutputVVT.route, limitOutRouteIndice)
-      // add this one, 
-      let rrLimitOutputVVT = await osap.nr.findWithin("ep_limitSwitchState", "rt_axl-stepper_rr", graph)
-      limitOutRouteIndice = await osap.mvc.setEndpointRoute(rrLimitOutputVVT.route, limitToHaltChRoute)
-      await this.gotoVelocity([75, 0, 0])
-      await this.awaitMotionEnd()
-      // and rm again, 
-      await osap.mvc.removeEndpointRoute(rrLimitOutputVVT.route, limitOutRouteIndice)
-      // I'm unsure if everything will be in the same spot after all of these halts... so let's do this:
-      await this.setPosition([0,0,0], true)
-      // that sets us up w/r/t offsets / transforms... and our initial setup puts us in the top-right corner, so,
-      positionOffset = JSON.parse(JSON.stringify(this.settings.bounds))
-      parkPosition = JSON.parse(JSON.stringify(this.settings.bounds))
-      parkPosition[0] = 130 
-      parkPosition[1] = 130 
-      // then let's see if it rings true,
-      await this.park()
-      console.warn(`------------------------------------------`)
-      console.warn(`DONE`)
-      // -> get into embedded, reply to setEndpointRoute calls with the indice of the route's location 
-      // -> also, update the halt-codes-to-string list in this file.js 
-      // -> then... setup a global .awaitMotionEnd() and try this homeing code out... you're very nearly there, keep it up  
       // ---------------------------------------- END 
-      this.available = true 
+      this.available = true
     } catch (err) {
       throw err
     }
@@ -278,6 +205,97 @@ export default function AXLCore(osap, _settings, _actuators) {
     (5) plumb our stateOutEP likewise... 
     */
   } // ------------------------------------------ End of Setup 
+
+  this.home = async (graph) => {
+    try {
+      // ---------------------------------------- Let's home it just here... 
+      console.log(`HOME: homing ! `)
+      // we're going to need another... 
+      console.log(`HOME: collecting a graph...`)
+      if (!graph) graph = await osap.nr.sweep()
+      // for this machine... which TODO home routines should go in some super-object,
+      // i.e. ClankFXYVM.js which should use AXLCore.js as sub, but w/ 
+      // let's hook each limit to itself, har, we can use the same route per actu, 
+      // but want to search for indices to be fancy 
+      let firstActuName = actuators[0].settings.name
+      let haltInIndice = (await osap.nr.findWithin("ep_haltIn", firstActuName, graph)).indice
+      // console.log(limitOutputIndice, haltInIndice)
+      // so we can dead-nuts this route:
+      let ownLimitRoute = PK.route().sib(haltInIndice).end()
+      // and we can add 'em to each actuator, 
+      for (let actu of actuators) {
+        let limitOutVVT = await osap.nr.findWithin("ep_limitSwitchState", actu.settings.name, graph)
+        await osap.mvc.setEndpointRoute(limitOutVVT.route, ownLimitRoute)
+      }
+      // z... 
+      let zHomeRate = 2
+      console.warn("HOMING Z....")
+      await Promise.all([
+        actuators[3].gotoVelocity([0, 0, zHomeRate, 0]),
+        actuators[4].gotoVelocity([0, 0, zHomeRate, 0]),
+        actuators[5].gotoVelocity([0, 0, zHomeRate, 0]),
+        actuators[6].gotoVelocity([0, 0, zHomeRate, 0]),
+      ])
+      await Promise.all([
+        actuators[3].awaitMotionEnd(),
+        actuators[4].awaitMotionEnd(),
+        actuators[5].awaitMotionEnd(),
+        actuators[6].awaitMotionEnd(),
+      ])
+      // double tap, 
+      await Promise.all([
+        actuators[3].gotoVelocity([0, 0, -5, 0]),
+        actuators[4].gotoVelocity([0, 0, -5, 0]),
+        actuators[5].gotoVelocity([0, 0, -5, 0]),
+        actuators[6].gotoVelocity([0, 0, -5, 0]),
+      ])
+      await TIME.delay(500)
+      await Promise.all([
+        actuators[3].gotoVelocity([0, 0, zHomeRate, 0]),
+        actuators[4].gotoVelocity([0, 0, zHomeRate, 0]),
+        actuators[5].gotoVelocity([0, 0, zHomeRate, 0]),
+        actuators[6].gotoVelocity([0, 0, zHomeRate, 0]),
+      ])
+      await Promise.all([
+        actuators[3].awaitMotionEnd(),
+        actuators[4].awaitMotionEnd(),
+        actuators[5].awaitMotionEnd(),
+        actuators[6].awaitMotionEnd(),
+      ])
+      // then we can run... x 
+      console.warn("HOMING X...")
+      await actuators[0].gotoVelocity([20, 0, 0, 0])
+      await actuators[0].awaitMotionEnd()
+      // double tap, 
+      await actuators[0].gotoVelocity([-20, 0, 0, 0])
+      await TIME.delay(500)
+      await actuators[0].gotoVelocity([20, 0, 0, 0])
+      await actuators[0].awaitMotionEnd()
+      console.warn("X Halted...")
+      console.warn("HOMING Y...")
+      await Promise.all([actuators[1].gotoVelocity([0, 10, 0, 0]), actuators[2].gotoVelocity([0, 10, 0, 0])])
+      await Promise.all([actuators[1].awaitMotionEnd(), actuators[2].awaitMotionEnd()])
+      // double tap, 
+      await Promise.all([actuators[1].gotoVelocity([0, -10, 0, 0]), actuators[2].gotoVelocity([0, -10, 0, 0])])
+      await TIME.delay(500)
+      await Promise.all([actuators[1].gotoVelocity([0, 10, 0, 0]), actuators[2].gotoVelocity([0, 10, 0, 0])])
+      await Promise.all([actuators[1].awaitMotionEnd(), actuators[2].awaitMotionEnd()])
+      console.warn("Y Halted...")
+      // we have to mess w/ the extruder, else it will stay in MODE_POS w/ TARG = 0... 
+      await actuators[7].gotoVelocity([0, 0, 0, 0])
+      // now we can set position... 
+      await this.setPosition(this.settings.bounds, true)
+      parkPosition[0] = this.settings.bounds[0] - 80
+      parkPosition[1] = this.settings.bounds[1] - 80
+      parkPosition[2] = this.settings.bounds[2] - 10
+      await this.park()
+      console.warn(`------------------------------------------`)
+      console.warn(`DONE`)
+      return
+    } catch (err) {
+      throw err
+    }
+  }
 
   // ------------------------------------------------------ Inputs and Outputs 
   // ingest moves, 
@@ -311,8 +329,8 @@ export default function AXLCore(osap, _settings, _actuators) {
     "soft",
     "cascade",
     "ack not picked",
-    "move complete not picked", 
-    "buffer starved", 
+    "move complete not picked",
+    "buffer starved",
     "out of order arrival"
   ]
 
@@ -401,13 +419,22 @@ export default function AXLCore(osap, _settings, _actuators) {
       // pack 'em up, 
       let datagram = new Uint8Array(numDof * 4 + 2)
       let wptr = 0
-      datagram[wptr++] = mode 
-      datagram[wptr++] = set  
+      datagram[wptr++] = mode
+      datagram[wptr++] = set
       for (let a = 0; a < numDof; a++) {
         wptr += TS.write("float32", vals[a], datagram, wptr)
       }
       // and send it along on our broadcast channel, 
       await stateRequestsOutEP.write(datagram, "ackless")
+    } catch (err) {
+      throw err
+    }
+  }
+
+  this.halt = async () => {
+    try {
+      await haltOutEP.write(new Uint8Array([1]))
+      await this.awaitMotionEnd()
     } catch (err) {
       throw err
     }
@@ -444,17 +471,19 @@ export default function AXLCore(osap, _settings, _actuators) {
   this.park = async () => {
     try {
       let pos = await this.getPosition()
-      await this.gotoPosition([pos[0], pos[1], parkPosition[2]])
+      // z first... 
+      await this.gotoPosition([pos[0], pos[1], parkPosition[2], pos[3]])
+      parkPosition[3] = pos[3]
       await this.gotoPosition(parkPosition)
     } catch (err) {
-      throw err 
+      throw err
     }
   }
 
   this.setPosition = async (pos, override) => {
     try {
       await this.awaitMotionEnd()
-      if(override){
+      if (override) {
         await this.writeStateBroadcast(pos, AXL_MODE_POSITION, true)
       } else {
         // we... might not have to do anything here ? or is just todo with the stored offsets... 
@@ -468,7 +497,7 @@ export default function AXLCore(osap, _settings, _actuators) {
   this.awaitMotionEnd = async () => {
     // each actuator should have one... 
     let promises = []
-    for(let actu of actuators){
+    for (let actu of actuators) {
       promises.push(actu.awaitMotionEnd())
     }
     await Promise.all(promises)
@@ -477,27 +506,28 @@ export default function AXLCore(osap, _settings, _actuators) {
   this.getPosition = async () => {
     try {
       // let actuState = await actuators[0].getStates()
-      let actuatorStates = await Promise.all([actuators[0].getStates(), actuators[1].getStates(), actuators[2].getStates()])
+      let actuatorStates = await Promise.all([actuators[0].getStates(), actuators[1].getStates(), actuators[3].getStates(), actuators[7].getStates()])
       let posEst = new Array(numDof)
-      for(let a = 0; a < numDof; a ++){
+      for (let a = 0; a < numDof; a++) {
         let sum = 0
-        for(let state of actuatorStates){
+        for (let state of actuatorStates) {
           sum += state.positions[a]
         }
-        posEst[a] = sum/numDof
+        posEst[a] = sum / numDof
       }
+      console.log(`POS EST`, posEst)
       // pls tell jake if this fires, 
-      for(let a = 0; a < numDof; a ++){
-        for(let state of actuatorStates){
-          if(Math.abs(state.positions[a] - posEst[a]) > 0.1){
-            throw new Error("heyo, states are drifting, please inspect")
+      for (let a = 0; a < numDof; a++) {
+        for (let state of actuatorStates) {
+          if (Math.abs(state.positions[a] - posEst[a]) > 0.1) {
+            throw new Error(`heyo, states are drifting, please inspect ${state.positions[a]} ${posEst[a]}`)
           }
         }
       }
       // do inverse... 
       return this.actuatorToCartesianTransform(posEst, true)
     } catch (err) {
-      throw err 
+      throw err
     }
   }
 
@@ -513,7 +543,7 @@ export default function AXLCore(osap, _settings, _actuators) {
       parkPosition[2] = positionOffset[2]
       console.warn(`new z-offset \t${positionOffset[2]}`)
     } catch (err) {
-      throw err 
+      throw err
     }
   }
 
@@ -522,12 +552,12 @@ export default function AXLCore(osap, _settings, _actuators) {
     try {
       await this.awaitMotionEnd()
       let current = await this.getPosition()
-      for(let axis in deltas){
+      for (let axis in deltas) {
         current[axis] += deltas[axis]
       }
       await this.gotoPosition(current)
     } catch (err) {
-      throw err 
+      throw err
     }
   }
 
@@ -559,9 +589,9 @@ export default function AXLCore(osap, _settings, _actuators) {
           // the hack, 
           let hackCornerVel = unplannedMove.rate * 0.25 > 15 ? unplannedMove.rate * 0.25 : 15;
           let hackMaxVel = unplannedMove.rate > 15 ? unplannedMove.rate : 15;
-          if(unplannedMove.rate < 15){
-            hackCornerVel = unplannedMove.rate 
-            hackMaxVel = unplannedMove.rate 
+          if (unplannedMove.rate < 15) {
+            hackCornerVel = unplannedMove.rate
+            hackMaxVel = unplannedMove.rate
           }
           // this would mean that I whiffed it;
           if (hackCornerVel > hackMaxVel) throw new Error(`cmon man, ${hackCornerVel}, ${hackMaxVel}`)
