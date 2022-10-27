@@ -228,7 +228,7 @@ export default function AXLCore(osap, _settings, _actuators) {
         await osap.mvc.setEndpointRoute(limitOutVVT.route, ownLimitRoute)
       }
       // z... 
-      let zHomeRate = 2
+      let zHomeRate = 1.5
       console.warn("HOMING Z....")
       await Promise.all([
         actuators[3].gotoVelocity([0, 0, zHomeRate, 0]),
@@ -556,6 +556,17 @@ export default function AXLCore(osap, _settings, _actuators) {
         current[axis] += deltas[axis]
       }
       await this.gotoPosition(current)
+    } catch (err) {
+      throw err
+    }
+  }
+
+  this.disableMotors = async () => {
+    try {
+      for (let actu of actuators) {
+        actu.settings.cscale = 0 
+        await actu.setupMotor()
+      }
     } catch (err) {
       throw err
     }

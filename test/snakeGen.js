@@ -13,32 +13,42 @@ no warranty is provided, and users accept all liability.
 */
 
 // aye it's space filling curves basically innit, 
-export default function snakeGen(width, depth, height, trackWidth, trackHeight, segmentLength){
-  let path = [] 
-  let x = 0 
-  let y = 0 
+// **e values are in CUBIC MM !!!** 
+export default function snakeGen(args) {
+  // args.width, args.depth, args.height, args.trackWidth, args.trackHeight, args.segmentLength
+  let path = []
+  let x = 0
+  let y = 0
   let z = 0
-  let e = 0 
-  while(z < height){
-    while(y < depth){
-      while(x < width){
+  let e = 0 // E units are in cubic mm ! 
+  while (z < args.height) {
+    z += args.trackHeight
+    while (y < args.depth) {
+      while (x < args.width) {
         path.push([x, y, z, e])
-        x += segmentLength
-        e += trackWidth * trackHeight * segmentLength // cubic units,
+        x += args.segmentLength
+        e += args.trackWidth * args.trackHeight * args.segmentLength // cubic units,
       }
-      y += trackWidth
-      e += trackWidth * trackHeight * trackWidth
-      while(x > 0){
+      y += args.trackWidth
+      e += args.trackWidth * args.trackHeight * args.trackWidth
+      while (x > 0) {
         path.push([x, y, z, e])
-        x -= segmentLength
-        e += trackWidth * trackHeight * segmentLength // cubic units,
+        x -= args.segmentLength
+        e += args.trackWidth * args.trackHeight * args.segmentLength // cubic units,
       }
-      y += trackWidth
-      e += trackWidth * trackHeight * trackWidth
+      y += args.trackWidth
+      // since we are going *up* by trackwidth, trackwidth == segmentLength 
+      e += args.trackWidth * args.trackHeight * args.trackWidth
     }
-    z += trackHeight
-    x = 0 
-    y = 0 
+    x = 0
+    y = 0
+  }
+  // do the rate... 
+  // cubic mm per linear mm = 
+  let cubicMMperLinearMM = args.trackWidth * args.trackHeight
+  let linearRate = args.flowRate / cubicMMperLinearMM
+  for (let p in path) {
+    path[p] = { target: path[p], rate: linearRate }
   }
   return path
 }

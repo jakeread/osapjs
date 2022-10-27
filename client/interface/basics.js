@@ -29,7 +29,7 @@ function EZButton(xPlace, yPlace, width, height, text) {
   let elem = $('<div>').addClass('button')
     .text(text)
     .get(0)
-  DT.placeField(elem, width, height, xPlace, yPlace)
+  DT.placeField(elem, width - 6, height - 6, xPlace, yPlace)
   let btn = {}
   btn.onClick = (fn) => {
     $(elem).on('click', (evt) => {
