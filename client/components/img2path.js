@@ -11,7 +11,7 @@ no warranty is provided, and users accept all liability.
 */
 
 import distanceTransform from '../components/distanceTransform.js'
-import imgOffset from '../components/imgoffset.js'
+import imgOffset from '../components/imgOffset.js'
 
 export default function ImgToPath2D(args) {
   let imgdata = args.imageData
