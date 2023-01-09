@@ -18,6 +18,8 @@ let VT = {
   MODULE: 23,
   ENDPOINT: 24,
   QUERY: 25,
+  CODE: 27,
+  RPC: 28,
   VPORT: 44,
   VBUS: 45,
   STACK_ORIGIN: 0,
