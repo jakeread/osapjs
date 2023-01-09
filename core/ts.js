@@ -67,6 +67,13 @@ let RT = {
   RENAME_RES: 172
 }
 
+// rpc keys
+let RPC = {
+  INFO_REQ: 181,
+  INFO_RES: 182,
+}
+
+// multisegment endpoint keys (depricated ?)
 let EPMSEG = {
   QUERY: 141,
   QUERY_RES: 142,
@@ -199,6 +206,7 @@ export {
   TS,     // typeset 
   VT,     // object types 
   EP,     // endpoint keys 
+  RPC,    // rpc keys 
   EPMSEG, // mseg endpoint keys,
   VBUS,   // vbus mvc keys 
   RT,     // root mvc keys 
