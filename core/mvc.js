@@ -58,7 +58,8 @@ export default function OMVC(osap) {
             let res = {
               name: vvt.name.slice(4),
               argSize : TS.read("int16", data, 0),
-              retSize: TS.read("int16", data, 2)
+              retSize: TS.read("int16", data, 2),
+              argType: data[4]
             }
             resolve(res)
           }

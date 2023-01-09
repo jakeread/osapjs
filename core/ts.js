@@ -71,6 +71,8 @@ let RT = {
 let RPC = {
   INFO_REQ: 181,
   INFO_RES: 182,
+  CALL_REQ: 183,
+  CALL_RES: 184
 }
 
 // multisegment endpoint keys (depricated ?)
