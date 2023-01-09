@@ -37,15 +37,23 @@ export default class Query extends Vertex {
     // again, item.data[ptr] == PK.PTR, ptr + 1 = PK.DEST, ptr + 2 = EP.QUERY_RES,
     switch (item.data[ptr + 2]) {
       case EP.QUERY_RES:
-        // match & bail 
-        if(this.queryAwaiting.id == item.data[ptr + 3]){
-          clearTimeout(this.queryAwaiting.timeout)
-          for(let res of this.queryAwaiting.resolutions){
-            res(new Uint8Array(item.data.subarray(ptr + 4)))
+        // ... if i.e. phy throws a second paquet, and we try to catch another 
+        // query, but we already caught the second paquet, we have an issue here
+        // one op (better) is to have PHYs that don't send packets twice (?) 
+        try {
+          // match & bail 
+          if(this.queryAwaiting.id == item.data[ptr + 3]){
+            clearTimeout(this.queryAwaiting.timeout)
+            for(let res of this.queryAwaiting.resolutions){
+              res(new Uint8Array(item.data.subarray(ptr + 4)))
+            }
+            this.queryAwaiting = null 
+          } else {
+            console.error('on query reply, no matching resolution')
           }
+        } catch (err) {
+          console.warn(`mystery query err...`, err)
           this.queryAwaiting = null 
-        } else {
-          console.error('on query reply, no matching resolution')
         }
         break;
       default:

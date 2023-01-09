@@ -16,18 +16,11 @@ Copyright is retained and must be preserved. The work is provided as is;
 no warranty is provided, and users accept all liability.
 */
 
-import { TS, VT, EP, VBUS } from './ts.js'
+import { TS, VT, EP, VBUS, RT } from './ts.js'
 import TIME from './time.js'
 import PK from './packets.js'
 
 let ROUTEREQ_MAX_TIME = 2000 // ms 
-
-let RT = {
-  DBG_STAT: 151,
-  DBG_ERRMSG: 152,
-  DBG_DBGMSG: 153,
-  DBG_RES: 161,
-}
 
 export default function OMVC(osap) {
   // ------------------------------------------------------ Query IDs
@@ -84,10 +77,11 @@ export default function OMVC(osap) {
             let res = {
               loopHighWaterMark: TS.read("uint32", data, 0),
               errorCount: TS.read("uint32", data, 4),
-              debugCount: TS.read("uint32", data, 8)
+              debugCount: TS.read("uint32", data, 8),
+              version: TS.read("uint32", data, 12)
             }
             if (stream != "none") {
-              res.msg = TS.read("string", data, 12).value
+              res.msg = TS.read("string", data, 16).value
             }
             resolve(res)
           }
@@ -429,7 +423,38 @@ export default function OMVC(osap) {
           if (data[0]) {
             resolve()
           } else {
-            reject(`badness error code ${data[ptr + 1]} from endpoint, on try-to-delete-route`)
+            reject(`badness error code ${data[0]} from endpoint, on try-to-delete-route`)
+          }
+        }
+      })
+    })
+  }
+
+  // ------------------------------------------------------ Rename Vertex Request 
+  this.renameVertex = async (routeToVertex, name) => {
+    await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
+    // likewise 
+    let id = getNewQueryID()
+    // + DEST + RENAME_REQ, + ID, + str 
+    let payload = new Uint8Array(3 + name.length + 4)
+    payload[0] = PK.DEST
+    payload[1] = RT.RENAME_REQ
+    payload[2] = id
+    TS.write("string", name, payload, 3)
+    console.log('rename packet like', payload)
+    let datagram = PK.writeDatagram(routeToVertex, payload)
+    osap.handle(datagram)
+    return new Promise((resolve, reject) => {
+      queriesAwaiting.push({
+        id: id,
+        timeout: setTimeout(() => {
+          reject('rename request timed out')
+        }, 2500),
+        onResponse: function (data) {
+          if(data[0]){
+            resolve()
+          } else {
+            reject(`badness error code ${data[0]} from vertex on rename-request, maybe no-flash-mem in this micro`)
           }
         }
       })
@@ -451,6 +476,7 @@ export default function OMVC(osap) {
       case VBUS.BROADCAST_RM_RES:
       case RT.ERR_RES:
       case RT.DBG_RES:
+      case RT.RENAME_RES:
         {
           // match to id, send to handler, carry on... 
           let rqid = item.data[ptr + 3]
