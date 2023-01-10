@@ -57,9 +57,11 @@ export default function OMVC(osap) {
             // build reply & issue it, 
             let res = {
               name: vvt.name.slice(4),
-              argSize : TS.read("int16", data, 0),
-              retSize: TS.read("int16", data, 2),
-              argType: data[4]
+              route: route,
+              argKey: data[0],
+              argSize: TS.read("int16", data, 1),
+              retKey: data[3],
+              retSize: TS.read("int16", data, 4),
             }
             resolve(res)
           }
@@ -529,6 +531,10 @@ export default function OMVC(osap) {
           console.warn(`recvd mvc response ${rqid}, but no matching req awaiting... of ${queriesAwaiting.length}`)
           break;
         }
+        break;
+      case RPC.CALL_RES:
+        osap.rpc.destHandler(item, ptr)
+        break;
       default:
         console.error(`unrecognized key in osap root / mvc dest handler, ${item.data[ptr]}`)
         PK.logPacket(item.data)
