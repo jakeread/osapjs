@@ -48,21 +48,35 @@ export default function RPCTools(osap) {
             reject(`fn call to ${info.name} timed out after 1000ms`)
           }, 1000)
           callsAwaiting.push({
-            id: id, 
-            onResponse: function(data) {
+            id: id,
+            onResponse: function (data) {
               clearTimeout(timeout)
               resolve(TS.read(TS.keyToString(info.retKey), data, 0))
             }
           })
         })
       } catch (err) {
-        throw err 
+        throw err
       }
     }
     return func
   }
   // resolve past calls 
   this.destHandler = (item, ptr) => {
-    console.warn(`rx'd at rpc destHandler`, item, ptr)
+    // just handling the one type for now, 
+    if (item.data[ptr + 2] != RPC.CALL_RES) {
+      throw new Error(`strange key ${item.data[ptr + 2]} delivered to RPCTools destHandler`)
+    }
+    // carry on... 
+    let callId = item.data[ptr + 3]
+    for (let cl in callsAwaiting) {
+      if (callsAwaiting[cl].id == callId) {
+        callsAwaiting[cl].onResponse(new Uint8Array(item.data.subarray(ptr + 4)))
+        callsAwaiting.splice(cl, 1)
+        return
+      }
+    }
+    // if we got up to this point, we probably have a double rx or sth ?
+    console.warn(`recvd rpc response ${callId}, but no matching call awaiting... of ${callsAwaiting.length}`)
   }
 }

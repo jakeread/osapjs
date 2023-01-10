@@ -160,6 +160,11 @@ TS.write = (type, value, data, start) => {
       data[start] = value & 255
       data[start + 1] = (value >> 8) & 255
       return 2
+    case 'int16':
+      tempArr = Int16Array.from([value])
+      tempBytes = new Uint8Array(tempArr.buffer)
+      data.set(tempBytes, start)
+      return 2
     case 'int32':
       tempArr = Int32Array.from([value])
       tempBytes = new Uint8Array(tempArr.buffer)
@@ -198,7 +203,7 @@ TS.write = (type, value, data, start) => {
       }
       return 1
     default:
-      console.error('no code for this type write')
+      console.error(`no code for this type "${type}" write`)
       return null
       break;
   }
