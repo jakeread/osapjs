@@ -59,9 +59,11 @@ export default function OMVC(osap) {
               name: vvt.name.slice(4),
               route: route,
               argKey: data[0],
-              argSize: TS.read("int16", data, 1),
-              retKey: data[3],
-              retSize: TS.read("int16", data, 4),
+              argLen: TS.read("uint16", data, 1),   // # in array 
+              argSize: TS.read("uint16", data, 3),   // total bytes 
+              retKey: data[5],
+              retLen: TS.read("uint16", data, 6),
+              retSize: TS.read("uint16", data, 8),
             }
             resolve(res)
           }

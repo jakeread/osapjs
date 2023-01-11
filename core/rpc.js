@@ -28,9 +28,10 @@ export default function RPCTools(osap) {
   // build a new rpc func w/ given info... 
   this.rollup = (info) => {
     // we need to build TS.keyToLen and TS.keyToString... then it should work, or sth ? 
-    let argLen = TS.keyToLen(info.argKey)
+    let argLen = info.argSize // TS.keyToLen(info.argKey)
     let func = async (arg) => {
       try {
+        // watch for bad calls... like, we have to type check here ? 
         await osap.awaitStackAvailableSpace(VT.STACK_ORIGIN)
         // we're going to send some data downstream, w/ the appropriate header:
         let id = getNewCallID()
@@ -38,7 +39,11 @@ export default function RPCTools(osap) {
         payload[0] = PK.DEST
         payload[1] = RPC.CALL_REQ
         payload[2] = id
-        TS.write(TS.keyToString(info.argKey), arg, payload, 3)
+        // we'll be writing multiples... 
+        for(let a = 0; a < info.argLen; a ++){
+          TS.write(TS.keyToString(info.argKey), arg[a], payload, 3 + a * (info.argSize / info.argLen))
+        }
+        // TS.write(TS.keyToString(info.argKey), arg, payload, 3)
         console.warn(`payload with ${arg} as `, payload)
         let datagram = PK.writeDatagram(info.route, payload)
         // aaand we can ship it, then await ?
@@ -51,7 +56,16 @@ export default function RPCTools(osap) {
             id: id,
             onResponse: function (data) {
               clearTimeout(timeout)
-              resolve(TS.read(TS.keyToString(info.retKey), data, 0))
+              if(info.retLen > 1){
+                let retVals = []
+                for(let r = 0; r < info.retLen; r ++){
+                  retVals.push(TS.read(TS.keyToString(info.retKey), data, r * (info.retSize / info.retLen)))
+                }
+                console.warn(`resolving multiples, `, retVals)
+                resolve(retVals)
+              } else {
+                resolve(TS.read(TS.keyToString(info.retKey), data, 0))
+              }
             }
           })
         })
